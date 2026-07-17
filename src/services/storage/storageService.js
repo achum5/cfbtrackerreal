@@ -25,12 +25,16 @@ import {
   saveSocialFeedToSubcollection,
   saveSocialCharacterShards,
   getRecruitingDatabaseSubcollection,
-  saveRecruitingDatabaseSubcollection
+  saveRecruitingDatabaseSubcollection,
+  getWeekRecapsSubcollection,
+  getSocialFeedSubcollection,
+  getSocialCharactersSubcollection
 } from '../dynastyService';
 import {
   isSeasonalField,
   splitSeasonalUpdateByYear,
-  writeSeasonalUpdate
+  writeSeasonalUpdate,
+  getSeasonsSubcollection
 } from '../seasonSubcollection';
 
 // Storage type constants (per dynasty)
@@ -778,9 +782,27 @@ export const storageService = {
 
       // Pull subcollections — these are the actual game data. If this
       // step fails, we abort BEFORE deleting the cloud copy.
+      //
+      // CRITICAL: migrateDynastyToCloud fans EVERY heavy field out of the main
+      // doc into subcollections (players, games, seasons, weekRecaps,
+      // socialFeed, socialCharacters, recruitingDatabase) and deleteField()s
+      // them off the main doc. So `dynasty` (the main doc) no longer carries
+      // any of them — this cloud→local pull MUST read them all back or the
+      // local copy silently loses them. Previously it pulled only players,
+      // games, and the Recruiting Database, which dropped the seasons
+      // subcollection — including committed recruits (recruitsByTeamYear /
+      // recruitingCommitmentsByTeamYear / recruitingClassRankByTeamYear),
+      // schedules, standings, and awards — plus week recaps and social. The
+      // recruit loss surfaced as "my recruits don't show up in the cloud"
+      // after a local→cloud→local round-trip (e.g. a subscription lapse
+      // auto-export).
       let players = [];
       let games = [];
       let recruitingDatabasePlayers = [];
+      let seasonalFields = {};
+      let weekRecapsByYear = {};
+      let socialFeedByYear = {};
+      let socialCharacters = {};
       try {
         players = (await firebaseStorage.getPlayers(dynastyId)) || [];
         games = (await firebaseStorage.getGames(dynastyId)) || [];
@@ -792,7 +814,14 @@ export const storageService = {
         if (recruitingDatabasePlayers.length === 0 && dynasty.recruitingDatabasePlayers?.length > 0) {
           recruitingDatabasePlayers = dynasty.recruitingDatabasePlayers;
         }
-        log(`Pulled ${players.length} players + ${games.length} games + ${recruitingDatabasePlayers.length} Recruiting Database recruits from cloud subcollections for ${dynastyId}`);
+        // Seasons subcollection rehydrates back into the legacy ByYear /
+        // ByTeamYear field names (recruitsByTeamYear, schedulesByTeamYear,
+        // awardsByYear, etc.) — spread straight onto the local dynasty.
+        seasonalFields = (await getSeasonsSubcollection(dynastyId)) || {};
+        weekRecapsByYear = (await getWeekRecapsSubcollection(dynastyId)) || {};
+        socialFeedByYear = (await getSocialFeedSubcollection(dynastyId)) || {};
+        socialCharacters = (await getSocialCharactersSubcollection(dynastyId)) || {};
+        log(`Pulled ${players.length} players + ${games.length} games + ${recruitingDatabasePlayers.length} Recruiting Database recruits + ${Object.keys(seasonalFields).length} seasonal fields from cloud subcollections for ${dynastyId}`);
       } catch (subErr) {
         console.error('[Storage] Failed to fetch subcollections during migrate-to-local:', subErr);
         return {
@@ -802,13 +831,20 @@ export const storageService = {
       }
 
       // Create locally with the full payload embedded. Local (IndexedDB)
-      // dynasties keep recruitingDatabasePlayers as a plain field — no
-      // per-document size ceiling to dodge there.
+      // dynasties keep everything as plain fields — no per-document size
+      // ceiling to dodge there. Seasonal fields are spread first so that any
+      // same-named legacy field still on the main doc is superseded by the
+      // authoritative subcollection value (subcollection wins on overlap).
       const localDynasty = await indexedDBStorage.createDynasty({
         ...dynasty,
+        ...seasonalFields,
         players,
         games,
         recruitingDatabasePlayers,
+        // Merge week recaps: legacy main-doc union subcollection (sub wins).
+        weekRecapsByYear: { ...(dynasty.weekRecapsByYear || {}), ...weekRecapsByYear },
+        socialFeedByYear: { ...(dynasty.socialFeedByYear || {}), ...socialFeedByYear },
+        socialCharacters: { ...(dynasty.socialCharacters || {}), ...socialCharacters },
         storageType: STORAGE_TYPE.LOCAL,
         _subcollectionsMigrated: undefined, // local format doesn't use this flag
       });
