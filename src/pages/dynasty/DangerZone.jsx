@@ -2480,14 +2480,7 @@ export default function DangerZone() {
           + committed recruits from another of the user's saves into this one.
           Additive only. Built for "switched local→cloud, roster/recruits empty". */}
       <Card>
-        <h3 className="label-sm text-txt-primary m-0 mb-2">Recover Data from Another Save</h3>
-        <p className="text-xs text-txt-secondary m-0 mb-3">
-          Roster or recruits missing from this save (e.g. after switching it from local
-          to cloud)? Copy the <strong className="text-txt-primary">roster</strong>, Recruiting
-          Database, and committed recruits from another of your saves that still has them.
-          This only <strong className="text-txt-primary">adds</strong> data —
-          nothing in this dynasty is deleted or overwritten.
-        </p>
+        <h3 className="label-sm text-txt-primary m-0 mb-3">Recover Data from Another Save</h3>
         <div className="flex flex-col sm:flex-row gap-2">
           <select
             value={recoverRecruitSourceId}
