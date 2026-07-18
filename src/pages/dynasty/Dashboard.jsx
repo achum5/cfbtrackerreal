@@ -24,6 +24,8 @@ import DropdownSelect from '../../components/DropdownSelect'
 import ScheduleEntryModal from '../../components/ScheduleEntryModal'
 import RosterEntryModal from '../../components/RosterEntryModal'
 import TeamRatingsModal from '../../components/TeamRatingsModal'
+import TeamOverallsSheetModal from '../../components/TeamOverallsSheetModal'
+import { getTeamRatingsForYear } from '../../context/DynastyContext'
 // GameEntryModal and GameDetailModal removed - now using game pages instead
 import ConferenceChampionshipModal from '../../components/ConferenceChampionshipModal'
 import CoachingStaffModal from '../../components/CoachingStaffModal'
@@ -491,6 +493,7 @@ export default function Dashboard() {
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showRosterModal, setShowRosterModal] = useState(false)
   const [showTeamRatingsModal, setShowTeamRatingsModal] = useState(false)
+  const [showTeamOverallsSheet, setShowTeamOverallsSheet] = useState(false)
   const [showCoachingStaffModal, setShowCoachingStaffModal] = useState(false)
   // showGameModal and showGameDetailModal removed - now using game pages instead
   const [showCCModal, setShowCCModal] = useState(false)
@@ -3816,6 +3819,26 @@ export default function Dashboard() {
               onAction: () => setShowTeamRatingsModal(true),
               actionLabel: teamPreseasonSetup?.teamRatingsEntered ? 'Edit' : 'Add',
             })
+
+            // All Team Overalls — one sheet for every school's OVR/OFF/DEF,
+            // instead of clicking through All Teams one school at a time.
+            // Optional (not required to advance); done when every FBS team
+            // has an overall recorded for this season.
+            {
+              const allFbs = Object.values(currentDynasty.teams || {})
+                .filter(t => t && t.name && !t.isFCS)
+              const filled = allFbs.filter(t =>
+                getTeamRatingsForYear(currentDynasty, t.tid, preseasonYear)?.overall != null
+              ).length
+              todos.push({
+                key: 'all-team-overalls',
+                done: allFbs.length > 0 && filled >= allFbs.length,
+                title: 'Enter All Team Overalls',
+                subtitle: `${filled}/${allFbs.length} teams — powers the Sportsbook & sim accuracy`,
+                onAction: () => setShowTeamOverallsSheet(true),
+                actionLabel: filled > 0 ? 'Edit' : 'Enter',
+              })
+            }
 
             // Coordinators (HC, first year only)
             if (currentDynasty.coachPosition === 'HC' && isFirstYearOnTeam(currentDynasty)) {
@@ -8456,6 +8479,12 @@ export default function Dashboard() {
         onSave={handleTeamRatingsSave}
         teamColors={teamColors}
         currentRatings={teamRatings}
+      />
+
+      <TeamOverallsSheetModal
+        isOpen={showTeamOverallsSheet}
+        onClose={() => setShowTeamOverallsSheet(false)}
+        year={Number(currentDynasty.currentYear)}
       />
 
       <CoachingStaffModal

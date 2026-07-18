@@ -16230,6 +16230,65 @@ export function DynastyProvider({ children }) {
     }
   }
 
+  // Bulk team-ratings save — the "Team Overalls sheet". One updateDynasty
+  // call writes every passed team's { overall, offense, defense } for the
+  // year, instead of one save per school via saveTeamYearInfo (which is what
+  // forced users to click through All Teams team by team). Mirrors the
+  // ratings branch of saveTeamYearInfo exactly: canonical store is
+  // teams[tid].byYear[year].teamRatings, dual-keyed legacy mirror in
+  // teamRatingsByTeamYear, and dynasty.teamRatings for the user's current
+  // team+year (that's what getTeamRatingsForYear reads first for that team).
+  const saveAllTeamRatings = async (dynastyId, year, ratingsByTid) => {
+    if (blockIfReadOnly(dynastyId, 'save team overalls')) return
+    const dynasty = await findDynastyById(dynastyId)
+    if (!dynasty) {
+      console.error('Dynasty not found:', dynastyId)
+      return
+    }
+    const entries = Object.entries(ratingsByTid || {}).filter(([, r]) =>
+      r && (r.overall != null || r.offense != null || r.defense != null)
+    )
+    if (entries.length === 0) return { saved: 0 }
+
+    const useLocalStorage = dynasty.storageType !== 'cloud'
+    const yr = Number(year)
+    const userTid = Number(getCurrentTeamTid(dynasty))
+    const isCurrentYear = yr === Number(dynasty.currentYear)
+    const updates = {}
+
+    if (useLocalStorage) {
+      const teams = { ...(dynasty.teams || {}) }
+      const byTeamYear = { ...(dynasty.teamRatingsByTeamYear || {}) }
+      for (const [tidStr, r] of entries) {
+        const tid = Number(tidStr)
+        const teamData = teams[tid] || {}
+        const byYear = teamData.byYear || {}
+        teams[tid] = {
+          ...teamData,
+          byYear: { ...byYear, [yr]: { ...(byYear[yr] || {}), teamRatings: r } },
+        }
+        const abbr = teamData.abbr || getAbbrFromTid(dynasty.teams, tid)
+        byTeamYear[tid] = { ...(byTeamYear[tid] || {}), [yr]: r }
+        if (abbr && abbr !== String(tid)) {
+          byTeamYear[abbr] = { ...(byTeamYear[abbr] || {}), [yr]: r }
+        }
+        if (tid === userTid && isCurrentYear) updates.teamRatings = r
+      }
+      updates.teams = teams
+      updates.teamRatingsByTeamYear = byTeamYear
+    } else {
+      for (const [tidStr, r] of entries) {
+        const tid = Number(tidStr)
+        updates[`teams.${tid}.byYear.${yr}.teamRatings`] = r
+        Object.assign(updates, buildByTeamYearUpdates('teamRatingsByTeamYear', dynasty, tid, yr, r))
+        if (tid === userTid && isCurrentYear) updates.teamRatings = r
+      }
+    }
+
+    await updateDynasty(dynastyId, updates)
+    return { saved: entries.length }
+  }
+
   // Persist an end-of-season Staff Moves board: store the season's carousel
   // list AND fold every coach into the real cid coach-entity model (tid-by-year
   // + HC/OC/DC), bridging legacy staff names and re-deriving the security index.
@@ -19227,6 +19286,7 @@ export function DynastyProvider({ children }) {
     saveRoster,
     saveTeamRatings,
     saveTeamYearInfo,
+    saveAllTeamRatings,
     saveCoachingStaff,
     saveStaffMoves,
     updatePlayer,
