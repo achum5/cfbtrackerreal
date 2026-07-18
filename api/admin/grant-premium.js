@@ -70,7 +70,8 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ ok: true, action: 'revoked' });
   } catch (err) {
+    // Log details server-side, return a generic message (audit M6).
     console.error('[admin/grant-premium] failed:', err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Grant failed — check server logs.' });
   }
 }

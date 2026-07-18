@@ -81,12 +81,29 @@ export default async function handler(req, res) {
       ref.collection('recruitingDatabase').get(),
     ]);
 
-    const { id: _ignored, ...mainData } = mainSnap.data();
+    // Public projection: strip internal identifiers before serving to
+    // anonymous viewers. The owner's uid, member uid arrays, uid→team map,
+    // and the last invite token are none of a viewer's business, and the
+    // view page never reads them (verified: ViewDynastyContext consumes only
+    // gameplay fields).
+    const {
+      id: _ignored,
+      userId: _userId,
+      editors: _editors,
+      coCommishes: _coCommishes,
+      memberTeams: _memberTeams,
+      lastRedemption: _lastRedemption,
+      ...mainData
+    } = mainSnap.data();
 
-    // The `v` param is part of the cache key, so a long TTL is safe: any
-    // owner edit bumps lastModified → new v → new cache entry. The TTL only
-    // bounds how long an ABANDONED version lingers in the edge cache.
-    res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=60');
+    // The `v` param is part of the cache key, so any owner edit bumps
+    // lastModified → new v → new cache entry, and viewers never see stale
+    // CONTENT. The TTL instead bounds how long a link keeps serving after the
+    // owner turns sharing OFF (revocation): a cached response needs no
+    // Firestore re-check, so it outlives the isPublic flip. 5 minutes keeps
+    // nearly all of the cost win (a viral link still costs at most one
+    // Firestore read per 5 min per version) while capping the unshare lag.
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=60');
     return res.status(200).json({
       mainDoc: { id: dynastyId, ...normalizeTimestamps(mainData) },
       players: rowsOf(players),

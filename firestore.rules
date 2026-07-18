@@ -158,12 +158,15 @@ service cloud.firestore {
       // bill). Co-commishes shepherd the league: they may edit gameplay
       // data and manage members (editors / memberTeams), but may NOT
       // promote/demote co-commishes (commish-only) or change ownership.
+      // isPublic/shareCode are owner-only (rules principle #4): without this
+      // guard any invited member could publish the whole league to the world
+      // (every subcollection's anonymous read keys off isPublic == true).
       allow update: if isSignedIn()
                     && !isOwner(resource.data.userId)
                     && request.auth.uid in resource.data.get('coCommishes', [])
                     && request.resource.data.userId == resource.data.userId
                     && !request.resource.data.diff(resource.data).affectedKeys()
-                          .hasAny(['coCommishes', 'userId']);
+                          .hasAny(['coCommishes', 'userId', 'isPublic', 'shareCode']);
 
       // Regular member write — premium NOT required. Members write gameplay
       // data (scores, rankings, ready-state) and may claim their own team
@@ -177,7 +180,7 @@ service cloud.firestore {
                     && !(request.auth.uid in resource.data.get('coCommishes', []))
                     && request.resource.data.userId == resource.data.userId
                     && !request.resource.data.diff(resource.data).affectedKeys()
-                          .hasAny(['editors', 'coCommishes', 'userId']);
+                          .hasAny(['editors', 'coCommishes', 'userId', 'isPublic', 'shareCode']);
 
       // Member self-leave — any member may drop ONLY their own uid from the
       // membership arrays (editors/coCommishes) and their memberTeams slot.

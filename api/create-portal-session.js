@@ -37,7 +37,9 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ url: session.url });
   } catch (error) {
+    // Log details server-side, return a generic message (audit M6) — raw
+    // Stripe/SDK errors can leak internal identifiers.
     console.error('Error creating portal session:', error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: 'Could not open the billing portal. Please try again.' });
   }
 }
