@@ -7733,10 +7733,23 @@ export function DynastyProvider({ children }) {
         }
       }
 
+      // Half-deleted dynasties: a teardown that died partway leaves the main
+      // doc alive with some subcollections already gone. It's tombstoned with
+      // _deleting — hide it (never resurrect a gutted dynasty in the list)
+      // and quietly finish the teardown in the background. Idempotent: the
+      // retry deletes whatever remains and then the main doc.
+      const deletingDocs = firestoreDynasties.filter(d => d._deleting === true)
+      const liveFirestoreDynasties = firestoreDynasties.filter(d => d._deleting !== true)
+      for (const doomed of deletingDocs) {
+        deleteDynastyWithSubcollections(doomed.id).catch(err => {
+          console.warn(`[listener] retrying teardown of half-deleted dynasty ${doomed.id} failed:`, err?.message)
+        })
+      }
+
       // LAZY LOADING OPTIMIZATION: Only load subcollections for dynasties that are already loaded
       // or currently selected. This reduces Firestore reads significantly for users with many dynasties.
       const cloudDynastiesWithSubcollections = await Promise.all(
-        firestoreDynasties.map(async (dynasty) => {
+        liveFirestoreDynasties.map(async (dynasty) => {
           try {
             // Tag as cloud storage
             const taggedDynasty = { ...dynasty, storageType: 'cloud' }
@@ -7990,6 +8003,24 @@ export function DynastyProvider({ children }) {
             }
           } catch (err) {
             console.error(`Error loading subcollections for dynasty ${dynasty.id}:`, err)
+            // Preserve already-hydrated heavy fields from current state: the
+            // raw main doc has NO players/games (deleteField'd at migration),
+            // so returning it bare would blank a loaded dynasty's roster in
+            // setDynasties below — and loadedDynastyIdsRef was already set by
+            // the earlier successful load, so nothing would re-hydrate it.
+            // A transient read error must degrade to "stale", never "empty".
+            // (Same pattern as the shared-dynasties listener.)
+            const prior = dynastiesStateRef.current.find(d => String(d.id) === String(dynasty.id))
+            if (prior && (prior.players || prior.games)) {
+              return {
+                ...dynasty,
+                storageType: 'cloud',
+                players: prior.players,
+                games: prior.games,
+                weekRecapsByYear: prior.weekRecapsByYear,
+                recruitingDatabasePlayers: prior.recruitingDatabasePlayers,
+              }
+            }
             return { ...dynasty, storageType: 'cloud' }
           }
         })
@@ -8250,8 +8281,14 @@ export function DynastyProvider({ children }) {
         if (cancelled) return
 
         // Reload all dynasties so the UI reflects the migrated copies.
+        // Dedup: the export keeps the cloud copy (deleteFromCloud:false) and
+        // the local copy keeps the SAME id, so the raw concat holds both —
+        // rendering two cards per dynasty (one read-only). Apply the same
+        // local-wins-for-free-users rule the listener merge uses.
         const all = await storageService.getDynasties()
-        if (!cancelled) setDynasties(all)
+        const localIds = new Set(all.filter(d => d.storageType !== 'cloud').map(d => String(d.id)))
+        const deduped = all.filter(d => d.storageType !== 'cloud' || !localIds.has(String(d.id)))
+        if (!cancelled) setDynasties(deduped)
 
         if (result?.migratedCount > 0) {
           toast.info(
@@ -8314,8 +8351,12 @@ export function DynastyProvider({ children }) {
         // backup so a re-subscribe (or another device) still has the source.
         const result = await storageService.migrateToLocal({ deleteFromCloud: false })
         if (cancelled) return
+        // Same local-wins dedup as the cancellation path above — the export
+        // leaves a cloud copy with the SAME id as the new local copy.
         const all = await storageService.getDynasties()
-        if (!cancelled) setDynasties(all)
+        const localIds = new Set(all.filter(d => d.storageType !== 'cloud').map(d => String(d.id)))
+        const deduped = all.filter(d => d.storageType !== 'cloud' || !localIds.has(String(d.id)))
+        if (!cancelled) setDynasties(deduped)
         if (result?.migratedCount > 0) {
           toast.info(
             `Your free premium ended — ${result.migratedCount} cloud ${result.migratedCount === 1 ? 'dynasty' : 'dynasties'} copied to this device.`
@@ -8801,7 +8842,15 @@ export function DynastyProvider({ children }) {
             },
           })
         } catch (err) {
-          console.warn('[createDynasty] failed to seed players subcollection:', err)
+          // Do NOT swallow this: the main doc already exists with players:[]
+          // and _subcollectionsMigrated, so proceeding would show the seeded
+          // roster from memory while the SERVER has none — on the next reload
+          // (or any other device) the entire roster silently vanishes. Tear
+          // down the half-created doc and fail the create loudly so the user
+          // simply retries.
+          console.error('[createDynasty] failed to seed players subcollection:', err)
+          try { await deleteDynastyWithSubcollections(newDynasty.id) } catch (_) { /* orphan; harmless */ }
+          throw new Error(`Could not save the roster to the cloud (${err?.message || 'network error'}). Nothing was created — please try again.`)
         }
       }
       await report('Finalizing…', 98)
@@ -9340,8 +9389,33 @@ export function DynastyProvider({ children }) {
         // Main-doc size guard. Large fields kept on the main doc — chiefly the
         // (Main-doc size guard runs earlier, before any subcollection write is
         // dispatched — see the top of this cloud branch.)
-        writePromises.push(updateDynastyInFirestore(dynastyId, mainDocUpdates))
+        //
+        // CALENDAR ordering: when this update moves the season clock
+        // (currentYear / currentPhase / currentWeek — i.e. advanceWeek /
+        // advanceToNewSeason), the main-doc write must not land before the
+        // accompanying subcollection writes (players/seasonal). Parallel
+        // writes meant a fast subcollection failure could leave the server
+        // calendar advanced past roster/season data that never persisted — a
+        // half-advanced season. Sequence it: subcollections first, main doc
+        // only after they succeed. Normal (non-calendar) saves keep the
+        // parallel fast path.
+        const isCalendarWrite = ['currentYear', 'currentPhase', 'currentWeek']
+          .some(k => k in mainDocUpdates)
+        if (isCalendarWrite && subcollectionPromises.length > 0) {
+          writePromises.length = 0
+          writePromises.push(
+            Promise.all(subcollectionPromises).then(() => updateDynastyInFirestore(dynastyId, mainDocUpdates))
+          )
+        } else {
+          writePromises.push(updateDynastyInFirestore(dynastyId, mainDocUpdates))
+        }
       }
+
+      // Swallow-proof: Promise.all rejects on the FIRST failure; any sibling
+      // that rejects afterwards would surface as an unhandledrejection with
+      // no handler. Attach a no-op catch to each (doesn't affect Promise.all,
+      // which subscribes separately).
+      for (const p of writePromises) p.catch(() => {})
 
       // Don't block the save UI forever if the server ack never arrives (wedged
       // WebChannel connection). persistentLocalCache has already durably stored
@@ -9455,6 +9529,14 @@ export function DynastyProvider({ children }) {
         : prev)
     } catch (error) {
       console.error('Error updating dynasty:', error)
+      // Surface a lapsed-premium rejection as an actionable message. The
+      // client's isPremium flag only refreshes when the users/{uid} doc
+      // changes, but rules evaluate currentPeriodEnd against request.time —
+      // a clock-only expiry means the client still THINKS it's premium while
+      // the server rejects every write. Without this the edit just vanished.
+      if (error?.code === 'permission-denied') {
+        try { toast.error('Save rejected — your premium may have expired. Check Account, then reload.') } catch (_) {}
+      }
       throw error
     }
   }
@@ -18767,6 +18849,21 @@ export function DynastyProvider({ children }) {
     const guard = () => skipListenerUpdatesCountRef.current === 0 && !phaseTransitionInProgressRef.current
     const apply = (patch) => {
       if (!patch || !Object.keys(patch).length) return
+      // Recent-write protection (same rule as the owner path's
+      // reconcileWithRecentWrites): a server re-read racing this editor's
+      // own just-saved roster/games must not revert them with a stale copy.
+      const now = Date.now()
+      if (patch.players
+          && String(lastPlayersUpdateDynastyIdRef.current) === String(dynId)
+          && (now - lastPlayersUpdateTimestampRef.current) < RECENT_WRITE_PROTECTION_MS) {
+        delete patch.players
+      }
+      if (patch.games
+          && String(lastGamesUpdateDynastyIdRef.current) === String(dynId)
+          && (now - lastGamesUpdateTimestampRef.current) < RECENT_WRITE_PROTECTION_MS) {
+        delete patch.games
+      }
+      if (!Object.keys(patch).length) return
       setSharedDynasties(prev => prev.map(d => String(d.id) === String(dynId) ? { ...d, ...patch } : d))
       setCurrentDynasty(prev => (prev && String(prev.id) === String(dynId)) ? { ...prev, ...patch } : prev)
     }
@@ -18799,6 +18896,20 @@ export function DynastyProvider({ children }) {
       return
     }
     const unsub = subscribeToSharedDynasties(user.uid, (leagues) => {
+      // Drain the write-echo skip counter here too. updateDynasty sets it to
+      // 3 on EVERY cloud write, but only the OWNER listener decremented it —
+      // a shared write never fires that listener for the writer, so a
+      // non-owner editor who owns no cloud dynasties had the counter stuck
+      // at 3 forever: this whole callback's live-sync stayed gated OFF and
+      // they never saw teammates' changes again until a reload.
+      if (skipListenerUpdatesCountRef.current > 0) {
+        if (Date.now() - skipListenerTimestampRef.current > 300000) {
+          skipListenerUpdatesCountRef.current = 0
+        } else {
+          skipListenerUpdatesCountRef.current--
+          return
+        }
+      }
       const tagged = leagues
         .filter(d => d.userId !== user.uid)
         .map(d => ({ ...d, storageType: 'cloud' }))
@@ -18833,7 +18944,11 @@ export function DynastyProvider({ children }) {
             if (ALL_SEASONAL_FIELD_NAMES.includes(k)) continue
             merged[k] = v
           }
-          return merged
+          // Same stale-echo protection the owner path gets: a snapshot
+          // arriving within the recent-write window must not revert fields
+          // this editor just saved (skip-counter drain alone is shorter than
+          // the 20s durability window).
+          return reconcileWithRecentWrites(merged, prev)
         })
         // Only re-pull subcollections when THIS shared dynasty's main doc
         // advanced (a teammate wrote to it). When the fire was caused by a

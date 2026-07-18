@@ -1,30 +1,39 @@
+import { useEffect, useState } from 'react'
 import { useCloudSyncStatus } from '../hooks/useCloudSyncStatus'
 
-// A persistent, hard-to-miss banner shown whenever a cloud write hasn't reached
-// the server within the stalled window. This is the visible counterpart to the
-// silent settleOrProceed grace period: without it, a device whose sync
-// connection is wedged (VPN/proxy, flaky network, or a second tab holding the
-// single-tab persistence lease) keeps showing "saved" while nothing uploads,
-// and the divergence is only discovered on another device. Text-based, no
-// decorative icons, per the project UI guidelines.
+// A persistent, hard-to-miss banner shown while the browser is genuinely
+// OFFLINE. This is the visible counterpart to the silent settleOrProceed
+// grace period: offline writes are durably queued by persistentLocalCache and
+// still show "saved", but they only exist on THIS device until it reconnects —
+// closing the browser forever, clearing site data, or switching devices before
+// then loses them. Text-based, no decorative icons, per the project UI
+// guidelines.
+//
+// NOTE: the earlier version of this banner keyed off stalled server ACKS and
+// false-positived badly (a wedged WebChannel stops acks even though writes
+// are safe and still syncing), so it was disabled. navigator.onLine cannot
+// false-positive that way: offline is offline. The stalled-ack detection
+// stays suppressed; the cloudSyncStatus store is kept for a future revisit.
 export default function CloudSyncBanner() {
-  const { stalled, stalledCount } = useCloudSyncStatus()
+  // Subscribed for the store side effects / future stalled revisit; the
+  // stalled signal is deliberately unused (see note above).
+  useCloudSyncStatus()
+  const [online, setOnline] = useState(() =>
+    typeof navigator === 'undefined' ? true : navigator.onLine
+  )
 
-  // DISABLED: this banner false-positives. With `persistentLocalCache` every
-  // write is durably saved to IndexedDB the instant it's issued and the SDK
-  // keeps retrying delivery on its own, so a stalled SERVER ACK (the only thing
-  // this banner detects) does NOT mean the data is lost or won't reach the
-  // cloud. When the WebChannel wedges (a second tab holding the single-tab
-  // lease, a proxy/VPN), acks stop arriving to THIS tab even though writes are
-  // safe and still syncing — surfacing a scary "951 changes haven't reached the
-  // cloud / could be lost" message that isn't true. Suppress it. The underlying
-  // cloudSyncStatus store is left intact so this is a one-line revert.
-  return null
+  useEffect(() => {
+    const goOnline = () => setOnline(true)
+    const goOffline = () => setOnline(false)
+    window.addEventListener('online', goOnline)
+    window.addEventListener('offline', goOffline)
+    return () => {
+      window.removeEventListener('online', goOnline)
+      window.removeEventListener('offline', goOffline)
+    }
+  }, [])
 
-  // eslint-disable-next-line no-unreachable
-  if (!stalled) return null
-
-  const changes = stalledCount === 1 ? 'A recent change is' : `${stalledCount} recent changes are`
+  if (online) return null
 
   return (
     <div
@@ -35,12 +44,12 @@ export default function CloudSyncBanner() {
     >
       <div className="max-w-3xl mx-auto text-center">
         <p className="text-sm font-semibold text-amber-50">
-          Not synced to the cloud
+          You&apos;re offline
         </p>
         <p className="text-xs text-amber-100/90 mt-0.5 leading-relaxed">
-          {changes} saved on this device but haven&apos;t reached the cloud yet. Keep this
-          tab open on a stable connection — turn off any VPN and close extra tracker tabs.
-          Don&apos;t clear this browser&apos;s data until it syncs, or those changes could be lost.
+          Changes are being saved on this device and will sync to the cloud when
+          your connection returns. Until then they exist only here — don&apos;t clear
+          this browser&apos;s data, and reconnect before switching devices.
         </p>
       </div>
     </div>

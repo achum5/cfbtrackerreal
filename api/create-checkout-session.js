@@ -62,6 +62,25 @@ export default async function handler(req, res) {
   const userEmail = decoded.email;
 
   try {
+    // Comped-user guard: an account with an active admin/dev premium grant
+    // (_devGranted, no Stripe subscription) must never reach a paid checkout —
+    // they'd be charged for something they already have free, and the
+    // resulting Stripe subscription would then be ignored by the webhook's
+    // dev-grant shield, leaving billing state drifted. The UI hides the
+    // upgrade button for them, but guard the API too.
+    const userSnap = await db.collection('users').doc(userId).get();
+    const userData = userSnap.exists ? userSnap.data() : null;
+    if (userData?._devGranted) {
+      const endRaw = userData.currentPeriodEnd;
+      const endMs = endRaw?.toMillis ? endRaw.toMillis()
+        : (endRaw?.seconds ? endRaw.seconds * 1000
+          : (endRaw ? new Date(endRaw).getTime() : null));
+      if (endMs == null || endMs > Date.now()) {
+        console.log(`[checkout] user ${userId} has an active free grant — no checkout created`);
+        return res.status(200).json({ alreadySubscribed: true, comped: true });
+      }
+    }
+
     const customerId = await getOrCreateCustomerId(userId, userEmail);
 
     // Double-charge guard + self-heal: if this customer ALREADY has a live

@@ -115,27 +115,57 @@ export async function getUserDynasties(userId) {
   }
 }
 
+// Resubscribing onSnapshot wrapper: when the SDK invokes a listener's error
+// handler the listener is TERMINATED and never auto-reconnects — a transient
+// `unavailable`, an auth-token hiccup, or a rules deploy would silently kill
+// realtime sync for the rest of the session (writes still "succeed" locally,
+// so two editors could diverge without ever knowing). Re-subscribe with
+// exponential backoff instead. Returns an unsubscribe that also cancels any
+// pending retry.
+function resubscribingSnapshot(makeQuery, onSnap, label) {
+  let stopped = false
+  let retryTimer = null
+  let attempt = 0
+  let unsubscribe = () => {}
+  const start = () => {
+    if (stopped) return
+    unsubscribe = onSnapshot(makeQuery(), (snapshot) => {
+      attempt = 0 // healthy again — reset backoff
+      onSnap(snapshot)
+    }, (error) => {
+      console.error(`Error in ${label} subscription (will resubscribe):`, error?.code || error)
+      if (stopped) return
+      const delay = Math.min(5000 * 2 ** attempt, 120000) // 5s → 2min cap
+      attempt++
+      retryTimer = setTimeout(start, delay)
+    })
+  }
+  start()
+  return () => {
+    stopped = true
+    if (retryTimer) clearTimeout(retryTimer)
+    unsubscribe()
+  }
+}
+
 // Subscribe to real-time updates for user's dynasties
 export function subscribeToDynasties(userId, callback) {
-  const q = query(
-    collection(db, DYNASTIES_COLLECTION),
-    where('userId', '==', userId)
+  return resubscribingSnapshot(
+    () => query(collection(db, DYNASTIES_COLLECTION), where('userId', '==', userId)),
+    (snapshot) => {
+      const dynasties = snapshot.docs.map(doc => {
+        const data = doc.data()
+        // Remove any 'id' field from data to avoid conflicts with Firestore doc ID
+        const { id: _, ...cleanData } = data
+        return {
+          id: doc.id,  // Always use Firestore document ID
+          ...cleanData
+        }
+      })
+      callback(dynasties)
+    },
+    'dynasties'
   )
-
-  return onSnapshot(q, (snapshot) => {
-    const dynasties = snapshot.docs.map(doc => {
-      const data = doc.data()
-      // Remove any 'id' field from data to avoid conflicts with Firestore doc ID
-      const { id: _, ...cleanData } = data
-      return {
-        id: doc.id,  // Always use Firestore document ID
-        ...cleanData
-      }
-    })
-    callback(dynasties)
-  }, (error) => {
-    console.error('Error in dynasty subscription:', error)
-  })
 }
 
 /**
@@ -150,20 +180,18 @@ export function subscribeToSharedDynasties(userId, callback) {
     callback([])
     return () => {}
   }
-  const q = query(
-    collection(db, DYNASTIES_COLLECTION),
-    where('editors', 'array-contains', userId)
+  return resubscribingSnapshot(
+    () => query(collection(db, DYNASTIES_COLLECTION), where('editors', 'array-contains', userId)),
+    (snapshot) => {
+      const dynasties = snapshot.docs.map(doc => {
+        const data = doc.data()
+        const { id: _, ...cleanData } = data
+        return { id: doc.id, ...cleanData }
+      })
+      callback(dynasties)
+    },
+    'shared-dynasties'
   )
-  return onSnapshot(q, (snapshot) => {
-    const dynasties = snapshot.docs.map(doc => {
-      const data = doc.data()
-      const { id: _, ...cleanData } = data
-      return { id: doc.id, ...cleanData }
-    })
-    callback(dynasties)
-  }, (error) => {
-    console.error('Error in shared-dynasties subscription:', error)
-  })
 }
 
 // Create a new dynasty
@@ -2115,16 +2143,35 @@ async function deleteSubcollection(dynastyId, subcollectionName) {
  */
 export async function deleteDynastyWithSubcollections(dynastyId) {
   try {
-    await Promise.all([
-      deleteSubcollection(dynastyId, PLAYERS_SUBCOLLECTION),
-      deleteSubcollection(dynastyId, GAMES_SUBCOLLECTION),
-      deleteSubcollection(dynastyId, WEEK_RECAPS_SUBCOLLECTION),
-      deleteSubcollection(dynastyId, SEASONS_SUBCOLLECTION),
-      deleteSubcollection(dynastyId, INVITES_SUBCOLLECTION),
-      deleteSubcollection(dynastyId, SOCIAL_FEED_SUBCOLLECTION),
-      deleteSubcollection(dynastyId, SOCIAL_CHARACTERS_SUBCOLLECTION),
-      deleteSubcollection(dynastyId, RECRUITING_DATABASE_SUBCOLLECTION),
-    ])
+    // Tombstone FIRST (best-effort): a teardown that dies partway (network
+    // drop, one subcollection delete rejected) leaves the parent doc alive
+    // with some subcollections already gone — the dynasty then "reappears"
+    // in the list half-wiped (roster deleted, doc intact). The _deleting
+    // flag lets the listener hide it and retry the teardown instead of
+    // resurrecting a gutted dynasty. Best-effort because a lapsed-premium
+    // owner may lack update permission while still being allowed to delete.
+    try {
+      await updateDoc(doc(db, DYNASTIES_COLLECTION, dynastyId), { _deleting: true })
+    } catch (_) { /* proceed without tombstone */ }
+
+    // allSettled so one failure doesn't abort siblings mid-flight — then
+    // require ALL to have succeeded before removing the parent doc (rules
+    // on subcollection deletes need the parent to still exist).
+    const names = [
+      PLAYERS_SUBCOLLECTION,
+      GAMES_SUBCOLLECTION,
+      WEEK_RECAPS_SUBCOLLECTION,
+      SEASONS_SUBCOLLECTION,
+      INVITES_SUBCOLLECTION,
+      SOCIAL_FEED_SUBCOLLECTION,
+      SOCIAL_CHARACTERS_SUBCOLLECTION,
+      RECRUITING_DATABASE_SUBCOLLECTION,
+    ]
+    const results = await Promise.allSettled(names.map(n => deleteSubcollection(dynastyId, n)))
+    const failed = names.filter((_, i) => results[i].status === 'rejected')
+    if (failed.length > 0) {
+      throw new Error(`Could not delete: ${failed.join(', ')} — the dynasty was kept and will finish deleting on next load`)
+    }
     await deleteDoc(doc(db, DYNASTIES_COLLECTION, dynastyId))
   } catch (error) {
     console.error('Error deleting dynasty with subcollections:', error)

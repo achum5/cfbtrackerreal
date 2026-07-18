@@ -178,14 +178,42 @@ export function AuthProvider({ children }) {
     // premium status to localStorage so the next cold start can serve
     // it optimistically — keeps premium users from flashing non-premium
     // on mobile reopens while the listener reconnects.
+    // Clock-expiry timer: isPremiumSubscription compares currentPeriodEnd to
+    // NOW, but it's only re-evaluated when a NEW snapshot arrives. If premium
+    // lapses purely by the clock (webhook delayed/missing), the client keeps
+    // isPremium=true while Firestore rules (which check request.time) reject
+    // every write — edits then silently roll back. Re-derive on a timer so
+    // the client demotes itself on schedule even with no doc change.
+    let expiryTimer = null
+    const scheduleExpiryCheck = (subData) => {
+      if (expiryTimer) { clearTimeout(expiryTimer); expiryTimer = null }
+      if (!subData || !isPremiumSubscription(subData)) return
+      const cpe = subData.currentPeriodEnd
+      if (!cpe) return
+      const endMs = cpe.toDate ? cpe.toDate().getTime() : new Date(cpe).getTime()
+      if (!Number.isFinite(endMs)) return
+      // Fire shortly after expiry; cap the wait (setTimeout overflows past
+      // ~24 days, and long sessions can just re-chain) and re-chain if the
+      // deadline is still ahead when the timer fires.
+      const delay = Math.min(Math.max(endMs - Date.now() + 5000, 0), 6 * 60 * 60 * 1000)
+      expiryTimer = setTimeout(() => {
+        const stillPremium = isPremiumSubscription(subData)
+        setIsPremium(stillPremium)
+        writeCachedIsPremium(user.uid, stillPremium)
+        if (stillPremium) scheduleExpiryCheck(subData) // deadline not reached yet — re-chain
+      }, delay)
+    }
+
     subscriptionUnsubRef.current = subscribeToUserSubscription(user.uid, (subData) => {
       setSubscription(subData)
       const premium = isPremiumSubscription(subData)
       setIsPremium(premium)
       writeCachedIsPremium(user.uid, premium)
+      scheduleExpiryCheck(subData)
     })
 
     return () => {
+      if (expiryTimer) clearTimeout(expiryTimer)
       if (subscriptionUnsubRef.current) {
         subscriptionUnsubRef.current()
         subscriptionUnsubRef.current = null
