@@ -499,6 +499,28 @@ export default function LeaguePreferences() {
               <>
                 <button onClick={() => fileRef.current?.click()} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary">Import</button>
                 <input ref={fileRef} type="file" accept="application/json,.json" onChange={handleImportFile} className="hidden" />
+                {/* Deleting an account only tombstones its id (socialDeletedIds)
+                    — the character data itself is never removed. This clears
+                    the tombstone list, instantly restoring every account
+                    deleted from this page. */}
+                {(currentDynasty?.socialDeletedIds?.length > 0) && (
+                  <button
+                    onClick={async () => {
+                      const n = currentDynasty.socialDeletedIds.length
+                      if (!window.confirm(`Restore ${n} deleted account${n === 1 ? '' : 's'}?\n\nEvery account removed from this page comes back. Nothing else changes.`)) return
+                      try {
+                        await updateDynasty(currentDynasty.id, { socialDeletedIds: [], socialUpdatedAt: Date.now() })
+                        toast.success(`Restored ${n} account${n === 1 ? '' : 's'}.`)
+                      } catch (err) {
+                        console.error('[LeaguePreferences] restore deleted accounts failed:', err)
+                        toast.error('Could not restore accounts — try again.')
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary"
+                  >
+                    Restore deleted ({currentDynasty.socialDeletedIds.length})
+                  </button>
+                )}
               </>
             )}
           </div>

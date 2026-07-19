@@ -35,6 +35,21 @@ describe('parseRecruitingRow — legacy A–O parity', () => {
     expect(parseRecruitingRow(['', 'HS', 'QB'])).toBeNull()
     expect(parseRecruitingRows([legacyRow, [''], ['  ']])).toHaveLength(1)
   })
+
+  it('parses every star notation: outline, filled, mixed, and numeric', () => {
+    const rowWithStars = (cell) => ['Star Test', 'HS', 'QB', '', cell, '', '', '', '', '', '', '', '', '', '']
+    // Our own sheets write outline stars.
+    expect(parseRecruitingRow(rowWithStars('☆☆☆☆')).stars).toBe(4)
+    // Hand-typed / external tools use filled stars — used to parse as 0.
+    expect(parseRecruitingRow(rowWithStars('★★★★')).stars).toBe(4)
+    // Mixed ratings format: filled = rating, outline = empty remainder —
+    // used to parse as 1 (the "all recruits show 1 star" bug).
+    expect(parseRecruitingRow(rowWithStars('★★★★☆')).stars).toBe(4)
+    expect(parseRecruitingRow(rowWithStars('★★★☆☆')).stars).toBe(3)
+    // Plain digits work too.
+    expect(parseRecruitingRow(rowWithStars('5')).stars).toBe(5)
+    expect(parseRecruitingRow(rowWithStars('')).stars).toBe(0)
+  })
 })
 
 describe('parseRecruitingRow — recovers AI paste that drops empty Dev Trait / Prev Team', () => {

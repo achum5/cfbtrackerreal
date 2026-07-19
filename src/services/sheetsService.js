@@ -12362,10 +12362,20 @@ export async function refreshRecruitingSheetPrefill(spreadsheetId, recruits, dyn
   }
 }
 
-// Convert star symbols to number
+// Convert star symbols to number. Filled stars (★) win when present — in the
+// mixed ratings format "★★★★☆" the ☆ is the EMPTY remainder, and counting ☆
+// (the old behavior) turned a pasted 4-star into 1 and an all-filled entry
+// into 0 ("all recruits show 1 star or no stars"). Outline-only strings
+// (what our own sheets write) and plain numbers still parse.
 function starsSymbolToNumber(starsStr) {
   if (!starsStr) return 0
-  return (starsStr.match(/☆/g) || []).length
+  const str = String(starsStr)
+  const filled = (str.match(/★/g) || []).length
+  if (filled > 0) return Math.min(filled, 5)
+  const outline = (str.match(/☆/g) || []).length
+  if (outline > 0) return Math.min(outline, 5)
+  const n = parseInt(str, 10)
+  return Number.isFinite(n) ? Math.max(0, Math.min(n, 5)) : 0
 }
 
 // Read recruiting commitments from Google Sheet

@@ -52,7 +52,23 @@ export { colLetter }
 
 const NON_PORTAL_CLASSES = ['HS', 'JUCO Fr', 'JUCO So', 'JUCO Jr']
 
-const starsSymbolToNumber = (s) => (s ? (String(s).match(/☆/g) || []).length : 0)
+// Accept every star notation users actually paste: the app's own sheets
+// write outline stars ("☆☆☆☆"), but external tools and hand-typed cells use
+// filled stars ("★★★★") or the mixed ratings format ("★★★★☆" = 4 of 5).
+// Counting only ☆ made a filled-stars 4-star parse as 0 and the mixed format
+// parse as 1 — the "all my recruits show 1 star or no stars" bug. Filled
+// stars win when present (in the mixed format ☆ is the EMPTY remainder);
+// plain numbers ("4") work too.
+const starsSymbolToNumber = (s) => {
+  if (!s) return 0
+  const str = String(s)
+  const filled = (str.match(/★/g) || []).length
+  if (filled > 0) return Math.min(filled, 5)
+  const outline = (str.match(/☆/g) || []).length
+  if (outline > 0) return Math.min(outline, 5)
+  const n = parseInt(str, 10)
+  return Number.isFinite(n) ? Math.max(0, Math.min(n, 5)) : 0
+}
 const trim = (v) => (v != null ? String(v).trim() : '')
 const intOrNull = (v) => (v ? parseInt(v, 10) : null)
 
