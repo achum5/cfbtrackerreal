@@ -459,6 +459,10 @@ CRITICAL RULES — output format
 2. ONE ROW PER GAME. The sheet allows up to ${WEEKLY_SCORES_MAX_ROWS} rows. The screenshots are the SOURCE OF TRUTH for how many games to output (see EXHAUSTIVENESS above).
 3. TEAM NAMES ONLY (columns A and D). Use ONLY values from the TEAM NAMES list at the bottom of this prompt. Columns A and D are STRICT dropdowns — wrong text is rejected by the sheet.
 4. INTEGERS ONLY for scores — no decimals, no "pts", no commas. "24" never "1,234" never "24.0".
+   SCHEDULE-ONLY MODE: if the user sends the UPCOMING schedule (matchups with no
+   finals yet — e.g. the conference schedule screen), output the SAME rows with
+   BOTH score columns (C and F) left blank. Blank-score rows save as scheduled
+   games. Never invent scores; never write 0-0 for an unplayed game.
 5. RANKS FOR PLAYED TEAMS — transcribe, do not reason.
    For every team that appears in a game row (Col A or Col D), the rank is EXACTLY what the screenshot shows — the integer prefix next to the team name, or blank if there is no prefix. Copy the number you see; don't compute or adjust it.
 
@@ -999,7 +1003,11 @@ Don't just glance at this list. Physically execute each check on your draft.
     }
 
     await saveWeeklyScores(currentDynasty.id, games, year, week, rankWeek)
-    toast.success(`Saved ${newCount} game${newCount === 1 ? '' : 's'} for Week ${week}.`)
+    const schedCount = games.filter(g => g.homeScore == null && g.awayScore == null && g.homeTid && g.awayTid).length
+    const parts = []
+    if (newCount > 0 || schedCount === 0) parts.push(`${newCount} game${newCount === 1 ? '' : 's'}`)
+    if (schedCount > 0) parts.push(`${schedCount} scheduled matchup${schedCount === 1 ? '' : 's'}`)
+    toast.success(`Saved ${parts.join(' + ')} for Week ${week}.`)
     return true
   }
 

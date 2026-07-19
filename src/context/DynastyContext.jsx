@@ -11346,11 +11346,49 @@ export function DynastyProvider({ children }) {
       const homeTid = Number(row.homeTid)
       const awayTid = Number(row.awayTid)
       if (!homeTid || !awayTid || homeTid === awayTid) continue
-      if (typeof row.homeScore !== 'number' || typeof row.awayScore !== 'number') continue
+      // Blank-BOTH-scores rows are the upcoming-schedule paste (SCHEDULE-ONLY
+      // MODE in the AI prompt): saved below as SCHEDULED games so the week's
+      // matchups exist before they're played. Rows where only one side parsed
+      // stay skipped (malformed).
+      const isScheduleRow = row.homeScore == null && row.awayScore == null
+      if (!isScheduleRow && (typeof row.homeScore !== 'number' || typeof row.awayScore !== 'number')) continue
 
       const lo = Math.min(homeTid, awayTid)
       const hi = Math.max(homeTid, awayTid)
       const key = `${lo}-${hi}`
+
+      if (isScheduleRow) {
+        // Additive only: never touch a matchup that already has ANY game on
+        // file (played or scheduled) — the schedule paste fills gaps, it
+        // doesn't rewrite games.
+        if (existingByPair.get(key) || existingCCByPair.has(key)) continue
+        const schedHomeAbbr = getAbbrFromTid(dynasty.teams, homeTid) || row.homeTeam
+        const schedAwayAbbr = getAbbrFromTid(dynasty.teams, awayTid) || row.awayTeam
+        const schedHomeConf = schedHomeAbbr ? getTeamConference(schedHomeAbbr, customConferences) : null
+        const schedAwayConf = schedAwayAbbr ? getTeamConference(schedAwayAbbr, customConferences) : null
+        newByPair.set(key, {
+          id: idForGame(homeTid, awayTid),
+          year: yearNum,
+          week: weekNum,
+          gameType: GAME_TYPES.REGULAR,
+          team1Tid: homeTid,
+          team2Tid: awayTid,
+          team1Score: null,
+          team2Score: null,
+          team1Rank: null,
+          team2Rank: null,
+          homeTeamTid: row.neutral ? null : homeTid,
+          winnerTid: null,
+          isConferenceGame: !!(schedHomeConf && schedAwayConf && schedHomeConf === schedAwayConf),
+          isPlayed: false,
+          source: 'weekly-schedule',
+          _team1CurrentWeekRank: (typeof row.homeRank === 'number' && row.homeRank >= 1 && row.homeRank <= 25) ? row.homeRank : null,
+          _team2CurrentWeekRank: (typeof row.awayRank === 'number' && row.awayRank >= 1 && row.awayRank <= 25) ? row.awayRank : null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+        continue
+      }
 
       // Preserve user-team games that already have scores — but keep the poll
       // ranks pasted on that row so the rank pass can still record them.

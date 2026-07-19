@@ -111,6 +111,38 @@ function playedGamesForWeek(dynasty, yearN, weekN) {
   })
 }
 
+// Next-week matchups (already on the schedule, not yet played) for a set of
+// teams — lets accounts react to what's AHEAD ("#1 Alabama comes to town next
+// week after this loss") when the schedule is filled out. Numeric weeks only;
+// returns [] when nothing is scheduled so the prompt section simply drops out.
+function upcomingLines(dynasty, yearN, weekN, teamTids) {
+  const nextW = Number(weekN) + 1
+  if (!Number.isFinite(nextW)) return []
+  const seen = new Set()
+  const lines = []
+  for (const g of (dynasty?.games || [])) {
+    if (Number(g.year) !== Number(yearN)) continue
+    if (gameSlotFor(g) !== nextW && String(g.week) !== String(nextW)) continue
+    const t1 = Number(g.team1Tid)
+    const t2 = Number(g.team2Tid)
+    if (!teamTids.has(t1) && !teamTids.has(t2)) continue
+    const s1 = Number(g.team1Score)
+    const s2 = Number(g.team2Score)
+    if (Number.isFinite(s1) && Number.isFinite(s2) && (s1 > 0 || s2 > 0)) continue
+    const key = g.id || `${t1}-${t2}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    const l1 = teamLabel(dynasty, g.team1Tid, g.team1)
+    const l2 = teamLabel(dynasty, g.team2Tid, g.team2)
+    let site = ''
+    if (g.homeTeamTid == null) site = ' (neutral site)'
+    else if (g.homeTeamTid === g.team2Tid) site = ` (at ${l2.abbr})`
+    else site = ` (at ${l1.abbr})`
+    lines.push(`${rankPrefix(g.team1Rank)}${l1.name} (${l1.abbr}) vs ${rankPrefix(g.team2Rank)}${l2.name} (${l2.abbr})${site}`)
+  }
+  return lines
+}
+
 /**
  * Reproduce the deterministic TAG -> gameId map for a week. Both the prompt
  * builder and the parser call this (on the same week's games) so posts attach
@@ -182,7 +214,13 @@ Each account below is tagged [Official] (a team's verified athletics account), [
 
 GAMES (use the tag exactly as shown, e.g. G1, as the first field in each output line):
 ${gameLines || '(no games this week)'}
-
+${(() => {
+  const up = upcomingLines(dynasty, yearN, Number(weekN), teamTids)
+  return up.length ? `
+UPCOMING NEXT WEEK (already scheduled — a few posts may look ahead: dread, hype, or trap-game talk about what's coming, in the context of this week's result):
+${up.join('\n')}
+` : ''
+})()}
 NATIONAL VOICES (reference by @handle; write in their personality):
 ${nationalLines || '(none provided)'}
 
@@ -459,7 +497,14 @@ Each account below is tagged [Official] (a team's verified athletics account), [
 
 GAME DATA:
 ${gameDataBlock(dynasty, game)}
-
+${(() => {
+  const tids = new Set([Number(game.team1Tid), Number(game.team2Tid)])
+  const up = upcomingLines(dynasty, Number(game.year), gameSlotFor(game), tids)
+  return up.length ? `
+UPCOMING NEXT WEEK (already scheduled — a post or two may look ahead: dread, hype, or trap-game talk in the context of this result):
+${up.join('\n')}
+` : ''
+})()}
 NATIONAL VOICES (reference by @handle; write in their personality):
 ${nationalLines || '(none provided)'}
 

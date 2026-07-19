@@ -19,6 +19,7 @@
 
 import { useMemo, useState } from 'react'
 import { CARD_STYLES } from '../data/cardStyles'
+import { useDynasty } from '../context/DynastyContext'
 
 const FICTIONAL = 'Fictional'
 
@@ -55,6 +56,25 @@ function firstSentence(text) {
 
 export default function CardStylePicker({ value, onChange, styles = CARD_STYLES }) {
   const [search, setSearch] = useState('')
+
+  // Favorite styles — persisted per dynasty so go-to prompts float to the top.
+  const { currentDynasty, updateDynasty, isViewOnly } = useDynasty()
+  const favoriteIds = useMemo(
+    () => new Set(Array.isArray(currentDynasty?.cardStyleFavorites) ? currentDynasty.cardStyleFavorites.map(String) : []),
+    [currentDynasty?.cardStyleFavorites]
+  )
+  const toggleFavorite = (styleId) => {
+    if (isViewOnly || !currentDynasty) return
+    const cur = Array.isArray(currentDynasty.cardStyleFavorites) ? currentDynasty.cardStyleFavorites.map(String) : []
+    const next = cur.includes(String(styleId))
+      ? cur.filter(id => id !== String(styleId))
+      : [...cur, String(styleId)]
+    updateDynasty(currentDynasty.id, { cardStyleFavorites: next }).catch(() => {})
+  }
+  const favoriteStyles = useMemo(
+    () => styles.filter(s => favoriteIds.has(String(s.id))),
+    [styles, favoriteIds]
+  )
 
   // Manufacturer list ordered by how many styles each has (biggest first),
   // with Fictional pinned to the end.
@@ -168,6 +188,14 @@ export default function CardStylePicker({ value, onChange, styles = CARD_STYLES 
         </div>
       )}
 
+      {/* Favorites — pinned above the catalog (hidden while searching) */}
+      {!searching && favoriteStyles.length > 0 && (
+        <section>
+          <SectionHeader title="Favorites" count={favoriteStyles.length} />
+          <CellGrid styles={favoriteStyles} value={value} onChange={onChange} favoriteIds={favoriteIds} onToggleFavorite={toggleFavorite} />
+        </section>
+      )}
+
       {/* Results */}
       {results.length === 0 ? (
         <div className="rounded-lg p-6 text-center bg-surface-2 border border-dashed border-surface-4">
@@ -179,12 +207,12 @@ export default function CardStylePicker({ value, onChange, styles = CARD_STYLES 
           {grouped.map(([brandName, list]) => (
             <section key={brandName}>
               <SectionHeader title={brandName} count={list.length} />
-              <CellGrid styles={list} value={value} onChange={onChange} />
+              <CellGrid styles={list} value={value} onChange={onChange} favoriteIds={favoriteIds} onToggleFavorite={toggleFavorite} />
             </section>
           ))}
         </div>
       ) : (
-        <CellGrid styles={results} value={value} onChange={onChange} />
+        <CellGrid styles={results} value={value} onChange={onChange} favoriteIds={favoriteIds} onToggleFavorite={toggleFavorite} />
       )}
     </div>
   )
@@ -200,7 +228,7 @@ function SectionHeader({ title, count }) {
   )
 }
 
-function CellGrid({ styles, value, onChange }) {
+function CellGrid({ styles, value, onChange, favoriteIds, onToggleFavorite }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
       {styles.map(style => (
@@ -209,6 +237,8 @@ function CellGrid({ styles, value, onChange }) {
           style={style}
           selected={style.id === value}
           onClick={() => onChange(style.id)}
+          favorite={favoriteIds?.has(String(style.id)) || false}
+          onToggleFavorite={onToggleFavorite}
         />
       ))}
     </div>
@@ -220,15 +250,19 @@ function CellGrid({ styles, value, onChange }) {
  * one-line description, iconic examples. Selected = text-primary ring +
  * corner check.
  */
-function StyleCell({ style, selected, onClick }) {
+function StyleCell({ style, selected, onClick, favorite = false, onToggleFavorite }) {
   const isFictional = manufacturer(style) === FICTIONAL
   const yearTag = isFictional ? 'CONCEPT' : style.year
   const oneLiner = firstSentence(style.description)
   return (
-    <button
-      type="button"
+    // div-with-role instead of <button>: the Fav toggle nests inside, and
+    // nested buttons are invalid HTML.
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className="relative text-left rounded-lg overflow-hidden transition-colors"
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
+      className="relative text-left rounded-lg overflow-hidden transition-colors cursor-pointer"
       style={{
         backgroundColor: selected ? 'var(--surface-3)' : 'var(--surface-2)',
         border: `1px solid ${selected ? 'var(--text-primary)' : 'var(--surface-4)'}`,
@@ -267,7 +301,21 @@ function StyleCell({ style, selected, onClick }) {
             </span>
           </div>
         )}
+        {onToggleFavorite && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggleFavorite(style.id) }}
+            className="mt-1 px-2 py-0.5 rounded text-[10px] font-semibold border"
+            style={{
+              borderColor: favorite ? 'var(--text-primary)' : 'var(--surface-4)',
+              color: favorite ? 'var(--text-primary)' : 'var(--text-tertiary)',
+              backgroundColor: 'transparent',
+            }}
+          >
+            {favorite ? 'Favorited' : 'Favorite'}
+          </button>
+        )}
       </div>
-    </button>
+    </div>
   )
 }
