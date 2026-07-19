@@ -13814,7 +13814,19 @@ export function DynastyProvider({ children }) {
         return Number.isFinite(y) && y <= previousSeasonYear
       })
       const isGenuineRecruit = player.isRecruit && !hasPriorTeamYearForGrad
-      if (previousSeasonClass === 'RS Sr' && !isGenuineRecruit) {
+      // Auto-graduate BOTH exhausted-eligibility shapes — matching the CPU-team
+      // path, which already graduates Sr and RS Sr alike. Previously only
+      // RS Sr auto-graduated here, so a plain Sr not marked in Players Leaving
+      // was carried into the new season and CLASS_PROGRESSION advanced them to
+      // 'RS Sr' — the "my graduated seniors show as redshirts and I can't get
+      // them off my roster" bug. A genuine 5th-year return (redshirt senior
+      // resolved via the Fringe Case Class flow, which stamps an explicit
+      // class for the NEW season) still plays: that stamp skips this gate.
+      const resolvedNextClass = player.classByYear?.[currentSeasonYear]
+        ?? player.classByYear?.[String(currentSeasonYear)]
+      const eligibilityExhausted = previousSeasonClass === 'RS Sr'
+        || (previousSeasonClass === 'Sr' && resolvedNextClass == null)
+      if (eligibilityExhausted && !isGenuineRecruit) {
         const existingForYear = player.movementByYear?.[previousSeasonYear]
           || player.movementByYear?.[String(previousSeasonYear)]
         const alreadyGraduated = existingForYear?.type === 'departure'
@@ -15914,7 +15926,43 @@ export function DynastyProvider({ children }) {
     const filteredPlayersToKeep = playersToKeep.filter(p => !updatedPIDs.has(p.pid))
 
     // Filter out teamPlayersNotInSheet that somehow got a matching PID (edge case)
-    const filteredTeamPlayersNotInSheet = teamPlayersNotInSheet.filter(p => !updatedPIDs.has(p.pid))
+    //
+    // Graduation-aware preservation: the "never delete players missing from
+    // the sheet" merge exists to survive PARTIAL sheets — but it also made
+    // graduated seniors literally unremovable ("I remove them in edit roster
+    // and they just reappear"). A player whose eligibility was already
+    // exhausted entering `year` (class was Sr / RS Sr the season before) and
+    // whom the user REMOVED from the sheet is a graduate, not an accidental
+    // omission: keep the player record (career history intact) but drop this
+    // year's roster membership and record the graduation. The recorded
+    // departure also stops the teamHistory backfill from re-adding the year.
+    const filteredTeamPlayersNotInSheet = teamPlayersNotInSheet
+      .filter(p => !updatedPIDs.has(p.pid))
+      .map(p => {
+        const yearN = Number(year)
+        const prevY = yearN - 1
+        const clsPrev = p.classByYear?.[prevY] ?? p.classByYear?.[String(prevY)]
+        const exhausted = clsPrev === 'Sr' || clsPrev === 'RS Sr'
+        if (!exhausted) return p
+        const hasThisYear = p.teamsByYear?.[yearN] != null || p.teamsByYear?.[String(yearN)] != null
+        if (!hasThisYear) return p
+        const nextTeamsByYear = { ...(p.teamsByYear || {}) }
+        delete nextTeamsByYear[yearN]
+        delete nextTeamsByYear[String(yearN)]
+        const nextClassByYear = { ...(p.classByYear || {}) }
+        delete nextClassByYear[yearN]
+        delete nextClassByYear[String(yearN)]
+        const existingMove = p.movementByYear?.[prevY] || p.movementByYear?.[String(prevY)]
+        return {
+          ...p,
+          teamsByYear: nextTeamsByYear,
+          classByYear: nextClassByYear,
+          movementByYear: existingMove ? p.movementByYear : {
+            ...(p.movementByYear || {}),
+            [prevY]: { type: 'departure', departure: 'graduated' },
+          },
+        }
+      })
 
     // Combine: other teams + honor-only + team players not in sheet + sheet players
     // This ensures we never lose players just because they weren't in the sheet
