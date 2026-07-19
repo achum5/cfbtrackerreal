@@ -490,7 +490,10 @@ export default function LeaguePreferences() {
           <div>
             <h2 className="font-bold text-txt-primary m-0">Social Media Universe</h2>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          {/* flex-wrap + min-w-0 (not flex-shrink-0): with four buttons this
+              row is wider than a phone screen — without wrapping the last
+              button clips off the card edge. */}
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
             {!isViewOnly && (
               <button onClick={() => setCreating(true)} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}>+ New account</button>
             )}
