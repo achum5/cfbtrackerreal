@@ -915,11 +915,13 @@ export default function Dashboard() {
     }
   }, [currentDynasty?.id, currentDynasty?.bowlEligibilityDataByYear, currentDynasty?.teams, isViewOnly, saveGameSetChanges])
 
-  // Restore new job state from saved dynasty data
+  // Restore new job state from saved dynasty data — MY answer only (owner
+  // reads the dynasty-level field, members read their uid-keyed entry), so a
+  // teammate's accepted job never shows as YOUR pending job.
   // If user declined in a previous week, reset so they can be asked again
   useEffect(() => {
-    if (currentDynasty?.newJobData) {
-      const jobData = currentDynasty.newJobData
+    if (myNewJobData) {
+      const jobData = myNewJobData
 
       // If user declined but in a different week, reset the question
       if (jobData.takingNewJob === false && jobData.declinedInWeek !== currentDynasty.currentWeek) {
@@ -937,7 +939,7 @@ export default function Dashboard() {
       setNewJobTeam('')
       setNewJobPosition('')
     }
-  }, [currentDynasty?.id, currentDynasty?.newJobData, currentDynasty?.currentWeek])
+  }, [currentDynasty?.id, currentDynasty?.newJobData, currentDynasty?.newJobDataByUser, user?.uid, currentDynasty?.currentWeek])
 
   // Restore coordinator hiring state from saved dynasty data
   useEffect(() => {
@@ -1167,39 +1169,61 @@ export default function Dashboard() {
     await saveCoachingStaff(currentDynasty.id, staff)
   }
 
+  // ── Per-user "Taking a New Job" scoping ────────────────────────────
+  // newJobData is the dynasty-level (OWNER) answer. In a shared league a
+  // member answering the question must not put a "TAKING NEW JOB" banner on
+  // every member's dashboard — or swap the owner's team at the season flip.
+  // Members read/write a uid-keyed entry in newJobDataByUser instead; every
+  // write is uid-stamped so a legacy unstamped answer can be attributed to
+  // the owner (pre-shared-league behavior).
+  const isDynastyOwner = !currentDynasty?.userId || !user?.uid || currentDynasty.userId === user.uid
+  const myNewJobData = isDynastyOwner
+    ? ((currentDynasty?.newJobData && (currentDynasty.newJobData.uid == null || currentDynasty.newJobData.uid === user?.uid)) ? currentDynasty.newJobData : null)
+    : (currentDynasty?.newJobDataByUser?.[user?.uid] ?? null)
+  const buildNewJobUpdate = (jobData) => {
+    const stamped = jobData == null ? null : { ...jobData, uid: user?.uid ?? null }
+    if (isDynastyOwner) return { newJobData: stamped }
+    return {
+      [`newJobDataByUser.${user.uid}`]: stamped == null ? null : {
+        ...stamped,
+        // The member's current tid at answer time — the season flip swaps
+        // exactly this slot in their memberTeams array.
+        fromTid: getUserTeamTid(currentDynasty) ?? null,
+      },
+    }
+  }
+
   const handleNewJobSave = async (jobData) => {
     // Update local state
     setTakingNewJob(jobData.takingNewJob)
     setNewJobTeam(jobData.team || '')
     setNewJobPosition(jobData.position || '')
 
-    // Save to dynasty
+    // Save to dynasty. The pendingUserId team marker drives the OWNER's team
+    // swap at the season flip — a member's answer must never touch it.
     if (jobData.takingNewJob === false) {
-      // Clear pendingUserId from any team
-      const updatedTeams = clearPendingUserTeam(currentDynasty.teams)
-      await updateDynasty(currentDynasty.id, {
-        newJobData: {
-          takingNewJob: false,
-          team: null,
-          position: null,
-          declinedInWeek: currentDynasty.currentWeek
-        },
-        teams: updatedTeams
+      const updates = buildNewJobUpdate({
+        takingNewJob: false,
+        team: null,
+        position: null,
+        declinedInWeek: currentDynasty.currentWeek
       })
+      if (isDynastyOwner) updates.teams = clearPendingUserTeam(currentDynasty.teams)
+      await updateDynasty(currentDynasty.id, updates)
     } else {
-      // Set pendingUserId on the target team
       const newTeamTid = getTidFromTeamName(jobData.team, currentDynasty.teams)
-      const updatedTeams = newTeamTid
-        ? setPendingUserTeam(currentDynasty.teams, newTeamTid, jobData.position)
-        : currentDynasty.teams
-      await updateDynasty(currentDynasty.id, {
-        newJobData: {
-          takingNewJob: true,
-          team: jobData.team,
-          position: jobData.position
-        },
-        teams: updatedTeams
+      const updates = buildNewJobUpdate({
+        takingNewJob: true,
+        team: jobData.team,
+        teamTid: newTeamTid ?? null,
+        position: jobData.position
       })
+      if (isDynastyOwner) {
+        updates.teams = newTeamTid
+          ? setPendingUserTeam(currentDynasty.teams, newTeamTid, jobData.position)
+          : currentDynasty.teams
+      }
+      await updateDynasty(currentDynasty.id, updates)
     }
   }
 
@@ -5339,7 +5363,7 @@ export default function Dashboard() {
               // accepted (yes) AND a team has been chosen. tid-rooted: prefer
               // the stored teamTid, resolving the legacy name only as fallback.
               const newJobTid = takingNewJob === true && newJobTeam
-                ? (currentDynasty.newJobData?.teamTid ?? getTidFromTeamName(newJobTeam, currentDynasty.teams))
+                ? (myNewJobData?.teamTid ?? getTidFromTeamName(newJobTeam, currentDynasty.teams))
                 : null
               bw1Todos.push({
                 key: 'new-job-bw1',
@@ -5354,7 +5378,7 @@ export default function Dashboard() {
                 onAction: askingNewJobBW1 ? async () => {
                   setTakingNewJob(true)
                   await updateDynasty(currentDynasty.id, {
-                    newJobData: { takingNewJob: true, team: '', position: '' },
+                    ...buildNewJobUpdate({ takingNewJob: true, team: '', position: '' }),
                   })
                 } : newJobDone ? async () => {
                   setTakingNewJob(null)
@@ -5362,7 +5386,7 @@ export default function Dashboard() {
                   setNewJobPosition('')
                   const updatedTeams = clearPendingUserTeam(currentDynasty.teams)
                   await updateDynasty(currentDynasty.id, {
-                    newJobData: null,
+                    ...buildNewJobUpdate(null),
                     teams: updatedTeams,
                   })
                 } : undefined,
@@ -5376,7 +5400,7 @@ export default function Dashboard() {
                       // at the season rollover (matches the Edit / modal paths).
                       const updatedTeams = clearPendingUserTeam(currentDynasty.teams)
                       await updateDynasty(currentDynasty.id, {
-                        newJobData: { takingNewJob: false, team: null, position: null, declinedInWeek: currentDynasty.currentWeek },
+                        ...buildNewJobUpdate({ takingNewJob: false, team: null, position: null, declinedInWeek: currentDynasty.currentWeek }),
                         teams: updatedTeams,
                       })
                     }}
@@ -5451,7 +5475,7 @@ export default function Dashboard() {
                           onChange={async (value) => {
                             setNewJobTeam(value)
                             await updateDynasty(currentDynasty.id, {
-                              newJobData: { ...currentDynasty.newJobData, takingNewJob: true, team: value, teamTid: getTidFromTeamName(value, currentDynasty?.teams) ?? null },
+                              ...buildNewJobUpdate({ ...myNewJobData, takingNewJob: true, team: value, teamTid: getTidFromTeamName(value, currentDynasty?.teams) ?? null }),
                             })
                           }}
                           placeholder="Search for team..."
@@ -5473,13 +5497,15 @@ export default function Dashboard() {
                             key={pos}
                             onClick={async () => {
                               setNewJobPosition(pos)
-                              const newTeamTid = currentDynasty.newJobData?.teamTid ?? getTidFromTeamName(newJobTeam || currentDynasty.newJobData?.team, currentDynasty.teams)
-                              const updatedTeams = newTeamTid
+                              const newTeamTid = myNewJobData?.teamTid ?? getTidFromTeamName(newJobTeam || myNewJobData?.team, currentDynasty.teams)
+                              // pendingUserId drives the OWNER's team swap at the
+                              // season flip — never set it for a member's job.
+                              const updatedTeams = (isDynastyOwner && newTeamTid)
                                 ? setPendingUserTeam(currentDynasty.teams, newTeamTid, pos)
-                                : currentDynasty.teams
+                                : null
                               await updateDynasty(currentDynasty.id, {
-                                newJobData: { ...currentDynasty.newJobData, takingNewJob: true, position: pos },
-                                teams: updatedTeams,
+                                ...buildNewJobUpdate({ ...myNewJobData, takingNewJob: true, position: pos }),
+                                ...(updatedTeams ? { teams: updatedTeams } : {}),
                               })
                             }}
                             className="btn-refined btn-refined--solid"
@@ -5641,7 +5667,7 @@ export default function Dashboard() {
                 onAction: askingNewJobBW2 ? async () => {
                   setTakingNewJob(true)
                   await updateDynasty(currentDynasty.id, {
-                    newJobData: { takingNewJob: true, team: '', position: '' },
+                    ...buildNewJobUpdate({ takingNewJob: true, team: '', position: '' }),
                   })
                 } : newJobDone ? async () => {
                   setTakingNewJob(null)
@@ -5649,7 +5675,7 @@ export default function Dashboard() {
                   setNewJobPosition('')
                   const updatedTeams = clearPendingUserTeam(currentDynasty.teams)
                   await updateDynasty(currentDynasty.id, {
-                    newJobData: null,
+                    ...buildNewJobUpdate(null),
                     teams: updatedTeams,
                   })
                 } : undefined,
@@ -5663,7 +5689,7 @@ export default function Dashboard() {
                       // at the season rollover (matches the Edit / modal paths).
                       const updatedTeams = clearPendingUserTeam(currentDynasty.teams)
                       await updateDynasty(currentDynasty.id, {
-                        newJobData: { takingNewJob: false, team: null, position: null, declinedInWeek: currentDynasty.currentWeek },
+                        ...buildNewJobUpdate({ takingNewJob: false, team: null, position: null, declinedInWeek: currentDynasty.currentWeek }),
                         teams: updatedTeams,
                       })
                     }}
@@ -5801,7 +5827,7 @@ export default function Dashboard() {
                           onChange={async (value) => {
                             setNewJobTeam(value)
                             await updateDynasty(currentDynasty.id, {
-                              newJobData: { ...currentDynasty.newJobData, takingNewJob: true, team: value, teamTid: getTidFromTeamName(value, currentDynasty?.teams) ?? null },
+                              ...buildNewJobUpdate({ ...myNewJobData, takingNewJob: true, team: value, teamTid: getTidFromTeamName(value, currentDynasty?.teams) ?? null }),
                             })
                           }}
                           placeholder="Search for team..."
@@ -5823,13 +5849,15 @@ export default function Dashboard() {
                             key={pos}
                             onClick={async () => {
                               setNewJobPosition(pos)
-                              const newTeamTid = currentDynasty.newJobData?.teamTid ?? getTidFromTeamName(newJobTeam || currentDynasty.newJobData?.team, currentDynasty.teams)
-                              const updatedTeams = newTeamTid
+                              const newTeamTid = myNewJobData?.teamTid ?? getTidFromTeamName(newJobTeam || myNewJobData?.team, currentDynasty.teams)
+                              // pendingUserId drives the OWNER's team swap at the
+                              // season flip — never set it for a member's job.
+                              const updatedTeams = (isDynastyOwner && newTeamTid)
                                 ? setPendingUserTeam(currentDynasty.teams, newTeamTid, pos)
-                                : currentDynasty.teams
+                                : null
                               await updateDynasty(currentDynasty.id, {
-                                newJobData: { ...currentDynasty.newJobData, takingNewJob: true, position: pos },
-                                teams: updatedTeams,
+                                ...buildNewJobUpdate({ ...myNewJobData, takingNewJob: true, position: pos }),
+                                ...(updatedTeams ? { teams: updatedTeams } : {}),
                               })
                             }}
                             className="btn-refined btn-refined--solid"
@@ -6425,7 +6453,7 @@ export default function Dashboard() {
                 onAction: askingNewJobBW34 ? async () => {
                   setTakingNewJob(true)
                   await updateDynasty(currentDynasty.id, {
-                    newJobData: { takingNewJob: true, team: '', position: '' },
+                    ...buildNewJobUpdate({ takingNewJob: true, team: '', position: '' }),
                   })
                 } : w34NewJobDone ? async () => {
                   setTakingNewJob(null)
@@ -6433,7 +6461,7 @@ export default function Dashboard() {
                   setNewJobPosition('')
                   const updatedTeams = clearPendingUserTeam(currentDynasty.teams)
                   await updateDynasty(currentDynasty.id, {
-                    newJobData: null,
+                    ...buildNewJobUpdate(null),
                     teams: updatedTeams,
                   })
                 } : undefined,
@@ -6447,7 +6475,7 @@ export default function Dashboard() {
                       // at the season rollover (matches the Edit / modal paths).
                       const updatedTeams = clearPendingUserTeam(currentDynasty.teams)
                       await updateDynasty(currentDynasty.id, {
-                        newJobData: { takingNewJob: false, team: null, position: null, declinedInWeek: currentDynasty.currentWeek },
+                        ...buildNewJobUpdate({ takingNewJob: false, team: null, position: null, declinedInWeek: currentDynasty.currentWeek }),
                         teams: updatedTeams,
                       })
                     }}
@@ -6583,7 +6611,7 @@ export default function Dashboard() {
                         onChange={async (value) => {
                           setNewJobTeam(value)
                           await updateDynasty(currentDynasty.id, {
-                            newJobData: { ...currentDynasty.newJobData, takingNewJob: true, team: value },
+                            ...buildNewJobUpdate({ ...myNewJobData, takingNewJob: true, team: value, teamTid: getTidFromTeamName(value, currentDynasty?.teams) ?? null }),
                           })
                         }}
                         placeholder="Search for team..."
@@ -6605,13 +6633,15 @@ export default function Dashboard() {
                           key={pos}
                           onClick={async () => {
                             setNewJobPosition(pos)
-                            const newTeamTid = currentDynasty.newJobData?.teamTid ?? getTidFromTeamName(currentDynasty.newJobData?.team, currentDynasty.teams)
-                            const updatedTeams = newTeamTid
+                            const newTeamTid = myNewJobData?.teamTid ?? getTidFromTeamName(myNewJobData?.team, currentDynasty.teams)
+                            // pendingUserId drives the OWNER's team swap at the
+                            // season flip — never set it for a member's job.
+                            const updatedTeams = (isDynastyOwner && newTeamTid)
                               ? setPendingUserTeam(currentDynasty.teams, newTeamTid, pos)
-                              : currentDynasty.teams
+                              : null
                             await updateDynasty(currentDynasty.id, {
-                              newJobData: { ...currentDynasty.newJobData, takingNewJob: true, position: pos },
-                              teams: updatedTeams,
+                              ...buildNewJobUpdate({ ...myNewJobData, takingNewJob: true, position: pos }),
+                              ...(updatedTeams ? { teams: updatedTeams } : {}),
                             })
                           }}
                           className="btn-refined btn-refined--solid"
@@ -8506,7 +8536,7 @@ export default function Dashboard() {
         onClose={() => setShowNewJobEditModal(false)}
         onSave={handleNewJobSave}
         teamColors={teamColors}
-        currentJobData={currentDynasty.newJobData}
+        currentJobData={myNewJobData}
       />
 
       {/* GameEntryModal removed - now using game pages instead */}

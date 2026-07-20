@@ -12623,8 +12623,38 @@ export function DynastyProvider({ children }) {
       nextPhase = 'offseason'
       nextWeek = 1
 
-      // Apply new job if user accepted one during postseason
-      const newJobData = dynasty.newJobData
+      // Apply new job if user accepted one during postseason.
+      //
+      // OWNER-SCOPED: newJobData is the dynasty-level (owner) answer. In a
+      // shared league a MEMBER's answer must never drive this block — it
+      // swaps the dynasty's PRIMARY team (teamName/currentTid/schedule/…).
+      // Member answers live uid-keyed in newJobDataByUser and are applied to
+      // their memberTeams slot below. A legacy answer with no uid stamp is
+      // treated as the owner's (pre-shared-league behavior).
+      const rawNewJobData = dynasty.newJobData
+      const newJobData = (rawNewJobData && (rawNewJobData.uid == null || rawNewJobData.uid === dynasty.userId))
+        ? rawNewJobData
+        : null
+
+      // Member job moves: a uid-keyed accepted job switches that member's
+      // team slot (memberTeams drives activeUserTid for members) — the
+      // dynasty's primary team is untouched. Entry cleared after applying.
+      const jobsByUser = dynasty.newJobDataByUser || {}
+      for (const [uid, jd] of Object.entries(jobsByUser)) {
+        if (!jd?.takingNewJob || !jd.team || !jd.position) continue
+        if (uid === dynasty.userId) continue // owner uses the full swap path
+        const memberNewTid = jd.teamTid ?? getTidFromTeamName(jd.team, dynasty.teams)
+        if (memberNewTid == null) continue
+        const curArr = Array.isArray(dynasty.memberTeams?.[uid]) ? dynasty.memberTeams[uid].map(Number) : []
+        const fromTid = jd.fromTid != null ? Number(jd.fromTid) : null
+        let nextArr
+        if (curArr.length <= 1) nextArr = [Number(memberNewTid)]
+        else if (fromTid != null && curArr.includes(fromTid)) nextArr = curArr.map(t => (t === fromTid ? Number(memberNewTid) : t))
+        else nextArr = [...curArr.filter(t => t !== Number(memberNewTid)), Number(memberNewTid)]
+        additionalUpdates[`memberTeams.${uid}`] = Array.from(new Set(nextArr))
+        additionalUpdates[`newJobDataByUser.${uid}`] = null
+      }
+
       if (newJobData?.takingNewJob && newJobData.team && newJobData.position) {
         // Prefer the canonical newJobData.teamTid (stored at pick time);
         // fall back to resolving the legacy team-name field. All display

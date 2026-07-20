@@ -488,10 +488,15 @@ export default function Layout({ children }) {
     }
 
     // In postseason, validate new job form is complete if user selected "Yes" to taking a new job
-    // This happens when advancing from postseason to offseason
+    // This happens when advancing from postseason to offseason.
+    // Per-user scoped: validate MY answer only — the dynasty-level field is
+    // the owner's; members' answers live uid-keyed in newJobDataByUser.
     if (currentDynasty.currentPhase === 'postseason') {
-      const newJobData = currentDynasty.newJobData
-      if (newJobData?.takingNewJob === true && (!newJobData.team || !newJobData.position)) {
+      const legacy = currentDynasty.newJobData
+      const legacyIsMine = legacy && (legacy.uid == null || legacy.uid === user?.uid)
+        && (!currentDynasty.userId || !user?.uid || currentDynasty.userId === user.uid)
+      const myJob = legacyIsMine ? legacy : currentDynasty.newJobDataByUser?.[user?.uid]
+      if (myJob?.takingNewJob === true && (!myJob.team || !myJob.position)) {
         toast.warning('Complete your new job selection (team and position) before advancing to the offseason.')
         return
       }
