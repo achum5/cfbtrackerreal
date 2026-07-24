@@ -101,13 +101,16 @@ import { importUniverse, mergePosts, ensureUniverseLoaded, DEFAULT_SOCIAL_SETTIN
 import { findMatchingPlayer, getPlayerLastHonorDescription, normalizePlayerName } from '../utils/playerMatching'
 import { syncDerivedFieldsFromV2, legacyMovementToCanonical } from '../data/rosterModel'
 import { buildDefaultRosterPlayers, buildAllDefaultRosterPlayers } from '../data/defaultRosterLoader'
+import { bulkSeedPlayers } from '../utils/cfb27BulkSeed'
+import { syncPlayersToSubcollection } from '../utils/cfb27SyncPlayers'
+import { buildSyncPlan } from '../data/cfb27SaveSync'
 import { CFB27_TEAM_RATINGS } from '../data/cfb27TeamRatings'
 import { CFB27_TEAM_ABBRS } from '../data/cfb27TeamAbbrs'
 import { CFB27_CONFERENCES } from '../data/cfb27Conferences'
 import { CFB27_NIL_BUDGETS } from '../data/cfb27NilBudgets'
 import { normalizeAwardName } from '../utils/playerHeal'
 import { getFirstRoundSlotId, getSlotIdFromBowlName, getCFPGameId, CFP_BRACKET_SLOTS, DEFAULT_BOWL_CONFIG, getBowlForSlot, CFP_BRACKET_FLOW, getBracketFlowConfig } from '../data/cfpConstants'
-import { migrateDynastyToEditors, needsEditorsMigration, getMemberTeams, snapshotAllMembersForYear, getCoachNameForUid, canManageMembers } from '../data/leagueModel'
+import { migrateDynastyToEditors, needsEditorsMigration, getMemberTeams, snapshotAllMembersForYear, getCoachNameForUid, canManageMembers, getMemberPhoto, setMemberPhotoValue } from '../data/leagueModel'
 import { migrateDynastyToCoaches, makeCoach, deriveMemberTeamsIndex, getCoaches, getCoachesControlledBy, getCurrentTeamsForControlledCoaches, getActiveCoachForTeam, setCoachSeason, carryForwardControlledCoaches, applyStaffMovesToCoaches, syncCoordinatorCoachesForTeamYear } from '../data/coachModel'
 import { migrateTeamNameParts } from '../data/teams'
 import { isSameWeek, isSameYear } from '../utils/compareUtils'
@@ -3746,7 +3749,7 @@ export function getScheduleForTeam(dynasty, tidOrAbbr, year) {
  * Heuristic: has this game record been "played" — i.e., does it carry
  * score, result, or boxScore data we should be careful about destroying?
  */
-function isGamePlayed(g) {
+export function isGamePlayed(g) {
   if (!g) return false
   if (g.isPlayed === true) return true
   const r = g.result
@@ -8468,10 +8471,23 @@ export function DynastyProvider({ children }) {
   }
 
   const createDynasty = async (dynastyData, { onProgress } = {}) => {
-    const startYear = parseInt(dynastyData.startYear)
+    // A CFB27 PC save import auto-detects the dynasty's actual in-save
+    // year/week/phase; prefer it so createDynasty is correct even if a caller
+    // forgets to mirror it into startYear.
+    const cfb27Season = dynastyData.cfb27Season || null
+    const startYear = cfb27Season ? cfb27Season.year : parseInt(dynastyData.startYear)
     // Edition for this dynasty, resolved once. Gates which teams exist and
     // whether the whole-country roster + launch team-ratings seed runs (cfb27).
     const editionKey = normalizeEditionKey(dynastyData.gameEdition || DEFAULT_EDITION)
+
+    // A CFB27 save import's own resolved conference alignment (every team, not
+    // just customTeams' replaced slots) takes priority when present.
+    let initialConferences = null
+    if (dynastyData.cfb27Conferences && Object.keys(dynastyData.cfb27Conferences).length > 0) {
+      initialConferences = dynastyData.cfb27Conferences
+    } else if (dynastyData.customTeams && Object.keys(dynastyData.customTeams).length > 0) {
+      initialConferences = getConferencesWithCustomTeams(dynastyData.customTeams)
+    }
 
     // Progress reporter for the create UI. Yields to the event loop after each
     // update so React actually paints the new message/bar before the next
@@ -8578,7 +8594,12 @@ export function DynastyProvider({ children }) {
     const seedAllRosters = editionKey === 'cfb27' && !!dynastyData.seedAllRosters
     let seededPlayers = []
     try {
-      if (seedAllRosters) {
+      // A PC save import already built a full multi-team roster in
+      // cfb27SaveImport.js — use it verbatim and skip the bundled seeds.
+      if (Array.isArray(dynastyData.cfb27SeededPlayers) && dynastyData.cfb27SeededPlayers.length > 0) {
+        await report('Importing roster from save…', 10)
+        seededPlayers = dynastyData.cfb27SeededPlayers
+      } else if (seedAllRosters) {
         await report('Loading all team rosters…', 10)
         seededPlayers = await buildAllDefaultRosterPlayers(teams, startYear, 1, editionKey)
       } else if (currentTid && !teams[currentTid]?.isCustom) {
@@ -8649,10 +8670,22 @@ export function DynastyProvider({ children }) {
     // `coachName` is a transient input that seeds memberLabels[ownerUid]
     // below — the dynasty doc does not store it as its own field anymore.
     // Single source of truth for owner's name: memberLabels[uid].
+    // `cfb27SeededPlayers` was already consumed into `seededPlayers`/`players`
+    // above — it must NOT also ride along as a duplicate top-level field
+    // (that's the entire multi-team roster a second time, which would blow
+    // past Firestore's 1MB main-doc limit that _subcollectionsMigrated exists
+    // to avoid).
     const {
       customTeams: _droppedCustomTeams,
       coachName: _droppedCoachName,
       seedAllRosters: _droppedSeedAllRosters,
+      cfb27SeededPlayers: _droppedCfb27SeededPlayers,
+      cfb27Season: _droppedCfb27Season,
+      cfb27Conferences: _droppedCfb27Conferences,
+      cfb27TeamRatings: _droppedCfb27TeamRatings,
+      cfb27CoachingStaff: _droppedCfb27CoachingStaff,
+      cfb27Schedule: _droppedCfb27Schedule,
+      cfb27PreseasonTop25: _droppedCfb27PreseasonTop25,
       ...dynastyDataNoCustomTeams
     } = dynastyData
 
@@ -8668,6 +8701,17 @@ export function DynastyProvider({ children }) {
           role: coachPosition || 'HC',
           controlledBy: user.uid,
         })
+
+    // A CFB27 save import's schedule needs to go through the SAME
+    // diff/apply pipeline the manual "Enter Schedule" flow uses
+    // (computeScheduleDiff -> applyScheduleDiff, wrapped here by
+    // createGamesFromSchedule) — the Schedule tab's game list reads
+    // dynasty.games[], not the raw opponent-list array, and hand-rolling
+    // that game-record shape here would drift from what the real save
+    // path produces. Games array stub is empty since this is a brand-new
+    // dynasty — every entry is a pure "toAdd".
+    const cfb27ScheduleResult = (dynastyData.cfb27Schedule?.length && currentTid)
+      ? createGamesFromSchedule({ games: [], teams }, dynastyData.cfb27Schedule, currentTid, startYear)
       : null
 
     const newDynastyData = {
@@ -8679,13 +8723,13 @@ export function DynastyProvider({ children }) {
       gameEdition: normalizeEditionKey(dynastyData.gameEdition || DEFAULT_EDITION),
       currentTid, // Primary team identifier (tid) - kept for backwards compatibility
       currentYear: startYear,
-      currentWeek: 0,
-      currentPhase: 'preseason',
+      currentWeek: cfb27Season ? cfb27Season.week : 0,
+      currentPhase: cfb27Season ? cfb27Season.phase : 'preseason',
       seasons: [],
-      games: [],
+      games: cfb27ScheduleResult?.newGames || [],
       players: [],
       recruits: [],
-      schedule: [],
+      schedule: cfb27ScheduleResult?.updatedSchedule || [],
       rankings: [],
       rivalries: [],
       nextPID: seededPlayers.length + 1, // Initialize player ID counter (continues past any auto-seeded roster)
@@ -8720,6 +8764,13 @@ export function DynastyProvider({ children }) {
         ...(dynastyData.coachName?.trim() ? {
           memberLabels: { [user.uid]: dynastyData.coachName.trim() },
         } : {}),
+        // Save-assigned coach headshot (same unreliable-for-real-coaches
+        // caveat as teams[tid].byYear[year].coachingStaff.hcPictureUrl) —
+        // gives the Coach Career photo slot a starting value instead of
+        // "Add Photo", the user can still override it manually any time.
+        ...(dynastyData.cfb27CoachingStaff?.hcPictureUrl ? {
+          memberPhotos: { [user.uid]: dynastyData.cfb27CoachingStaff.hcPictureUrl },
+        } : {}),
       } : {}),
       // First-class coach entity for the owner + skip the load-migration
       // (this save is born already in the new model).
@@ -8728,19 +8779,18 @@ export function DynastyProvider({ children }) {
         _coachesControlMigrated: true,
       } : {}),
       preseasonSetup: {
-        scheduleEntered: false,
-        rosterEntered: userTeamSeeded, // auto-seeded roster counts as entered
-        teamRatingsEntered: !!userSeededRatings, // seeded launch ratings count as entered
-        coachingStaffEntered: false,
-        conferencesEntered: false  // Shows as incomplete, but defaults are valid if user skips
+        scheduleEntered: Boolean(dynastyData.cfb27Schedule?.length),
+        rosterEntered: userTeamSeeded || seededPlayers.length > 0, // auto-seeded roster counts as entered
+        teamRatingsEntered: Boolean(dynastyData.cfb27TeamRatings) || !!userSeededRatings,
+        coachingStaffEntered: Boolean(dynastyData.cfb27CoachingStaff),
+        conferencesEntered: Boolean(initialConferences)  // Shows as incomplete, but defaults are valid if user skips
       },
       // Legacy per-team/year ratings store (read by the TeamYear page). Seeded
       // for every team on cfb27 so historical/other-team views show launch OVRs.
       ...(seededTeamRatingsByTeamYear ? { teamRatingsByTeamYear: seededTeamRatingsByTeamYear } : {}),
-      // Live current-season cache: prime the user's own launch ratings so the
-      // Dashboard shows them immediately. Cleared on season advance like any
-      // other year's live cache.
-      teamRatings: userSeededRatings || {
+      // Live current-season cache: a save import's ratings win, then our
+      // seeded launch ratings, then the empty default.
+      teamRatings: dynastyData.cfb27TeamRatings || userSeededRatings || {
         overall: null,
         offense: null,
         defense: null
@@ -8751,11 +8801,16 @@ export function DynastyProvider({ children }) {
       ...(editionKey === 'cfb27' && currentTid != null && CFB27_NIL_BUDGETS[currentTid] != null
         ? { dynastyPoints: { byTeam: { [String(currentTid)]: { byYear: { [String(startYear)]: { budget: CFB27_NIL_BUDGETS[currentTid] } } } } } }
         : {}),
-      coachingStaff: {
+      coachingStaff: dynastyData.cfb27CoachingStaff || {
         hcName: null,
         ocName: null,
         dcName: null
       },
+      // Preseason Top 25 — same field PreseasonTop25Modal writes to
+      // (dynasty.preseasonRankingsByYear[year] = [{ rank, team, tid }]).
+      ...(dynastyData.cfb27PreseasonTop25?.length ? {
+        preseasonRankingsByYear: { [startYear]: dynastyData.cfb27PreseasonTop25 },
+      } : {}),
       // Storage location for this dynasty
       storageType: finalStorageType,
       // Initialize custom conferences if custom teams exist (replaces old team in conference).
@@ -8797,7 +8852,10 @@ export function DynastyProvider({ children }) {
     // When we auto-seeded the roster, also flip the tid-based byYear
     // rosterEntered flag (the source the team page's preseason checklist
     // reads) so the "enter your roster" step shows complete from day one.
-    if (userTeamSeeded && currentTid) {
+    // A CFB27 save import also fills team ratings, coaching staff, and
+    // schedule — flip their byYear flags too, or the top-level fields set
+    // above get shadowed once rosterEntered forces the byYear object to exist.
+    if (currentTid && (userTeamSeeded || seededPlayers.length > 0 || dynastyData.cfb27TeamRatings || dynastyData.cfb27CoachingStaff || cfb27ScheduleResult)) {
       const t = newDynastyData.teams?.[currentTid] || {}
       const by = t.byYear || {}
       const yd = by[startYear] || {}
@@ -8809,11 +8867,55 @@ export function DynastyProvider({ children }) {
             ...by,
             [startYear]: {
               ...yd,
-              preseasonSetup: { ...(yd.preseasonSetup || {}), rosterEntered: true },
+              ...(dynastyData.cfb27TeamRatings ? { teamRatings: dynastyData.cfb27TeamRatings } : {}),
+              ...(dynastyData.cfb27CoachingStaff ? { coachingStaff: dynastyData.cfb27CoachingStaff } : {}),
+              // getScheduleForTeam reads ONLY this byYear.schedule (no
+              // fallback to the top-level dynasty.schedule field at all,
+              // unlike teamRatings/preseasonSetup) — this is the one and
+              // only place the imported schedule actually needs to land.
+              // Use the diff-processed updatedSchedule (gameId/opponentTid/
+              // isBye filled in), not the raw cfb27Schedule rows, so it
+              // matches what the manual Enter Schedule flow itself stores.
+              ...(cfb27ScheduleResult ? { schedule: cfb27ScheduleResult.updatedSchedule } : {}),
+              preseasonSetup: {
+                ...(yd.preseasonSetup || {}),
+                ...(seededPlayers.length > 0 ? { rosterEntered: true } : {}),
+                ...(dynastyData.cfb27TeamRatings ? { teamRatingsEntered: true } : {}),
+                ...(dynastyData.cfb27CoachingStaff ? { coachingStaffEntered: true } : {}),
+                ...(cfb27ScheduleResult ? { scheduleEntered: true } : {}),
+                ...(initialConferences ? { conferencesEntered: true } : {}),
+              },
             },
           },
         },
       }
+    }
+
+    // Preseason Top 25: preseasonRankingsByYear (set above) only drives the
+    // Dashboard checklist/AI recap — the actual Rankings page reads
+    // teams[tid].byYear[year].rankByWeek[0] exclusively (see
+    // PreseasonTop25Modal's persistEntries, which writes both). Spans every
+    // ranked team, not just the user's — unlike ratings/staff/schedule.
+    if (dynastyData.cfb27PreseasonTop25?.length) {
+      const updatedTeams = { ...newDynastyData.teams }
+      for (const entry of dynastyData.cfb27PreseasonTop25) {
+        if (entry.tid == null) continue
+        const tidKey = String(entry.tid)
+        const t = updatedTeams[tidKey] || updatedTeams[entry.tid] || {}
+        const by = t.byYear || {}
+        const yd = by[startYear] || {}
+        updatedTeams[tidKey] = {
+          ...t,
+          byYear: {
+            ...by,
+            [startYear]: {
+              ...yd,
+              rankByWeek: { ...(yd.rankByWeek || {}), 0: entry.rank },
+            },
+          },
+        }
+      }
+      newDynastyData.teams = updatedTeams
     }
 
     // Note: Google Sheet is created lazily when user opens Schedule Entry modal
@@ -8866,15 +8968,23 @@ export function DynastyProvider({ children }) {
       if (seededPlayers.length > 0) {
         try {
           await report(`Saving ${seededPlayers.length.toLocaleString()} players…`, 40)
-          // The collection is brand-new and empty, so this is a pure insert.
-          // Per-batch progress maps into the 40-95% band of the create bar.
-          await savePlayersToSubcollection(newDynasty.id, seededPlayers, {
-            forceOverwrite: true,
-            onProgress: ({ saved, total }) => {
-              const pct = 40 + Math.round((saved / Math.max(total, 1)) * 55)
-              try { onProgress?.({ message: `Saving players… ${saved.toLocaleString()} / ${total.toLocaleString()}`, pct }) } catch (_) {}
-            },
-          })
+          // Whole-league CFB27 imports (thousands of players) go through the
+          // Admin-SDK bulk writer — the client subcollection path batches via
+          // Firestore's offline-write queue, which a full-league import blows
+          // past ("Write stream exhausted"). See cfb27-bulk-seed-players.js.
+          if (Array.isArray(dynastyData.cfb27SeededPlayers) && dynastyData.cfb27SeededPlayers.length > 0) {
+            await bulkSeedPlayers(newDynasty.id, seededPlayers)
+          } else {
+            // Brand-new empty collection, so this is a pure insert.
+            // Per-batch progress maps into the 40-95% band of the create bar.
+            await savePlayersToSubcollection(newDynasty.id, seededPlayers, {
+              forceOverwrite: true,
+              onProgress: ({ saved, total }) => {
+                const pct = 40 + Math.round((saved / Math.max(total, 1)) * 55)
+                try { onProgress?.({ message: `Saving players… ${saved.toLocaleString()} / ${total.toLocaleString()}`, pct }) } catch (_) {}
+              },
+            })
+          }
         } catch (err) {
           // Do NOT swallow this: the main doc already exists with players:[]
           // and _subcollectionsMigrated, so proceeding would show the seeded
@@ -8908,6 +9018,310 @@ export function DynastyProvider({ children }) {
     } catch (error) {
       console.error('Error creating dynasty:', error)
       throw error
+    }
+  }
+
+  // Games the save shows as played (GameStatus !== 'Unplayed') for the
+  // user's own team overwrite that week's score unconditionally — "save
+  // always wins" applies even if the tracker already had a (possibly
+  // corrected) score there. Matches save home/away onto the tracker's
+  // team1/team2 slots by tid rather than assuming they line up positionally.
+  // Also attaches the full box score (team + player stat lines) for that
+  // week when buildBoxScoresForUserGames produced one — same "save wins"
+  // rule, so a manually-entered box score gets overwritten by the save's.
+  function applyCfb27GameScores(games, scoreEntries, boxScoresByWeek, year) {
+    const byWeek = new Map(scoreEntries.map((e) => [e.week, e]))
+    return (games || []).map((g) => {
+      if (Number(g.year) !== year || g.gameType !== 'regular') return g
+      const entry = byWeek.get(g.week)
+      if (!entry) return g
+      if (g.team1Tid !== entry.homeTid && g.team1Tid !== entry.awayTid) return g
+      if (g.team2Tid !== entry.homeTid && g.team2Tid !== entry.awayTid) return g
+      const team1IsHome = g.team1Tid === entry.homeTid
+      const team1Score = team1IsHome ? entry.homeScore : entry.awayScore
+      const team2Score = team1IsHome ? entry.awayScore : entry.homeScore
+      const team1Quarters = team1IsHome ? entry.homeQuarters : entry.awayQuarters
+      const team2Quarters = team1IsHome ? entry.awayQuarters : entry.homeQuarters
+      const team1OT = team1IsHome ? entry.homeOT : entry.awayOT
+      const team2OT = team1IsHome ? entry.awayOT : entry.homeOT
+      const box = boxScoresByWeek?.[entry.week]
+      return {
+        ...g,
+        team1Score,
+        team2Score,
+        isPlayed: true,
+        quarters: {
+          team1: { Q1: team1Quarters[0], Q2: team1Quarters[1], Q3: team1Quarters[2], Q4: team1Quarters[3] },
+          team2: { Q1: team2Quarters[0], Q2: team2Quarters[1], Q3: team2Quarters[2], Q4: team2Quarters[3] },
+        },
+        // GameEdit.jsx's overtimes is a per-period ARRAY ({team1,team2} each)
+        // to support multiple OTs — the save only ever gives one combined OT
+        // total, so this only ever produces a single-element array (or none).
+        ...(team1OT || team2OT ? { overtimes: [{ team1: team1OT, team2: team2OT }] } : {}),
+        ...(box ? { boxScore: { byTid: box.byTid, teamStatsByTid: box.teamStatsByTid } } : {}),
+      }
+    })
+  }
+
+  /**
+   * Sync an ALREADY-TRACKED dynasty against a newer CFB27 save snapshot —
+   * the existing-dynasty counterpart to createDynasty's CFB27 import path.
+   * See src/data/cfb27SaveSync.js for the reconciliation design (save always
+   * wins; matches players by cfb27AssetName, falling back to name+team for
+   * players synced before that field existed).
+   *
+   * @param {string} dynastyId
+   * @param {object} parsed - the raw result from api/cfb27-save-parse.js (same shape createDynasty's CFB27 import consumes)
+   * @returns {Promise<{summary: object, unresolvedTeamNames: string[]}>}
+   */
+  // Walks (week, phase) forward using the SAME transition rules advanceWeek
+  // uses (DynastyContext.jsx's advanceWeek, ~line 11022) — but as a pure
+  // computation, not by invoking that function repeatedly. advanceWeek reads
+  // dynasty state via closures over this component's currentDynasty/
+  // dynasties — calling it N times in a tight loop from another async
+  // function does NOT see its own prior writes (each call still closes over
+  // the SAME pre-loop state), so it can never walk forward more than one
+  // step no matter how many times it's awaited. Recomputing the transition
+  // rules directly on data already fetched fresh avoids that trap entirely.
+  // Deliberately stops at 'offseason': crossing into the next year's
+  // preseason needs per-player class/redshirt confirmations (see
+  // advanceWeek's `classConfirmations` param) only the user can make — this
+  // does not attempt to guess those.
+  function computeCfb27SyncSeasonAdvance(startWeek, startPhase, targetYear, targetPhase, targetWeek, currentYear) {
+    const phaseOrder = ['preseason', 'regular_season', 'conference_championship', 'postseason', 'offseason']
+    let week = Number(startWeek)
+    let phase = startPhase
+    let reachedTarget = false
+    let stoppedAtOffseason = false
+
+    if (Number(currentYear) !== Number(targetYear)) {
+      // A year boundary is exactly the offseason->preseason transition this
+      // is deliberately not automating — leave it for the user.
+      return { week, phase, reachedTarget: false, stoppedAtOffseason: false }
+    }
+
+    let iterations = 0
+    while (iterations < 60) {
+      if (phase === targetPhase && week === Number(targetWeek)) { reachedTarget = true; break }
+      const phaseIdx = phaseOrder.indexOf(phase)
+      const targetIdx = phaseOrder.indexOf(targetPhase)
+      if (phaseIdx > targetIdx) break // already past what the save reports — don't walk backwards
+      if (phase === 'offseason') { stoppedAtOffseason = true; break }
+
+      let nextWeek = week + 1
+      let nextPhase = phase
+      // Mirrors advanceWeek's own phase-transition conditions exactly
+      // (DynastyContext.jsx ~11059-11198) — kept in sync manually since
+      // duplicating the transition RULES (not the side effects) is the
+      // deliberate tradeoff here.
+      if (phase === 'preseason' && nextWeek >= 1) {
+        nextPhase = 'regular_season'; nextWeek = 0
+      } else if (phase === 'regular_season' && nextWeek > 15) {
+        nextPhase = 'conference_championship'; nextWeek = 1
+      } else if (phase === 'conference_championship' && nextWeek > 1) {
+        nextPhase = 'postseason'; nextWeek = 1
+      } else if (phase === 'postseason' && nextWeek > 5) {
+        nextPhase = 'offseason'; nextWeek = 1
+      }
+
+      if (nextPhase === 'offseason' && phase !== 'offseason') { stoppedAtOffseason = true; break }
+
+      week = nextWeek
+      phase = nextPhase
+      iterations += 1
+    }
+
+    return { week, phase, reachedTarget, stoppedAtOffseason }
+  }
+
+  const syncDynastyFromCFB27Save = async (dynastyId, parsed) => {
+    if (blockIfReadOnly(dynastyId, 'sync CFB27 save')) return
+
+    const dynasty = await findDynastyById(dynastyId)
+    if (!dynasty) {
+      console.error('Dynasty not found:', dynastyId)
+      return
+    }
+
+    // CRITICAL: dynasty.players/.games (from findDynastyById, a plain state
+    // lookup) are NOT guaranteed to hold the full, current subcollection
+    // contents for a cloud dynasty — only getDynastyPlayers/getDynastyGames
+    // fetch that live. Diffing against a stale/partial base here and then
+    // writing the result with deleteOrphans:true (which updateDynasty's
+    // games path always does) would silently delete real games/players that
+    // just weren't loaded into state yet at the moment of the sync.
+    const freshPlayers = await getDynastyPlayers(dynasty)
+    const freshGames = await getDynastyGames(dynasty)
+    const dynastyForPlan = { ...dynasty, players: freshPlayers, games: freshGames }
+
+    const plan = buildSyncPlan(dynastyForPlan, parsed)
+
+    const scheduleDiff = computeScheduleDiff(dynastyForPlan, plan.scheduleForUserTeam, dynasty.currentTid, dynasty.currentYear)
+    let mergedGames = applyScheduleDiff(freshGames, scheduleDiff)
+    mergedGames = applyCfb27GameScores(mergedGames, plan.gameScoresForUserTeam, plan.boxScoresByWeek, Number(dynasty.currentYear))
+
+    // Every OTHER team's games (whole-league) — plan.cpuGamesToWrite is
+    // already minimal-diff (only games that actually changed since last
+    // sync), so this upsert is cheap even though it covers the whole
+    // league: a routine week adds ~60-70 records, not all 891 at once.
+    if (plan.cpuGamesToWrite?.length) {
+      const byId = new Map(mergedGames.map((g) => [g.id, g]))
+      for (const cpuGame of plan.cpuGamesToWrite) byId.set(cpuGame.id, cpuGame)
+      mergedGames = [...byId.values()]
+    }
+
+    // isConferenceGame is normally computed by GameEntryModal.jsx at the
+    // moment a human enters a score — CFB27 sync writes scores directly
+    // (applyCfb27GameScores / plan.cpuGamesToWrite) and never went through
+    // that form, so every synced game came in with isConferenceGame simply
+    // undefined. getTeamRecord/calculateTeamRecordFromGames gate confWins/
+    // confLosses on this exact flag, so every team's conference record
+    // silently stayed 0-0 forever regardless of a correct overall record —
+    // reported on the Conf. Standings page (every conference showing
+    // (0-0)). Recomputed for every regular-season game this year on every
+    // sync (not just newly-touched ones) so this also self-heals games
+    // synced before this fix landed, not just future ones.
+    const customConferencesForSync = getCustomConferencesForYear(dynastyForPlan, dynasty.currentYear)
+    const teamsForConf = plan.mergedTeams || dynasty.teams
+    mergedGames = mergedGames.map((g) => {
+      if (Number(g.year) !== Number(dynasty.currentYear) || (g.gameType || 'regular') !== 'regular') return g
+      if (g.team1Tid == null || g.team2Tid == null) return g
+      const abbr1 = getAbbrFromTid(teamsForConf, g.team1Tid)
+      const abbr2 = getAbbrFromTid(teamsForConf, g.team2Tid)
+      const conf1 = abbr1 ? getTeamConference(abbr1, customConferencesForSync) : null
+      const conf2 = abbr2 ? getTeamConference(abbr2, customConferencesForSync) : null
+      const isConferenceGame = !!(conf1 && conf2 && conf1 === conf2)
+      if (Boolean(g.isConferenceGame) === isConferenceGame) return g
+      return { ...g, isConferenceGame }
+    })
+
+    // Auto-advance currentWeek/currentPhase to match the save's own season
+    // state — computed here (pure function, not by invoking advanceWeek)
+    // and folded into the SAME write below, so the header/checklist agree
+    // with the data just written in this same call rather than needing a
+    // separate "Advance Week" click.
+    let reachedTargetSeason = false
+    let stoppedAtOffseason = false
+    let seasonFieldUpdates = {}
+    if (plan.seasonInfo) {
+      const advance = computeCfb27SyncSeasonAdvance(
+        dynasty.currentWeek, dynasty.currentPhase,
+        plan.seasonInfo.year, plan.seasonInfo.phase, plan.seasonInfo.week,
+        dynasty.currentYear
+      )
+      reachedTargetSeason = advance.reachedTarget
+      stoppedAtOffseason = advance.stoppedAtOffseason
+      if (advance.week !== Number(dynasty.currentWeek) || advance.phase !== dynasty.currentPhase) {
+        seasonFieldUpdates = { currentWeek: advance.week, currentPhase: advance.phase }
+      }
+    }
+
+    // Save-assigned coach headshot for the user's own team (same source as
+    // teams[tid].byYear[year].coachingStaff.hcPictureUrl) — only fills the
+    // Coach Career photo slot when it's empty, never overwrites a photo the
+    // user chose themselves.
+    let memberPhotoUpdate = {}
+    const userHcPictureUrl = plan.mergedTeams?.[String(dynasty.currentTid)]?.byYear?.[dynasty.currentYear]?.coachingStaff?.hcPictureUrl
+    if (user?.uid && userHcPictureUrl && !getMemberPhoto(dynasty, user.uid)) {
+      memberPhotoUpdate = { memberPhotos: setMemberPhotoValue(dynasty, user.uid, userHcPictureUrl) }
+    }
+
+    // Whole-league in-game depth chart order -> dynasty.teamFuture[tid].order
+    // (SchemeBuilder.jsx's persisted STACK order within each position's
+    // default slot column — save always wins, same as everything else this
+    // sync touches, but merged key-by-key so it never wipes a scheme/package/
+    // note the user already set up in Scheme Builder for that team, or an
+    // order the user set for a slot this sync didn't touch, e.g. WR2/SLWR).
+    let teamFutureUpdate = {}
+    if (plan.depthChartUpdates && Object.keys(plan.depthChartUpdates).length) {
+      const existingTeamFuture = dynasty.teamFuture || {}
+      const nextTeamFuture = { ...existingTeamFuture }
+      for (const [tid, { order, placements }] of Object.entries(plan.depthChartUpdates)) {
+        const existingForTid = nextTeamFuture[tid] || {}
+        nextTeamFuture[tid] = {
+          ...existingForTid,
+          order: { ...(existingForTid.order || {}), ...order },
+          // Explicit column placement, not just stack order — see
+          // mapDepthCharts' header comment: a player's roster position tag
+          // (e.g. RT) doesn't always match the column they're actually
+          // starting in per the save (e.g. LT), and auto-seed-by-position
+          // only ever seeds a player into the column matching their tag.
+          placements: { ...(existingForTid.placements || {}), ...placements },
+        }
+      }
+      teamFutureUpdate = { teamFuture: nextTeamFuture }
+    }
+
+    const useLocalStorage = dynasty.storageType !== 'cloud'
+    const statsYear = Number(dynasty.currentYear)
+
+    if (useLocalStorage) {
+      const existingByPid = new Map(freshPlayers.map((p) => [p.pid, p]))
+      for (const { pid, patch } of [...plan.toUpdatePatches, ...plan.departurePatches]) {
+        const existing = existingByPid.get(pid)
+        if (existing) existingByPid.set(pid, { ...existing, ...patch })
+      }
+      for (const created of plan.toCreatePlayers) {
+        existingByPid.set(created.pid, created)
+      }
+      // Whole-league box scores just landed on mergedGames above — recompute
+      // every player's season stat totals from them (same machinery the
+      // manual "Fix Player Stats" admin action uses), or the box scores sit
+      // on the games unread and every stats page stays empty.
+      const mergedPlayers = recalculateStatsFromBoxScores([...existingByPid.values()], mergedGames, statsYear)
+
+      await updateDynasty(dynastyId, { players: mergedPlayers, teams: plan.mergedTeams, games: mergedGames, ...seasonFieldUpdates, ...memberPhotoUpdate, ...teamFutureUpdate })
+    } else {
+      // Same recompute as the local branch, but diffed against freshPlayers
+      // (not written wholesale — a cloud dynasty can have thousands of
+      // players, and most weeks only touch a few hundred of them) so only
+      // players whose season totals actually changed get a Firestore write.
+      // Patch value is the FULL merged statsByYear map (existing years
+      // spread in client-side), matching every other nested-year patch in
+      // this same sync (teamsByYear/classByYear/overallByYear above) — a
+      // bare `{ statsByYear: { [year]: ... } }` patch would replace the
+      // whole map via {merge:true} and wipe every other tracked season.
+      const existingByPid = new Map(freshPlayers.map((p) => [p.pid, p]))
+      for (const { pid, patch } of [...plan.toUpdatePatches, ...plan.departurePatches]) {
+        const existing = existingByPid.get(pid)
+        if (existing) existingByPid.set(pid, { ...existing, ...patch })
+      }
+      for (const created of plan.toCreatePlayers) {
+        existingByPid.set(created.pid, created)
+      }
+      const recalculated = recalculateStatsFromBoxScores([...existingByPid.values()], mergedGames, statsYear)
+      const recalculatedByPid = new Map(recalculated.map((p) => [p.pid, p]))
+
+      const createPidSet = new Set(plan.toCreatePlayers.map((p) => p.pid))
+      const statsPatches = []
+      for (const player of recalculated) {
+        if (createPidSet.has(player.pid)) continue // folded into the create doc below instead
+        const freshPlayer = freshPlayers.find((p) => p.pid === player.pid)
+        const before = JSON.stringify(freshPlayer?.statsByYear?.[statsYear] || null)
+        const after = JSON.stringify(player.statsByYear?.[statsYear] || null)
+        if (before !== after) {
+          statsPatches.push({
+            pid: player.pid,
+            patch: { statsByYear: { ...(freshPlayer?.statsByYear || {}), [statsYear]: player.statsByYear?.[statsYear] || {} } },
+          })
+        }
+      }
+      const createsWithStats = plan.toCreatePlayers.map((p) => {
+        const recalc = recalculatedByPid.get(p.pid)
+        return recalc?.statsByYear?.[statsYear] ? { ...p, statsByYear: { ...(p.statsByYear || {}), [statsYear]: recalc.statsByYear[statsYear] } } : p
+      })
+
+      if (createsWithStats.length || plan.toUpdatePatches.length || plan.departurePatches.length || statsPatches.length) {
+        await syncPlayersToSubcollection(dynastyId, createsWithStats, [...plan.toUpdatePatches, ...plan.departurePatches, ...statsPatches])
+      }
+      await updateDynasty(dynastyId, { teams: plan.mergedTeams, games: mergedGames, ...seasonFieldUpdates, ...memberPhotoUpdate, ...teamFutureUpdate }, { skipPlayersSubcollection: true })
+    }
+
+    return {
+      summary: plan.summary,
+      unresolvedTeamNames: plan.unresolvedTeamNames,
+      reachedTargetSeason,
+      stoppedAtOffseason,
     }
   }
 
@@ -19467,6 +19881,7 @@ export function DynastyProvider({ children }) {
     isViewOnly,
     createDynasty,
     updateDynasty,
+    syncDynastyFromCFB27Save,
     saveWeekRecap,
     deleteWeekRecap,
     // Social Media feature

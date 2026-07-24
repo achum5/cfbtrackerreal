@@ -5,7 +5,7 @@ import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { getEditionConfig, isDynastyBlueprintEnabled } from '../../editions'
 import DynastyBlueprintPanel from '../../components/DynastyBlueprintPanel'
 import { getCoachByRole } from '../../data/coachModel'
-import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES, getCustomConferencesForYear, getGamesByType, isPlayerOnRoster, getUserGamePerspective, getTeamConferenceForDynasty, getTeamConferenceLabel, calculateTeamRecordFromGames, getTeamRanking, getRecruitingCommitments, getPlayerPositionForYear, getPlayerOverallForYear, lookupByTeamYear, getPlayersLeaving, getTeamRatingsForYear } from '../../context/DynastyContext'
+import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES, getCustomConferencesForYear, getGamesByType, isPlayerOnRoster, getUserGamePerspective, getTeamConferenceForDynasty, getTeamConferenceLabel, calculateTeamRecordFromGames, getTeamRecord, getTeamRanking, getRecruitingCommitments, getPlayerPositionForYear, getPlayerOverallForYear, lookupByTeamYear, getPlayersLeaving, getTeamRatingsForYear } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useCompareSelection, buildCompareUrl, COMPARE_ICON_PATH } from '../../hooks/useCompareSelection'
 import { StatRings } from '../../components/CfbUI'
@@ -1828,11 +1828,21 @@ export default function TeamYear() {
   // the team logo. A real photo is unique, so any image shared by 3+ players is
   // treated as a placeholder and the avatar falls back to the team logo instead
   // of showing a stale per-player logo copy.
+  //
+  // CFB27-synced portraits are EXCLUDED from this check (never flagged as a
+  // placeholder, no matter how many players share the exact URL). Verified
+  // against a real save: procedurally-generated players legitimately draw
+  // from a shared pool of ~5,040 template faces (cfb27SaveImport.js's
+  // mapPortraitUrl, /cfb27-portraits/generic/) — many players on the SAME
+  // roster genuinely look identical by the game's own design, which is not
+  // a mistake this heuristic should "fix". Confirmed this was hiding REAL,
+  // unique photos too (e.g. Jeremiah Smith's) once mixed into the same
+  // shared-count check as the generic ones.
   const placeholderImages = useMemo(() => {
     const counts = new Map()
     for (const p of teamPlayers) {
       const u = p.pictureUrl
-      if (u) counts.set(u, (counts.get(u) || 0) + 1)
+      if (u && !u.includes('/cfb27-portraits/')) counts.set(u, (counts.get(u) || 0) + 1)
     }
     return new Set([...counts].filter(([, n]) => n >= 3).map(([u]) => u))
   }, [teamPlayers])
@@ -6467,33 +6477,18 @@ export default function TeamYear() {
       {activeTab === 'history' && (() => {
         // Calculate records for each year
         const yearRecords = availableYears.map(year => {
-          // Get record from standings
-          const standingsForYear = currentDynasty.conferenceStandingsByYear?.[year]
-          let yearWins = 0, yearLosses = 0
-
-          if (standingsForYear) {
-            Object.values(standingsForYear).forEach(confTeams => {
-              const teamStanding = confTeams?.find(t => {
-                const standingTid = t.tid || resolveTid(t.team || t.abbr, teamsSource)
-                return standingTid === tid
-              })
-              if (teamStanding) {
-                yearWins = teamStanding.wins || teamStanding.overallWins || 0
-                yearLosses = teamStanding.losses || teamStanding.overallLosses || 0
-              }
-            })
-          }
-
-          // Fallback to games if no standings. Use the canonical record helper
-          // so unplayed 0-0 schedule placeholders (and any duplicate placeholder
-          // records) are filtered/deduped and a 0-0 tie is never miscounted as a
-          // loss — the hand-rolled count here previously did `won ? wins : losses`,
-          // so every 0-0 placeholder for an UPCOMING game inflated the loss column.
-          if (yearWins === 0 && yearLosses === 0) {
-            const rec = calculateTeamRecordFromGames(currentDynasty, tid, year)
-            yearWins = rec?.wins || 0
-            yearLosses = rec?.losses || 0
-          }
+          // Centralized single-source-of-truth record (same function the
+          // footer/ticker uses) — coverage-aware across live games and every
+          // stored record location, so this tab can never show a different
+          // record than the rest of the app. Previously this block trusted a
+          // conferenceStandingsByYear snapshot FIRST and only fell back to
+          // live games when the snapshot read exactly 0-0 — a snapshot
+          // entered/synced earlier in the season (or a stale
+          // overallWins/overallLosses field getTeamRecord doesn't even look
+          // at) then never got corrected as more games were actually played.
+          const record = getTeamRecord(currentDynasty, tid, year)
+          const yearWins = record?.wins || 0
+          const yearLosses = record?.losses || 0
 
           // Get bowl game for this team/year
           const bowlGames = (currentDynasty.games || []).filter(g =>
