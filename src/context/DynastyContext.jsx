@@ -13105,6 +13105,40 @@ export function DynastyProvider({ children }) {
       nextYear = Number(dynasty.currentYear) + 1
       console.log('[advanceWeek] Year flip:', dynasty.currentYear, '→', nextYear)
 
+      // ARCHIVE THE DEPTH CHART FOR THE SEASON THAT JUST ENDED.
+      // The depth chart has two stores: past seasons read from
+      // depthChartByYear[tid][year], while the current + future years share
+      // the forward-projection plan teamFuture[tid]. Without this snapshot,
+      // the moment the year flips the season you just played becomes a "past
+      // year" with nothing archived — its depth chart reads back empty and
+      // the 2-deep you built all season is gone. Copy every team's plan into
+      // the per-season store, keyed to the season that just ended, so you can
+      // always go back and see how the depth chart looked that year.
+      // teamFuture carries forward untouched as the new current-year plan.
+      // Never overwrite an existing archive (a user may have already edited
+      // that season's chart directly).
+      try {
+        const seasonEnding = Number(dynasty.currentYear)
+        const teamFutureNow = dynasty.teamFuture || {}
+        if (Number.isFinite(seasonEnding) && Object.keys(teamFutureNow).length > 0) {
+          const dcByYear = { ...(dynasty.depthChartByYear || {}) }
+          let archived = 0
+          for (const [tidKey, plan] of Object.entries(teamFutureNow)) {
+            if (!plan || typeof plan !== 'object' || Object.keys(plan).length === 0) continue
+            const existingForTeam = dcByYear[tidKey] || {}
+            if (existingForTeam[seasonEnding] != null) continue // already archived
+            dcByYear[tidKey] = { ...existingForTeam, [seasonEnding]: JSON.parse(JSON.stringify(plan)) }
+            archived++
+          }
+          if (archived > 0) {
+            additionalUpdates.depthChartByYear = dcByYear
+            console.log(`[advanceWeek] Archived ${archived} depth chart(s) for ${seasonEnding}`)
+          }
+        }
+      } catch (err) {
+        console.error('[advanceWeek] Error archiving depth charts:', err)
+      }
+
       // NEW COACH CAREER SYSTEM: Write career entry for the new year
       // This captures which team the user is coaching for this season
       try {
@@ -15154,6 +15188,22 @@ export function DynastyProvider({ children }) {
         const newSeasonYear = currentYear // The year we're leaving
         const previousSeasonYear = prevYear // The year we're going back to
         const players = dynasty.players || []
+
+        // Undo the depth-chart archive the flip wrote for the season we're
+        // returning to. That season is the LIVE plan again (teamFuture), so a
+        // leftover archive would both shadow it and go stale if the user edits
+        // the chart before re-advancing. Removing it lets the next advance
+        // re-archive the current state.
+        if (dynasty.depthChartByYear) {
+          const dcRollback = {}
+          let removed = 0
+          for (const [tidKey, byYear] of Object.entries(dynasty.depthChartByYear)) {
+            const stripped = deleteYearKeys(byYear || {}, previousSeasonYear)
+            if (Object.keys(stripped || {}).length !== Object.keys(byYear || {}).length) removed++
+            dcRollback[tidKey] = stripped
+          }
+          if (removed > 0) additionalUpdates.depthChartByYear = dcRollback
+        }
 
         // Reverse class progression for all players
         // Remove teamsByYear[newSeasonYear] and classByYear[newSeasonYear] entries
