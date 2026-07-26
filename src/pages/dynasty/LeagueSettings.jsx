@@ -117,7 +117,6 @@ export default function LeagueSettings() {
   const { toast } = useToast()
   const { confirm } = useConfirm()
 
-  const [showDisclaimer, setShowDisclaimer] = useState(false)
   const [pendingUid, setPendingUid] = useState('')
   const [busyUid, setBusyUid] = useState(null)
   const [nameDrafts, setNameDrafts] = useState({})
@@ -893,33 +892,6 @@ export default function LeagueSettings() {
 
   return (
     <div className="space-y-4 page-enter">
-      <div
-        className="rounded-lg border px-4 py-2.5"
-        style={{ borderColor: 'var(--accent-warning, #b7791f)', backgroundColor: 'rgba(183, 121, 31, 0.08)' }}
-      >
-        <button
-          type="button"
-          onClick={() => setShowDisclaimer(v => !v)}
-          aria-expanded={showDisclaimer}
-          className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider"
-          style={{ color: 'var(--accent-warning, #b7791f)' }}
-        >
-          <span
-            aria-hidden="true"
-            className="inline-block transition-transform"
-            style={{ transform: showDisclaimer ? 'rotate(90deg)' : 'rotate(0deg)' }}
-          >
-            ›
-          </span>
-          Disclaimer
-        </button>
-        {showDisclaimer && (
-          <p className="text-sm text-txt-secondary leading-relaxed mt-2">
-            Online dynasty is still early and has been tested very little, so expect rough edges. If you'd give it a go with your online dynasty and help me squash bugs and improve it, I'd really appreciate it. That's why premium is free for now and I'm covering the server costs out of pocket. Thanks!
-          </p>
-        )}
-      </div>
-
       <Card>
         <header className="flex items-baseline justify-between mb-1">
           <h3
