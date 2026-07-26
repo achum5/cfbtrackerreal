@@ -6,6 +6,7 @@ import { getCustomConferencesForYear, getTeamRatingsForYear } from '../context/D
 import { getTeamColors } from '../data/teamColors'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { getSchoolName } from '../data/teams'
+import { isPcAutoDynasty } from '../editions'
 
 // ─── Rounding ─────────────────────────────────────────────────────────────────
 
@@ -99,7 +100,26 @@ function teamGamesInRange(dynasty, tid, year, minYear, maxYear, upToWeek = 99) {
     const key = `${gy}-${g.week ?? 'post'}-${g.gameType || 'regular'}`
     if (seenKey.has(key)) continue
     seenKey.add(key)
-    out.push({ year: gy, my, their, oppTid: Number.isFinite(oppTid) ? oppTid : null })
+
+    // Real per-game team stats (yards, turnovers) — only present on CFB27-synced
+    // games via game.boxScore.teamStatsByTid. Manual dynasties simply won't have
+    // this, so these stay null and every stat-efficiency term downstream no-ops.
+    const myStats  = g.boxScore?.teamStatsByTid?.[tidNum] ?? g.boxScore?.teamStatsByTid?.[String(tidNum)]
+    const oppStats = oppTid != null
+      ? (g.boxScore?.teamStatsByTid?.[oppTid] ?? g.boxScore?.teamStatsByTid?.[String(oppTid)])
+      : null
+    const myYards      = Number(myStats?.totalYards)
+    const theirYards    = Number(oppStats?.totalYards)
+    const myTurnovers   = Number(myStats?.turnovers)
+    const theirTurnovers = Number(oppStats?.turnovers)
+
+    out.push({
+      year: gy, my, their, oppTid: Number.isFinite(oppTid) ? oppTid : null,
+      myYards: Number.isFinite(myYards) ? myYards : null,
+      theirYards: Number.isFinite(theirYards) ? theirYards : null,
+      myTurnovers: Number.isFinite(myTurnovers) ? myTurnovers : null,
+      theirTurnovers: Number.isFinite(theirTurnovers) ? theirTurnovers : null,
+    })
   }
   return out
 }
@@ -136,15 +156,23 @@ function calcScoringProfile(dynasty, tid, year, upToWeek = 99) {
   const yearN = Number(year)
   const games = teamGamesInRange(dynasty, tid, year, yearN - (PROFILE_SEASONS - 1), yearN, upToWeek)
   let wW = 0, wWins = 0, wFor = 0, wAgainst = 0
+  let wStatW = 0, wYardsMargin = 0, wTurnoverMargin = 0
   for (const g of games) {
     const w = Math.pow(PROFILE_DECAY, yearN - g.year)
     wW += w
     if (g.my > g.their) wWins += w
     wFor += w * g.my
     wAgainst += w * g.their
+    // Real box-score margins (CFB27-synced games only — see teamGamesInRange).
+    // Takeaways = the opponent's giveaways in that same game.
+    if (g.myYards != null && g.theirYards != null && g.myTurnovers != null && g.theirTurnovers != null) {
+      wStatW += w
+      wYardsMargin += w * (g.myYards - g.theirYards)
+      wTurnoverMargin += w * (g.theirTurnovers - g.myTurnovers)
+    }
   }
   if (wW <= 0) {
-    return { winPct: 0.5, avgFor: 24, avgAgainst: 24, avgDiff: 0, sampleGames: 0, rawGames: 0 }
+    return { winPct: 0.5, avgFor: 24, avgAgainst: 24, avgDiff: 0, sampleGames: 0, rawGames: 0, yardsMarginAvg: 0, turnoverMarginAvg: 0, statSampleGames: 0 }
   }
   return {
     winPct:      wWins / wW,
@@ -153,16 +181,39 @@ function calcScoringProfile(dynasty, tid, year, upToWeek = 99) {
     avgDiff:     (wFor - wAgainst) / wW,
     sampleGames: wW,
     rawGames:    games.length,
+    yardsMarginAvg:    wStatW > 0 ? wYardsMargin / wStatW : 0,
+    turnoverMarginAvg: wStatW > 0 ? wTurnoverMargin / wStatW : 0,
+    statSampleGames:   wStatW,
   }
 }
 
-// Power score = (winPct × 40) + (avgPointDiff × 3) from the multi-season
-// profile. No team rating is used (it's almost never entered). For a thin
-// sample (a brand-new program with little history) regress toward a neutral
-// baseline (20 ≈ an even, 0-diff team).
+// Real team-stat efficiency, secondary to the scoring margin above: yards
+// margin (~0.03 power/yard — a +200 yd/g margin ≈ +6) and turnover margin
+// (~2.5 power/turnover — real games are frequently decided by 1-2 takeaways).
+// Clamped so a small number of extreme box scores can't swing power more than
+// a full season of scoring does. Only present on CFB27-synced games — null on
+// every other game, so statSampleGames stays 0 and this contributes nothing
+// for manual dynasties (identical behavior to before this was added).
+const YARDS_MARGIN_PER  = 0.03
+const TURNOVER_MARGIN_PER = 2.5
+const STAT_EFFICIENCY_CAP = 15
+
+function calcStatEfficiency(prof) {
+  const raw = prof.yardsMarginAvg * YARDS_MARGIN_PER + prof.turnoverMarginAvg * TURNOVER_MARGIN_PER
+  return Math.max(-STAT_EFFICIENCY_CAP, Math.min(STAT_EFFICIENCY_CAP, raw))
+}
+
+// Power score = (winPct × 40) + (avgPointDiff × 3) + a real-stat efficiency
+// term (yards margin + turnover margin, CFB27-synced games only — see
+// calcStatEfficiency) from the multi-season profile. Team rating is blended
+// in separately by calcSpread/calcSeededPower, not here. For a thin sample (a
+// brand-new program with little history) regress toward a neutral baseline
+// (20 ≈ an even, 0-diff team); the stat-efficiency term gets its own trust
+// gate since box-score data may lag behind (or predate) the scoring sample.
 function calcPowerScore(dynasty, tid, year, upToWeek = 99) {
   const prof = calcScoringProfile(dynasty, tid, year, upToWeek)
-  const onField = (prof.winPct * 40) + (prof.avgDiff * 3)
+  const statTrust = Math.min(1, prof.statSampleGames / 3)
+  const onField = (prof.winPct * 40) + (prof.avgDiff * 3) + calcStatEfficiency(prof) * statTrust
   const trust = Math.min(1, prof.sampleGames / 3)
   return onField * trust + 20 * (1 - trust)
 }
@@ -282,12 +333,16 @@ function calcConfStats(dynasty, tid, year, upToWeek = 99) {
   }
 }
 
-// Blended championship score: 60% power + 40% win% (scaled 0-100).
-// A 10-0 team will never rank below 8-2 unless power gap is huge.
-function calcChampScore(dynasty, tid, year, week) {
+// Blended championship score: 75% power (now rank/OVR-dominant, see
+// calcSeededPower) + 25% this-season win% (scaled 0-100). Win% still nudges
+// things — an undefeated team should edge a 1-loss team ranked just above
+// it — but can no longer be the main driver, since nearly every unbeaten
+// team shares the identical win% this early and that was letting on-field
+// noise (not real quality) pick the order among them.
+function calcChampScore(dynasty, tid, year, week, powerMap = null) {
   const stats = calcTeamStats(dynasty, tid, year, week ?? 99)
-  const ps    = calcSeededPower(dynasty, tid, year, week ?? 99)
-  return ps * 0.6 + (stats.winPct * 100) * 0.4
+  const ps    = calcSeededPower(dynasty, tid, year, week ?? 99, powerMap)
+  return ps * 0.75 + (stats.winPct * 100) * 0.25
 }
 
 // ─── Spread calculation (min-max normalized) ──────────────────────────────────
@@ -338,6 +393,34 @@ function teamOvr(dynasty, tid, year) {
   return Number.isFinite(o) && o > 0 ? o : null
 }
 
+// Offense / defense ratings for a season, or null if not entered. Feeds the
+// O/U total's seed below, mirroring how teamOvr feeds the spread's seed.
+function teamOffRating(dynasty, tid, year) {
+  const o = Number(getTeamRatingsForYear(dynasty, Number(tid), year)?.offense)
+  return Number.isFinite(o) && o > 0 ? o : null
+}
+function teamDefRating(dynasty, tid, year) {
+  const o = Number(getTeamRatingsForYear(dynasty, Number(tid), year)?.defense)
+  return Number.isFinite(o) && o > 0 ? o : null
+}
+
+// For a CFB27 (PC auto-sync) dynasty, team ratings are synced fresh every
+// week, all season — they're never a one-time stale preseason guess the way a
+// manual entry usually is. So ratings should never fade all the way to zero
+// influence: on-field results still take over as the DOMINANT signal (a
+// team's actual results reflect scheme fit, chemistry, injuries — things a
+// rating can't capture), but the rating keeps a real, permanent floor of
+// influence instead of being fully discarded by ~6 games played. Manual
+// dynasties keep the original fully-on-field-by-6-games behavior unchanged
+// (their rating, if entered at all, really is just a preseason snapshot).
+const ON_FIELD_WEIGHT_CAP_CFB27 = 0.7 // ratings retain >=30% weight forever
+function onFieldWeightCap(dynasty) {
+  return isPcAutoDynasty(dynasty) ? ON_FIELD_WEIGHT_CAP_CFB27 : 1
+}
+function ratingBlendWeight(dynasty, gamesPlayed) {
+  return Math.min(onFieldWeightCap(dynasty), gamesPlayed / 6)
+}
+
 // The effective overall for ONE side of a specific game. The per-game value the
 // user entered on the game record (game.teamNOverall / opponentOverall) takes
 // priority — it's what they typed for THIS matchup — falling back to the team's
@@ -355,12 +438,37 @@ function gameSideOvr(dynasty, game, tid, year) {
   return teamOvr(dynasty, tid, year)
 }
 
-// Preseason poll rank (week 0) for a team, 1-25, or null if unranked/absent.
-function preseasonRank(dynasty, tid, year) {
+// Current real poll rank for a team. Deliberately does NOT depend on
+// dynasty.currentWeek/currentPhase (getTeamRanking's approach) or on any
+// `week` argument threaded down from a caller (this file's earlier
+// attempt) — both turned out to be unreliable here: calcSeededPower's
+// `week` is meant for on-field stat cutoffs and is either absent (defaults
+// to 99) or sourced from an arbitrary displayed game's own week, neither of
+// which reliably reflects "what week is it right now" for polling purposes.
+// Instead this mirrors EXACTLY what Rankings.jsx does to find its own
+// default week (proven correct — it's what's actually on screen): scan
+// every canonical poll slot this team has on record and take the value at
+// the HIGHEST one. No external "current week" signal needed at all — the
+// data itself says which is latest.
+function currentPollRank(dynasty, tid, year) {
   const t = dynasty?.teams?.[tid]
   const rbw = t?.byYear?.[Number(year)]?.rankByWeek ?? t?.byYear?.[String(year)]?.rankByWeek
-  const r = Number(rbw?.[0] ?? rbw?.['0'])
-  return Number.isFinite(r) && r >= 1 && r <= 25 ? r : null
+  if (!rbw) return null
+  let best = null
+  let bestWeek = -Infinity
+  for (const k of Object.keys(rbw)) {
+    const wk = Number(k)
+    if (!Number.isFinite(wk)) continue
+    // Canonical poll slots only (same set Rankings.jsx recognizes):
+    // Preseason(0), Weeks 1-15, Conf Champ(16), Bowl Weeks(17-20), CFP
+    // rounds + Final(101-105) — skips legacy/orphan slots like "100".
+    const isCanonical = (wk >= 0 && wk <= 20) || (wk >= 101 && wk <= 105)
+    if (!isCanonical) continue
+    const v = rbw[k]
+    if (typeof v !== 'number' || v < 1 || v > 25) continue
+    if (wk > bestWeek) { bestWeek = wk; best = v }
+  }
+  return best
 }
 
 // Preseason strength SEED for the futures boards. On-field power (calcPowerScore)
@@ -384,22 +492,45 @@ function rankToPower(rank) {
   return 20 + (26 - rank) * RANK_POWER_PER
 }
 
-// Power score seeded by preseason OVR + poll rank, blended into on-field results
-// by games played. Used by the three futures boards so they differentiate teams
-// before any games are played instead of splitting evenly. When neither signal
-// is entered for a team it falls back to the pure on-field power (unchanged).
-function calcSeededPower(dynasty, tid, year, week = 99) {
-  const onField = calcPowerScore(dynasty, tid, year, week)
-  const seeds = []
+// Power score for the three FUTURES boards (National Championship, Conf
+// Championship, Win Totals) — deliberately NOT the same on-field/SRS power
+// Game Lines uses. Two rounds of tuning that on-field formula (recency-
+// weighted scoring margin, then real box-score stat efficiency, then SOS
+// adjustment) still left unranked teams (Missouri, Tennessee, Virginia,
+// Colorado, Auburn, Vanderbilt...) ahead of the actual #1 team in the real
+// poll on the championship board — the app's home-grown formula just isn't
+// as trustworthy as the two signals a real sportsbook (and the human AP
+// voters) already lean on most early in a season:
+//   - the team's real, current, already-synced poll rank — a human
+//     judgment that's already weighing quality of wins and schedule
+//     strength far better than a few games of margin/turnover stats can.
+//   - the team's real roster OVR rating — talent that doesn't disappear
+//     just because the schedule so far hasn't tested it yet.
+// So this is now a FIXED weighting (rank 50% / OVR 35% / on-field-SRS 15%)
+// rather than a seed that fades in and cedes control to on-field results
+// after a handful of games — both rank and OVR are already live, current
+// signals for a CFB27 dynasty (refreshed every sync), not a stale
+// preseason guess that needs to be phased out over the season. An unranked
+// or unrated team defaults to the neutral baseline (20) for that piece —
+// same convention calcPowerScore already uses for "no signal yet."
+const FUTURES_RANK_WEIGHT = 0.5
+const FUTURES_OVR_WEIGHT = 0.35
+const FUTURES_ONFIELD_WEIGHT = 0.15
+
+function calcSeededPower(dynasty, tid, year, week = 99, powerMap = null) {
+  const rank = currentPollRank(dynasty, tid, year)
   const ovr = teamOvr(dynasty, tid, year)
-  if (ovr != null) seeds.push(ovrToPower(ovr))
-  const rp = rankToPower(preseasonRank(dynasty, tid, year))
-  if (rp != null) seeds.push(rp)
-  if (seeds.length === 0) return onField
-  const seed = seeds.reduce((a, b) => a + b, 0) / seeds.length
-  const played = calcScoringProfile(dynasty, tid, year, week).sampleGames
-  const w = Math.min(1, played / 6) // preseason → pure seed; ~6 games → pure on-field
-  return seed * (1 - w) + onField * w
+  const onField = powerFor(dynasty, tid, year, week, powerMap)
+  // Neither signal on record for this team — fall back to pure on-field power.
+  // The weighting above assumes rank and OVR are live, synced data; in a
+  // manually-tracked dynasty where the user never enters polls or team
+  // ratings, defaulting both to the neutral 20 would flatten every team to
+  // ~the same number and leave the futures boards undifferentiated. On-field
+  // results are the only real signal there, so use them outright.
+  if (rank == null && ovr == null) return onField
+  const rankPower = rank != null ? rankToPower(rank) : 20
+  const ovrPower = ovr != null ? ovrToPower(ovr) : 20
+  return rankPower * FUTURES_RANK_WEIGHT + ovrPower * FUTURES_OVR_WEIGHT + onField * FUTURES_ONFIELD_WEIGHT
 }
 
 // ~points of spread per point of overall difference. A 25-OVR gap (e.g. a 95
@@ -426,12 +557,24 @@ function calcSpread(dynasty, homeTid, awayTid, year, week, normCtx, isNeutral = 
       calcScoringProfile(dynasty, homeTid, year, week).sampleGames,
       calcScoringProfile(dynasty, awayTid, year, week).sampleGames,
     )
-    const w = Math.min(1, played / 6) // 0 preseason (pure overall) → 1 by ~6 games (pure on-field)
+    const w = ratingBlendWeight(dynasty, played) // 0 preseason (pure overall) → mostly on-field by ~6 games (CFB27 keeps a permanent floor)
     core = ovrComponent * (1 - w) + onField * w
   }
 
   const clamped = Math.max(-28, Math.min(28, core + homeField))
   return Math.round(clamped * 2) / 2
+}
+
+// Full point-spread for one matchup, home-field aware — builds the same
+// SRS-adjusted power map + league normalization the Sportsbook line uses and
+// runs it through calcSpread. Exported so GamedayPicks (CFB27 dynasties only)
+// can derive its win probabilities from the exact same model as the posted
+// line, instead of a separate simplified one — the two features then always
+// agree on the same matchup. Positive → homeTid favored.
+export function getGameSpread(dynasty, homeTid, awayTid, year, week, isNeutral = false, game = null) {
+  const powerMap = buildSrsPowerMap(dynasty, year, week)
+  const normCtx  = buildNormSpreadContext(dynasty, year, week, powerMap)
+  return calcSpread(dynasty, homeTid, awayTid, year, week, normCtx, isNeutral, game, powerMap)
 }
 
 // ─── Spread → Moneyline (reference table with linear interpolation) ───────────
@@ -472,6 +615,16 @@ function spreadToML(absSp) {
   return { favML: -1200, dogML: 750 }
 }
 
+// ~expected points from an offense/defense rating pair. 75 ≈ average FBS
+// rating → 24 pts (the same neutral baseline calcScoringProfile falls back
+// to). Mirrors OVR_SPREAD_PER's role for the spread, but for the total.
+const AVG_RATING = 75
+const OFF_PTS_PER_RATING = 0.35
+const DEF_PTS_PER_RATING = 0.35
+function ratingsToExpectedPoints(offRating, oppDefRating) {
+  return 24 + (offRating - AVG_RATING) * OFF_PTS_PER_RATING - (oppDefRating - AVG_RATING) * DEF_PTS_PER_RATING
+}
+
 // ─── Total (Over/Under) ───────────────────────────────────────────────────────
 // Each team's expected points = its offense blended with the OPPONENT's defense
 // (avgFor vs the other team's avgAgainst). Summing both season offenses instead
@@ -481,8 +634,19 @@ function spreadToML(absSp) {
 function calcTotal(dynasty, tid1, tid2, year, week) {
   const s1 = calcScoringProfile(dynasty, tid1, year, week)
   const s2 = calcScoringProfile(dynasty, tid2, year, week)
-  const exp1 = (s1.avgFor + s2.avgAgainst) / 2 // tid1 offense vs tid2 defense
-  const exp2 = (s2.avgFor + s1.avgAgainst) / 2 // tid2 offense vs tid1 defense
+  let exp1 = (s1.avgFor + s2.avgAgainst) / 2 // tid1 offense vs tid2 defense
+  let exp2 = (s2.avgFor + s1.avgAgainst) / 2 // tid2 offense vs tid1 defense
+
+  // Seed each side from real offense/defense ratings when entered, blending
+  // toward real scoring as games accumulate (same curve, same permanent
+  // CFB27 floor, as the spread's OVR blend) — otherwise every matchup starts
+  // at a flat ~49.5 total regardless of how good either offense/defense is.
+  const off1 = teamOffRating(dynasty, tid1, year), def1 = teamDefRating(dynasty, tid1, year)
+  const off2 = teamOffRating(dynasty, tid2, year), def2 = teamDefRating(dynasty, tid2, year)
+  const w = ratingBlendWeight(dynasty, Math.min(s1.sampleGames, s2.sampleGames))
+  if (off1 != null && def2 != null) exp1 = ratingsToExpectedPoints(off1, def2) * (1 - w) + exp1 * w
+  if (off2 != null && def1 != null) exp2 = ratingsToExpectedPoints(off2, def1) * (1 - w) + exp2 * w
+
   const combined = (exp1 + exp2) * 1.03        // light book shade toward the over
   const raw = combined > 20 ? combined : 48
   const total = Math.round(raw * 2) / 2
@@ -562,11 +726,19 @@ function buildNatlChampBoard(dynasty, year, week) {
   })
   if (tids.length === 0) return []
 
+  // SOS-adjusted power, same as Game Lines — without this, beating a soft
+  // out-of-conference slate looks identical to beating ranked opponents, so
+  // an undefeated team with an easy schedule can outrank a team with a
+  // tougher one purely on won-loss record. This was the single biggest
+  // driver of unrealistic-looking title odds early in a season, when every
+  // undefeated team's win% is otherwise identical.
+  const powerMap = buildSrsPowerMap(dynasty, year, week)
+
   const rows = tids.map(tid => {
     const stats = calcTeamStats(dynasty, tid, year, week ?? 99)
     const conf  = calcConfStats(dynasty, tid, year, week ?? 99)
-    const ps    = calcPowerScore(dynasty, tid, year, week ?? 99)
-    const cs    = calcChampScore(dynasty, tid, year, week)
+    const ps    = powerFor(dynasty, tid, year, week, powerMap)
+    const cs    = calcChampScore(dynasty, tid, year, week, powerMap)
     return { tid, team: teams[tid], stats, conf, ps, cs }
   })
 
@@ -587,16 +759,29 @@ function buildConfChampBoard(dynasty, year, week, confTeamAbbrs) {
 
   if (tids.length === 0) return []
 
+  // League-wide SOS map (not conference-scoped) — a team's non-conference
+  // games matter for its SOS credit too, same reasoning as buildNatlChampBoard.
+  const powerMap = buildSrsPowerMap(dynasty, year, week)
+
   const rows = tids.map(tid => {
     const overall = calcTeamStats(dynasty, tid, year, week ?? 99)
     const conf    = calcConfStats(dynasty, tid, year, week ?? 99)
-    const ps      = calcSeededPower(dynasty, tid, year, week ?? 99)
-    // Power-dominant. Conference record nudges it, but its weight ramps up with
-    // conference games played — so one early conf win can't give a team a +25
-    // head start and run away with the whole board (the old winPct*50 term did
-    // exactly that, leaving every other team floored at +50000).
+    const ps      = calcSeededPower(dynasty, tid, year, week ?? 99, powerMap)
+    // Power-dominant — ps is now rank/OVR-driven (see calcSeededPower), so
+    // conference record can only be a small NUDGE on top of it, never
+    // override it. Hard-capped (same pattern as calcStatEfficiency's cap
+    // elsewhere in this file): uncapped, this term could swing up to ±60 at
+    // full trust, which used to be reasonable against the old on-field-heavy
+    // ps scale but completely swamps the new rank/OVR scale (~20-75) — e.g.
+    // a team that simply hadn't played its conference opener yet (confEdge
+    // defaults to 0) could rank behind a team that had banked one early
+    // conference win, even when the first team is the #1 team in the country
+    // and the second is unranked. Weight still ramps up with conference
+    // games played so a single early result can't have full effect either.
+    const CONF_EDGE_CAP = 10
     const confTrust = Math.min(1, conf.gamesPlayed / 4)
-    const confEdge  = ((conf.winPct - 0.5) * 60 + conf.avgDiff * 1.5) * confTrust
+    const confEdgeRaw = ((conf.winPct - 0.5) * 40 + conf.avgDiff * 1) * confTrust
+    const confEdge = Math.max(-CONF_EDGE_CAP, Math.min(CONF_EDGE_CAP, confEdgeRaw))
     return { tid, team: teams[tid], stats: overall, conf, ps, cs: ps + confEdge }
   })
 
@@ -608,13 +793,13 @@ function buildConfChampBoard(dynasty, year, week, confTeamAbbrs) {
 // ─── Win totals with pace-based drift ────────────────────────────────────────
 const SEASON_GAMES = 12
 
-function calcWinTotal(dynasty, tid, year) {
+function calcWinTotal(dynasty, tid, year, week, powerMap = null) {
   const stats = calcTeamStats(dynasty, tid, year)
   // Season win line from power score via an expected per-game win rate (power
   // 20 ≈ a .500 / 6-win team). The old `(ps-20)/12` mapping was too steep and
   // pegged every strong team at the 12 cap; this lands even elite teams around
   // 10–11 with a realistic spread underneath.
-  const ps        = calcSeededPower(dynasty, tid, year)
+  const ps        = calcSeededPower(dynasty, tid, year, week ?? 99, powerMap)
   const expWinPct = Math.max(0.05, Math.min(0.95, 0.5 + (ps - 20) / 210))
   let baseTotal   = expWinPct * SEASON_GAMES
   baseTotal       = Math.max(2, Math.min(12, baseTotal))
@@ -674,7 +859,9 @@ function buildDebugText(dynasty, game) {
     const abbr    = getTeamAbbr(dynasty, tid)
     const cur     = calcTeamStats(dynasty, tid, year, week)
     const prof    = calcScoringProfile(dynasty, tid, year, week)
-    const onField = (prof.winPct * 40) + (prof.avgDiff * 3)
+    const statTrust = Math.min(1, prof.statSampleGames / 3)
+    const statEff = calcStatEfficiency(prof)
+    const onField = (prof.winPct * 40) + (prof.avgDiff * 3) + statEff * statTrust
     const basePs  = calcPowerScore(dynasty, tid, year, week)
     const ps      = powerFor(dynasty, tid, year, week, powerMap)
     const norm    = normScore(ps, normCtx)
@@ -682,7 +869,11 @@ function buildDebugText(dynasty, game) {
     p(`${role}: ${abbr}  (${cur.wins}-${cur.losses} this season)`)
     p(`  profile sample: ${prof.rawGames} games over last ${PROFILE_SEASONS} seasons (recency-weighted = ${prof.sampleGames.toFixed(1)})`)
     p(`  weighted: win% ${prof.winPct.toFixed(3)}   pts for/g ${prof.avgFor.toFixed(1)}   pts against/g ${prof.avgAgainst.toFixed(1)}   avg diff ${sgn(prof.avgDiff)}`)
-    p(`  on-field power = winPct*40 + avgDiff*3 = ${prof.winPct.toFixed(3)}*40 + ${prof.avgDiff.toFixed(1)}*3 = ${onField.toFixed(2)}`)
+    if (prof.statSampleGames > 0) {
+      p(`  real box-score stats (${prof.statSampleGames.toFixed(1)} synced games): yards margin/g ${sgn(prof.yardsMarginAvg)}   turnover margin/g ${sgn(prof.turnoverMarginAvg)}`)
+      p(`  stat efficiency = clamp(yardsMargin*${YARDS_MARGIN_PER} + turnoverMargin*${TURNOVER_MARGIN_PER}, ±${STAT_EFFICIENCY_CAP}) = ${sgn(statEff)}  (trust ${statTrust.toFixed(2)})`)
+    }
+    p(`  on-field power = winPct*40 + avgDiff*3 + statEff*trust = ${prof.winPct.toFixed(3)}*40 + ${prof.avgDiff.toFixed(1)}*3 + ${statEff.toFixed(1)}*${statTrust.toFixed(2)} = ${onField.toFixed(2)}`)
     if (trust < 1) {
       p(`  thin sample -> regress toward neutral 20 (trust = ${trust.toFixed(2)})`)
       p(`    base power = onField*${trust.toFixed(2)} + 20*${(1 - trust).toFixed(2)} = ${basePs.toFixed(2)}`)
@@ -713,12 +904,12 @@ function buildDebugText(dynasty, game) {
   p('SPREAD')
   if (hOvr != null && aOvr != null) {
     const played = Math.min(home.prof.sampleGames, away.prof.sampleGames)
-    const w      = Math.min(1, played / 6)
+    const w      = ratingBlendWeight(dynasty, played)
     const ovrEdge = (hOvr - aOvr) * OVR_SPREAD_PER
     p(`  both teams rated -> overall drives it early, on-field takes over as games play`)
     p(`  overall edge = (${hOvr} - ${aOvr}) * ${OVR_SPREAD_PER} = ${ovrEdge.toFixed(2)}`)
     p(`  on-field edge = (${home.norm.toFixed(2)} - ${away.norm.toFixed(2)})/4 = ${onFieldEdge.toFixed(2)}`)
-    p(`  blend (games played min ${played.toFixed(1)} -> weight ${w.toFixed(2)} on-field) + homeField(${hfa})`)
+    p(`  blend (games played min ${played.toFixed(1)} -> weight ${w.toFixed(2)} on-field${onFieldWeightCap(dynasty) < 1 ? `, capped at ${onFieldWeightCap(dynasty)} so rating never fully fades` : ''}) + homeField(${hfa})`)
   } else {
     p(`  raw = (homeNorm - awayNorm)/4 + homeField(${hfa})${isNeutral ? '  [neutral site: no home edge]' : ''}`)
     p(`      = (${home.norm.toFixed(2)} - ${away.norm.toFixed(2)})/4 + ${hfa}`)
@@ -733,17 +924,28 @@ function buildDebugText(dynasty, game) {
   p('')
 
   const t = calcTotal(dynasty, homeTid, awayTid, year, week)
-  const expHome = (home.prof.avgFor + away.prof.avgAgainst) / 2
-  const expAway = (away.prof.avgFor + home.prof.avgAgainst) / 2
+  const onFieldExpHome = (home.prof.avgFor + away.prof.avgAgainst) / 2
+  const onFieldExpAway = (away.prof.avgFor + home.prof.avgAgainst) / 2
+  const hOff = teamOffRating(dynasty, homeTid, year), hDef = teamDefRating(dynasty, homeTid, year)
+  const aOff = teamOffRating(dynasty, awayTid, year), aDef = teamDefRating(dynasty, awayTid, year)
+  const totalW = ratingBlendWeight(dynasty, Math.min(home.prof.sampleGames, away.prof.sampleGames))
   p('TOTAL  (each offense vs the other defense, weighted profiles)')
-  p(`  ${home.abbr} exp = (off ${home.prof.avgFor.toFixed(1)} + ${away.abbr} def ${away.prof.avgAgainst.toFixed(1)}) / 2 = ${expHome.toFixed(1)}`)
-  p(`  ${away.abbr} exp = (off ${away.prof.avgFor.toFixed(1)} + ${home.abbr} def ${home.prof.avgAgainst.toFixed(1)}) / 2 = ${expAway.toFixed(1)}`)
-  p(`  total = (${expHome.toFixed(1)} + ${expAway.toFixed(1)}) * 1.03 = ${((expHome + expAway) * 1.03).toFixed(2)} -> O ${t.total} (${t.overVig})  U ${t.total} (${t.underVig})`)
+  p(`  ${home.abbr} on-field exp = (off ${home.prof.avgFor.toFixed(1)} + ${away.abbr} def ${away.prof.avgAgainst.toFixed(1)}) / 2 = ${onFieldExpHome.toFixed(1)}`)
+  p(`  ${away.abbr} on-field exp = (off ${away.prof.avgFor.toFixed(1)} + ${home.abbr} def ${home.prof.avgAgainst.toFixed(1)}) / 2 = ${onFieldExpAway.toFixed(1)}`)
+  if (hOff != null && aDef != null) {
+    const seedHome = ratingsToExpectedPoints(hOff, aDef)
+    p(`  ${home.abbr} rating-seeded exp = ratings(${hOff} off vs ${aDef} def) = ${seedHome.toFixed(1)}  ->  blend weight ${totalW.toFixed(2)} on-field`)
+  }
+  if (aOff != null && hDef != null) {
+    const seedAway = ratingsToExpectedPoints(aOff, hDef)
+    p(`  ${away.abbr} rating-seeded exp = ratings(${aOff} off vs ${hDef} def) = ${seedAway.toFixed(1)}  ->  blend weight ${totalW.toFixed(2)} on-field`)
+  }
+  p(`  total = (final exp home + final exp away) * 1.03 -> O ${t.total} (${t.overVig})  U ${t.total} (${t.underVig})`)
   p('')
 
   p('WIN TOTALS')
   for (const [tid, abbr] of [[homeTid, home.abbr], [awayTid, away.abbr]]) {
-    const wt = calcWinTotal(dynasty, tid, year)
+    const wt = calcWinTotal(dynasty, tid, year, week, powerMap)
     p(`  ${abbr}: line ${wt.total}  (over ${wt.overML} / under ${wt.underML})  [${wt.wins}-${wt.losses} so far]`)
   }
   p('')
@@ -1181,15 +1383,15 @@ function WinTotalsPanel({ dynasty, game, pathPrefix, customConfs, teamFilter, co
     return ['ALL', ...Array.from(confs).sort()]
   }, [dynasty, teams, customConfs])
 
-  const rows = useMemo(() =>
-    Object.keys(teams).map(Number)
+  const rows = useMemo(() => {
+    const powerMap = buildSrsPowerMap(dynasty, year, undefined)
+    return Object.keys(teams).map(Number)
       .filter(tid => teams[tid]?.abbr && !isFCSPlaceholderAbbr(teams[tid].abbr))
       .filter(tid => activeConf === 'ALL' || teamConf(dynasty, tid, customConfs) === activeConf)
       .filter(tid => !teamFilter || teamFilter(tid))
-      .map(tid => ({ tid, ...calcWinTotal(dynasty, tid, year), conf: calcConfStats(dynasty, tid, year) }))
-      .sort((a, b) => b.total - a.total || a.tid - b.tid),
-    [dynasty, year, teams, activeConf, customConfs, teamFilter]
-  )
+      .map(tid => ({ tid, ...calcWinTotal(dynasty, tid, year, undefined, powerMap), conf: calcConfStats(dynasty, tid, year) }))
+      .sort((a, b) => b.total - a.total || a.tid - b.tid)
+  }, [dynasty, year, teams, activeConf, customConfs, teamFilter])
 
   return (
     <div className="px-2 sm:px-3 py-3">

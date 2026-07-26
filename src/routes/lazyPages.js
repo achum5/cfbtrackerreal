@@ -60,7 +60,6 @@ export const ConferenceChampionshipHistory = lazyWithPreload(() => import('../pa
 export const ConferenceStandings = lazyWithPreload(() => import('../pages/dynasty/ConferenceStandings'))
 export const CFPBracket = lazyWithPreload(() => import('../pages/dynasty/CFPBracket'))
 export const WeeklyScores = lazyWithPreload(() => import('../pages/dynasty/WeeklyScores'))
-export const ToDoList = lazyWithPreload(() => import('../pages/dynasty/ToDoList'))
 export const CardCollection = lazyWithPreload(() => import('../pages/dynasty/CardCollection'))
 export const ManageRivalries = lazyWithPreload(() => import('../pages/dynasty/ManageRivalries'))
 export const Game = lazyWithPreload(() => import('../pages/dynasty/Game'))
@@ -76,6 +75,12 @@ export const CoachEdit = lazyWithPreload(() => import('../pages/dynasty/CoachEdi
 export const DevTools = lazyWithPreload(() => import('../pages/dynasty/DevTools'))
 export const ImageGallery = lazyWithPreload(() => import('../pages/admin/ImageGallery'))
 export const SchemeBuilder = lazyWithPreload(() => import('../pages/dynasty/SchemeBuilder'))
+export const TopClasses = lazyWithPreload(() => import('../pages/dynasty/TopClasses'))
+export const PlayersOfWeek = lazyWithPreload(() => import('../pages/dynasty/PlayersOfWeek'))
+export const HeismanWatch = lazyWithPreload(() => import('../pages/dynasty/HeismanWatch'))
+export const InjuryReport = lazyWithPreload(() => import('../pages/dynasty/InjuryReport'))
+export const PlayersLeaving = lazyWithPreload(() => import('../pages/dynasty/PlayersLeaving'))
+export const TrainingResults = lazyWithPreload(() => import('../pages/dynasty/TrainingResults'))
 
 // Preload map: sidebar nav name → chunk preload fn.
 // Called on mouseenter/focus of nav links so chunks warm up before click.
@@ -100,6 +105,10 @@ export const preloadByNavName = {
   'AI Prompts': PromptStudio.preload,
   'Dynasty Blueprint': TeamYear.preload,
   'Scheme Builder': SchemeBuilder.preload,
+  'Top Classes': TopClasses.preload,
+  'Players of the Week': PlayersOfWeek.preload,
+  'Heisman Watch': HeismanWatch.preload,
+  'Injury Report': InjuryReport.preload,
 }
 
 // Warm the most commonly-visited pages during browser idle time.

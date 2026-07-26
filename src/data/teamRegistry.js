@@ -1287,6 +1287,15 @@ export const ABBR_TO_TID = {}
 for (const [tid, team] of Object.entries(TEAMS)) {
   ABBR_TO_TID[team.abbr] = parseInt(tid)
 }
+// Legacy 4-letter FCS codes (FCSM/FCSN), superseded by the 5-letter
+// FCSMW/FCSNW when FCSSE was added, but still show up in schedule/game
+// records cached before that migration ran (e.g. a dynasty's
+// teams[tid].byYear[year].schedule entry written by an old sync). Without
+// these aliases, getTidFromAbbr/getGameTeamInfo can't resolve those stale
+// entries to a real tid, so the opponent's logo silently comes back null
+// even though the team itself (and its logo) is right there in TEAMS.
+ABBR_TO_TID['FCSM'] = 138
+ABBR_TO_TID['FCSN'] = 139
 
 // EA's in-game result-column abbreviations differ from our dropdown abbrs for a
 // handful of teams, so a paste (or manual entry) of the game's short code fails

@@ -2703,6 +2703,11 @@ const BATCH_4 = {
 // ---------------------------------------------------------------------------
 const FCS_TEAMS = {
   "FCS Southeast": {
+    // Updated to match the real bundled logo file (public/fcs-logos/
+    // fcs-southeast.png) — the old snarling-grouper-fish design doesn't
+    // match what's actually there; it's a hawk/eagle head. Nickname
+    // ("Hawks") inferred from the imagery, not confirmed via any in-game
+    // text label — same caveat as the other 3 redone below.
     primaryPMS: null,
     primaryHex: "#26314F",
     secondaryPMS: null,
@@ -2721,6 +2726,10 @@ const FCS_TEAMS = {
     confidence: "medium"
   },
   "FCS Northwest": {
+    // Updated to match the real bundled logo file (public/fcs-logos/
+    // fcs-northwest.png) — the old stallion-head design doesn't match;
+    // it's a bear head inside a mountain peak with pine trees. Nickname
+    // ("Grizzlies") inferred from the imagery, not confirmed in-game.
     primaryPMS: null,
     primaryHex: "#1E4A44",
     secondaryPMS: null,
@@ -2739,6 +2748,12 @@ const FCS_TEAMS = {
     confidence: "medium"
   },
   "FCS Midwest": {
+    // Updated for this year's redesigned in-game logo — the old
+    // donkey/mule-and-lightning-bolt mark ("Rebels") no longer matches what
+    // the game actually renders. Confirmed via a real score graphic attempt
+    // going wrong (the AI invented the old donkey mark from this profile)
+    // and the user's own reference image of the current logo, plus the
+    // in-game schedule/matchup screen naming the mascot "Thunderbirds".
     primaryPMS: null,
     primaryHex: "#7C1D2E",
     secondaryPMS: null,
@@ -2757,6 +2772,10 @@ const FCS_TEAMS = {
     confidence: "medium"
   },
   "FCS East": {
+    // Updated to match the real bundled logo file (public/fcs-logos/
+    // fcs-east.png) — the old robed-magistrate design doesn't match; it's a
+    // colonial minuteman head in a tricorn hat. Nickname ("Patriots")
+    // inferred from the imagery, not confirmed in-game.
     primaryPMS: null,
     primaryHex: "#1C2A4D",
     secondaryPMS: null,
@@ -2775,6 +2794,10 @@ const FCS_TEAMS = {
     confidence: "medium"
   },
   "FCS West": {
+    // Updated to match the real bundled logo file (public/fcs-logos/
+    // fcs-west.png) — the old lightning-bolt design doesn't match; it's an
+    // aggressive pink frog/toad head. Nickname ("Toads") inferred from the
+    // imagery, not confirmed in-game.
     primaryPMS: null,
     primaryHex: "#D64D95",
     secondaryPMS: null,
