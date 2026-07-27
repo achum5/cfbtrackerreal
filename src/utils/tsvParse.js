@@ -22,9 +22,34 @@
 // those prose lines would otherwise leak in as bogus rows. If a ```tsv block is
 // present, parse ONLY its contents. An unclosed fence (truncated paste) still
 // yields its data. No ```tsv fence → unchanged behavior (backward compatible).
+//
+// EVERY tsv block is collected, not just the first. AI replies routinely split
+// long output across several fenced blocks — interleaved with commentary, or
+// chunked by day/conference ("here are the rest of the games:"). Reading only
+// the first block silently dropped everything after it, which is what made a
+// full 55-game week import as ~10 games with no error shown. Blocks are joined
+// with a newline so they read as one continuous set of rows.
+// Implemented as a line scanner rather than a regex: a lazy multi-block regex
+// mis-pairs fences when a block is empty (it swallows the NEXT block's opening
+// fence and yields nothing at all), and this shape is easy to reason about.
 function extractTsvBlock(text) {
-  const m = String(text).match(/```tsv[^\n]*\n([\s\S]*?)(?:\n```|$)/i)
-  return m ? m[1] : text
+  const str = String(text)
+  const lines = str.replace(/\r\n?/g, '\n').split('\n')
+  const collected = []
+  let sawFence = false
+  let inTsv = false
+  for (const line of lines) {
+    const t = line.trim()
+    if (!inTsv) {
+      // Only a ```tsv fence opens a data block — a ```worksheet audit block
+      // (some prompts ask for one) is deliberately left out.
+      if (/^```tsv\b/i.test(t) || /^```tsv$/i.test(t)) { inTsv = true; sawFence = true }
+      continue
+    }
+    if (t.startsWith('```')) { inTsv = false; continue } // closing fence
+    collected.push(line)
+  }
+  return sawFence ? collected.join('\n') : str
 }
 
 export function splitTsv(text) {
