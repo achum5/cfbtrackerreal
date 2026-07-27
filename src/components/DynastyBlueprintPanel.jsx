@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useDynasty, isPlayerOnRoster } from '../context/DynastyContext'
-import { isTargetPlayer, getTargetStatus } from '../utils/recruitingTargets'
+import { isTargetPlayer, getTargetStatus, isMyTarget } from '../utils/recruitingTargets'
 import { useEdition } from '../editions/useEdition'
 import { isDynastyBlueprintEnabled } from '../editions'
 import { Button, Input } from './ui'
@@ -319,7 +319,9 @@ function DynastyBlueprintPanelInner({ year, tid }) {
   // the roster) or a roster player in Y (no longer a target) — so nothing is
   // double-counted, and the carry-forward (offer → enroll-year roster NIL) lands
   // cleanly in the next season's Roster NIL.
-  const isOpenOrOurs = (p, y) => isTargetPlayer(p) && Number(p.targetYear) === y && getTargetStatus(p, tid) !== 'committed_elsewhere'
+  // isMyTarget: in a shared league every member's targets live in the same
+  // players array, so NIL spend must only count this team's board.
+  const isOpenOrOurs = (p, y) => isTargetPlayer(p) && isMyTarget(p, tid) && Number(p.targetYear) === y && getTargetStatus(p, tid) !== 'committed_elsewhere'
   const recruitTargets = tid == null ? [] : allPlayers.filter((p) => isOpenOrOurs(p, selectedYear))
   // Roster NIL: normally the players on the roster in `selectedYear`. But at end
   // of season the "Set {nextYear} Roster NIL" flow opens the blueprint for

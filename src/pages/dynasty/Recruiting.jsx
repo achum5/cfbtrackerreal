@@ -17,7 +17,7 @@ import { sideOfPosition } from '../../utils/outlookBoard'
 import { finePositionGroup } from '../../data/positionGroups'
 import { POSITION_FILTER_OPTIONS, matchesPositionFilter } from '../../utils/recruitFilters'
 import TeamPermissionBanner from '../../components/TeamPermissionBanner'
-import { partitionRecruitingRows, reconcileRecruitingRows, isOpenTarget, resolveTargetCommitment, buildCommitmentRecord } from '../../utils/recruitingTargets'
+import { partitionRecruitingRows, reconcileRecruitingRows, isOpenTarget, isMyTarget, resolveTargetCommitment, buildCommitmentRecord } from '../../utils/recruitingTargets'
 import { carryRecruitingNilForward } from '../../data/playerNilModel'
 import ScoutBoard from './ScoutBoard'
 // Scout Staff is an opt-in (League Preferences) replacement for the MaxPlaysCFB
@@ -140,7 +140,7 @@ export default function Recruiting() {
   const viewingYear = urlYear === 'all' ? 'all' : (urlYear ? Number(urlYear) : Number(currentDynasty?.currentYear))
   const isCurrentRecruitingYear = viewingYear !== 'all' && viewingYear === Number(currentDynasty?.currentYear)
   const hasTargetsThisYear = isCurrentRecruitingYear && isOwnTeam
-    && (currentDynasty?.players || []).some((p) => p?.isTarget && Number(p.targetYear) === viewingYear)
+    && (currentDynasty?.players || []).some((p) => p?.isTarget && isMyTarget(p, currentTeamTid) && Number(p.targetYear) === viewingYear)
   const defaultTab = scoutStaffEnabled ? 'staff' : hasTargetsThisYear ? 'targets' : 'commitments'
   const tabParam = searchParams.get('tab')
   // 'database'/'outlook'/'thresholds'/'counts' are Scout Staff's own Recruiting
@@ -236,8 +236,10 @@ export default function Recruiting() {
 
   // Open targets for this class — drives the "Resolve Targets" action + modal.
   const openTargets = useMemo(
-    () => (currentDynasty?.players || []).filter(p => isOpenTarget(p) && Number(p.targetYear) === Number(selectedYear)),
-    [currentDynasty?.players, selectedYear],
+    // Scoped to the team whose board this is: in a shared league every
+    // member's targets sit in the same players array (see isMyTarget).
+    () => (currentDynasty?.players || []).filter(p => isOpenTarget(p) && isMyTarget(p, selectedTid) && Number(p.targetYear) === Number(selectedYear)),
+    [currentDynasty?.players, selectedYear, selectedTid],
   )
 
   // Offensive identity of the class's team (pass/run/balanced) → feeds the

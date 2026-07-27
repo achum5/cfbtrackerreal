@@ -7,6 +7,8 @@ import ScoutAnalysis from './ScoutAnalysis';
 import ThresholdLookup from './ThresholdLookup';
 import PlayerCount from './PlayerCount';
 import { useDynasty, getRecruitingCommitments, getCurrentRoster, getPlayerClassForYear } from '../context/DynastyContext';
+import { isMyTarget } from '../utils/recruitingTargets';
+import { getCurrentTeamTid } from '../data/teamRegistry';
 import { flattenClassCommitments } from '../utils/recruitingScore';
 import { positionBucket, recruitingPosLabel } from '../utils/recruitAttributes';
 import { useTeamColors } from '../hooks/useTeamColors';
@@ -63,7 +65,7 @@ function shapeRecruit(pl, addedIndex) {
 const SECTION_TO_VIEW = { staff: 'home', database: 'database', outlook: 'analysis', thresholds: 'thresholds', counts: 'counts' };
 
 export default function ScoutStaff({ year, section = 'staff', onNavigate } = {}) {
-  const { currentDynasty, updateDynasty, updatePlayer, isViewOnly } = useDynasty();
+  const { currentDynasty, updateDynasty, updatePlayer, isViewOnly, activeUserTid } = useDynasty();
   const { toast } = useToast();
   // Resolve the team's display name LIVE from currentTid so a mid-dynasty rename
   // flows into the color theming AND the AI scouting brief. Fall back to the
@@ -131,6 +133,9 @@ export default function ScoutStaff({ year, section = 'staff', onNavigate } = {})
   // let the live computation silently replace it once it resolves.
   const [outlookSummary, setOutlookSummary] = useState(null);
   const dynastyId = currentDynasty?.id ?? null;
+  // The team whose recruiting board this is. In a shared league that's the
+  // acting member's own team, not the dynasty's (owner's) current team.
+  const myRecruitingTid = activeUserTid ?? getCurrentTeamTid(currentDynasty);
   const cachedOutlookSummary = useMemo(() => {
     if (!dynastyId) return null;
     try {
@@ -152,11 +157,12 @@ export default function ScoutStaff({ year, section = 'staff', onNavigate } = {})
   const recruits = useMemo(() => {
     const players = currentDynasty?.players || [];
     return players
-      .filter(pl => pl?.isTarget && pl.name)
+      // Shared leagues share one players array — only MY board's targets.
+      .filter(pl => pl?.isTarget && pl.name && isMyTarget(pl, myRecruitingTid))
       .map((pl, globalIndex) => ({ pl, globalIndex }))
       .filter(({ pl }) => Number(pl.targetYear) === boardYear)
       .map(({ pl, globalIndex }) => shapeRecruit(pl, globalIndex));
-  }, [currentDynasty?.players, currentDynasty?.id, boardYear]);
+  }, [currentDynasty?.players, currentDynasty?.id, boardYear, myRecruitingTid]);
 
   // Same shaping as `recruits` above, but NOT scoped to the current class
   // year — the Recruiting Database (and Threshold Lookup) are "every recruit
@@ -168,9 +174,9 @@ export default function ScoutStaff({ year, section = 'staff', onNavigate } = {})
   const allYearRecruits = useMemo(() => {
     const players = currentDynasty?.players || [];
     return players
-      .filter(pl => pl?.isTarget && pl.name)
+      .filter(pl => pl?.isTarget && pl.name && isMyTarget(pl, myRecruitingTid))
       .map((pl, globalIndex) => shapeRecruit(pl, globalIndex));
-  }, [currentDynasty?.players, currentDynasty?.id]);
+  }, [currentDynasty?.players, currentDynasty?.id, myRecruitingTid]);
 
   // Active board — excludes anything removed via the Targets tab's remove toggle. Drives
   // Program Outlook and Threshold Lookup, scoped to this dynasty's current class only.

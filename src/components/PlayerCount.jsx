@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useDynasty } from '../context/DynastyContext';
+import { isMyTarget } from '../utils/recruitingTargets';
+import { getCurrentTeamTid } from '../data/teamRegistry';
 import { positionBucket, recruitingPosLabel } from '../utils/recruitAttributes';
 import { normalizeArch, isHiddenDev } from './archetypeWeights';
 import { ARCHETYPE_REGISTRY } from '../data/configData';
@@ -43,7 +45,9 @@ ARCHETYPE_REGISTRY.forEach(({ position, archetype }) => {
 });
 
 export default function PlayerCount({ onSelectBucket = null } = {}) {
-  const { currentDynasty, updateDynasty } = useDynasty();
+  const { currentDynasty, updateDynasty, activeUserTid } = useDynasty();
+  // Acting member's team in a shared league; the dynasty's team otherwise.
+  const myTid = activeUserTid ?? getCurrentTeamTid(currentDynasty);
   const [selectedPos, setSelectedPos] = useState(null);
   const [selectedStar, setSelectedStar] = useState('5');
 
@@ -75,11 +79,12 @@ export default function PlayerCount({ onSelectBucket = null } = {}) {
   const mergedRecruits = useMemo(() => {
     const excluded = new Set((currentDynasty?.recruitingDatabaseExcludedPids || []).map(String));
     const own = currentDynasty?.players || [];
-    const targets = own.filter(p => p.isTarget && p.name && !p.isPortal && !p.previousTeam && !excluded.has(String(p.pid)));
+    // isMyTarget keeps a shared league's other members' boards out of these counts.
+    const targets = own.filter(p => p.isTarget && isMyTarget(p, myTid) && p.name && !p.isPortal && !p.previousTeam && !excluded.has(String(p.pid)));
     const seen = new Set(targets.map(p => `${p.pid}`));
     const extras = (currentDynasty?.recruitingDatabasePlayers || []).filter(p => p.name && !p.isPortal && !p.previousTeam && !seen.has(`${p.pid}`) && !excluded.has(String(p.pid)));
     return [...targets, ...extras];
-  }, [currentDynasty]);
+  }, [currentDynasty, myTid]);
 
   const allRecruits = useMemo(
     () => mergedRecruits.filter(p => !isHiddenDev(p.devTrait)),
