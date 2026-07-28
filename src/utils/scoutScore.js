@@ -175,6 +175,15 @@ export function buildScoutScorePayload(recruit, sourceGame = 'cfb26') {
       devTrait: DEV_MAP[recruit?.devTrait] || null,
       isAthlete: false,
       attributes,
+      // Which game's recruit cohort to benchmark against — MaxPlaysCFB's own
+      // ScoutScore page sends this as "sourceGame" (verified directly from
+      // their frontend's actual request payload; a plain "game" field, which
+      // seemed like the obvious guess, is silently ignored and always falls
+      // back to their cfb26 cohort). Callers attach `recruit.sourceGame`
+      // themselves (based on the dynasty's actual edition) — this defaults to
+      // 'cfb26' so any caller that doesn't set it keeps today's behavior
+      // exactly as-is.
+      sourceGame: recruit?.sourceGame === 'cfb27' ? 'cfb27' : 'cfb26',
     },
   }
 }

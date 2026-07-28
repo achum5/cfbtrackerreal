@@ -62,11 +62,21 @@ function Gauge({ pct }) {
 
 // Inline ScoutScore result for a single recruit. Self-fetching (cached), so it
 // renders the same whether on the Scout Board card or a player page.
-export default function ScoutScorePanel({ recruit }) {
+//
+// `collapsible` (default false, preserving the Player-page card's existing
+// always-expanded behavior): when true, only the headline gauge/tier shows
+// initially — sized to match a compact host box (e.g. the Score Breakdown
+// card on the Targets board) — with a chevron to expand the lens selector
+// and per-attribute rows on demand.
+export default function ScoutScorePanel({ recruit, collapsible = false }) {
   const { currentDynasty } = useDynasty()
-  const sourceGame = getEditionKey(currentDynasty)
+  // Benchmark against the recruit's own game's cohort — a CFB27 dynasty's
+  // recruit shouldn't be silently scored against MaxPlaysCFB's CFB26 pool.
+  // Falls back to cfb26 (today's existing behavior) for every other edition.
+  const sourceGame = getEditionKey(currentDynasty) === 'cfb27' ? 'cfb27' : 'cfb26'
   const [state, setState] = useState({ status: 'loading', data: null, reason: null })
   const [lens, setLens] = useState(null)
+  const [expanded, setExpanded] = useState(!collapsible)
 
   useEffect(() => {
     let alive = true
@@ -123,6 +133,43 @@ export default function ScoutScorePanel({ recruit }) {
       )}
 
       {state.status === 'done' && (<>
+      {/* Hero — compact verdict: ring + tier + percentile + pool, one tight row.
+          Clickable to expand/collapse when `collapsible`; otherwise a plain,
+          non-interactive header (the Player-page card's always-open look). */}
+      <div
+        className={`relative overflow-hidden rounded-xl border border-surface-4 px-3.5 py-2.5 ${expanded ? 'mb-3' : ''} ${collapsible ? 'cursor-pointer select-none' : ''}`}
+        style={{ background: `radial-gradient(120% 160% at 10% -40%, ${withAlpha(pctColor(overallPct), 0.16)}, transparent 55%), linear-gradient(180deg, var(--surface-2), var(--surface-1))` }}
+        onClick={collapsible ? () => setExpanded((v) => !v) : undefined}
+        role={collapsible ? 'button' : undefined}
+        tabIndex={collapsible ? 0 : undefined}
+        aria-expanded={collapsible ? expanded : undefined}
+        onKeyDown={collapsible ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded((v) => !v) } } : undefined}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <Gauge pct={overallPct} />
+          <div className="min-w-0 flex-1">
+            {/* The ring already shows the percentile right beside this, so the
+                verdict leads with the tier word, not the number again. */}
+            <div className="font-display font-black leading-none" style={{ fontSize: 'clamp(1.3rem, 4vw, 1.75rem)', color: pctColor(overallPct) }}>{tierLabel(overallPct)}</div>
+            {lensMeta && (
+              <div className="text-[11px] text-txt-tertiary mt-1.5 truncate">
+                vs {lensMeta.recruitCount?.toLocaleString()} {lensMeta.scopeLabel}
+              </div>
+            )}
+          </div>
+          {collapsible && (
+            <svg
+              width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+              strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 text-txt-tertiary"
+              style={{ transition: 'transform 150ms ease', transform: expanded ? 'rotate(180deg)' : 'none' }}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          )}
+        </div>
+      </div>
+
+      {expanded && (<>
       {/* Lens selector — segmented pills */}
       {lenses.length > 1 && (
         <div className="inline-flex flex-wrap gap-1 p-1 rounded-xl mb-3" style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--surface-4)' }}>
@@ -140,26 +187,6 @@ export default function ScoutScorePanel({ recruit }) {
           ))}
         </div>
       )}
-
-      {/* Hero — compact verdict: ring + tier + percentile + pool, one tight row */}
-      <div
-        className="relative overflow-hidden rounded-xl border border-surface-4 px-3.5 py-2.5 mb-3"
-        style={{ background: `radial-gradient(120% 160% at 10% -40%, ${withAlpha(pctColor(overallPct), 0.16)}, transparent 55%), linear-gradient(180deg, var(--surface-2), var(--surface-1))` }}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <Gauge pct={overallPct} />
-          <div className="min-w-0">
-            {/* The ring already shows the percentile right beside this, so the
-                verdict leads with the tier word, not the number again. */}
-            <div className="font-display font-black leading-none" style={{ fontSize: 'clamp(1.3rem, 4vw, 1.75rem)', color: pctColor(overallPct) }}>{tierLabel(overallPct)}</div>
-            {lensMeta && (
-              <div className="text-[11px] text-txt-tertiary mt-1.5 truncate">
-                vs {lensMeta.recruitCount?.toLocaleString()} {lensMeta.scopeLabel}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
 
       {/* Attributes — a compact list per category. The group percentile lives on
           the section rule, and each attribute is a full-width row (subtly tinted
@@ -201,13 +228,14 @@ export default function ScoutScorePanel({ recruit }) {
       </div>
       </>)}
 
-      {/* Attribution */}
+      {/* Attribution — always shown, even collapsed */}
       <div className="mt-3 pt-2.5 border-t border-surface-4 text-[10px] text-txt-muted text-center">
         Benchmarks &amp; projections by{' '}
         <a href="https://maxplayscfb.com/tools/" target="_blank" rel="noopener noreferrer" className="text-txt-tertiary hover:text-txt-primary underline">
           MaxPlaysCFB
         </a>
       </div>
+      </>)}
     </div>
   )
 }
