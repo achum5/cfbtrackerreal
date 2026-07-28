@@ -9676,15 +9676,24 @@ export function DynastyProvider({ children }) {
           return true
         }
 
-        // No pid to dedupe by — fall back to a name+team+class key so a
-        // malformed record that's missing its pid can't slip a duplicate
-        // through. IMPORTANT: this name key is applied ONLY to pid-less
-        // players. Two REAL players with distinct pids who happen to share a
-        // name + team + class (e.g. two freshmen named "John Smith") are
-        // legitimate and must NOT be dropped — the old code keyed every
-        // player by name+team+class and silently deleted the second one,
-        // permanently losing a real roster player on the next reload.
-        const nameKey = `${(player.name || '').toLowerCase().trim()}_${player.team || ''}_${player.year || ''}`
+        // No pid to dedupe by — fall back to a content key so a malformed
+        // record that's missing its pid can't slip a duplicate through.
+        // IMPORTANT: this key is reached ONLY by pid-less players (the pid
+        // branch above returns first). Two REAL players with distinct pids
+        // who happen to share a name + team + class are legitimate and are
+        // never touched here.
+        //
+        // cfb27AssetName is the save's own per-player unique id and is
+        // trusted first when present. Otherwise fall back to name+team+
+        // class+POSITION: confirmed against a real save that name+team+year
+        // alone is not discriminating enough — two different real freshmen
+        // ("James Moore" QB pid 10916 and "James Moore" K pid 11834, both
+        // team 28) collided on it, and the second was silently deleted on
+        // every save. That's real data loss, not a duplicate.
+        const hasAssetName = player.cfb27AssetName != null && player.cfb27AssetName !== ''
+        const nameKey = hasAssetName
+          ? `asset:${player.cfb27AssetName}`
+          : `name:${(player.name || '').toLowerCase().trim()}_${player.team || ''}_${player.year || ''}_${(player.position || '').toLowerCase()}`
         if (player.name && seenNames.has(nameKey)) {
           console.warn(`Duplicate pid-less player name/team/class detected and removed: ${player.name}`)
           return false
