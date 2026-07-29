@@ -655,9 +655,10 @@ export async function getPlayersSubcollection(dynastyId, options = {}) {
       // fresh result. Without onFresh the result was discarded anyway, so firing
       // getDocsFromServer billed a full-collection read for nothing.
       if (onFresh) {
+        const requestedAt = Date.now()
         getDocsFromServer(playersRef).then(snap => {
           const fresh = snap.docs.map(d => ({ ...d.data(), _firestoreId: d.id }))
-          try { onFresh(fresh) } catch (e) { console.error('onFresh callback threw:', e) }
+          try { onFresh(fresh, { requestedAt }) } catch (e) { console.error('onFresh callback threw:', e) }
         }).catch(() => {})
       }
       return cached
@@ -713,9 +714,10 @@ export async function getGamesSubcollection(dynastyId, options = {}) {
       const cached = cachedSnap.docs.map(d => ({ ...d.data(), _firestoreId: d.id }))
       // Only pay for the server read when a caller wants the fresh result.
       if (onFresh) {
+        const requestedAt = Date.now()
         getDocsFromServer(gamesRef).then(snap => {
           const fresh = snap.docs.map(d => ({ ...d.data(), _firestoreId: d.id }))
-          try { onFresh(fresh) } catch (e) { console.error('onFresh callback threw:', e) }
+          try { onFresh(fresh, { requestedAt }) } catch (e) { console.error('onFresh callback threw:', e) }
         }).catch(() => {})
       }
       return cached

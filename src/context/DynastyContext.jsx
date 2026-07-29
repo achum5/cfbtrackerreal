@@ -142,9 +142,13 @@ function gatedFreshOptions(dynastyId, collectionName, rev, onFresh) {
   }
   if (!onFresh) return {}
   return {
-    onFresh: (fresh) => {
+    // `meta` carries the moment the server read STARTED (requestedAt) so the
+    // consumer can reject a snapshot that predates a local write. Forwarding
+    // it matters: without it every gated read looks unstamped and falls back
+    // to the weaker elapsed-time guard.
+    onFresh: (fresh, meta) => {
       if (rev > 0) setSyncStamp(dynastyId, collectionName, rev)
-      onFresh(fresh)
+      onFresh(fresh, meta)
     },
   }
 }
@@ -6512,6 +6516,29 @@ export function DynastyProvider({ children }) {
   // import that looked saved, then vanished a moment later.
   const RECENT_WRITE_PROTECTION_MS = 20000
 
+  // Should a background server read's payload be DISCARDED because it predates
+  // our own local write?
+  //
+  // Cache-first reads fire a getDocsFromServer in the background; that request
+  // can be in flight when the user saves. When it resolves it carries pre-save
+  // data, and blindly applying it reverts what the user just did. The only
+  // sound test is ordering, not elapsed time: a read that STARTED before our
+  // last write to that collection cannot possibly contain it, however long it
+  // takes to arrive. `meta.requestedAt` (stamped by the getters) gives us that.
+  //
+  // This replaced three inconsistent elapsed-time guards — 10s here, 15s in the
+  // listener copy, and NONE on the listener's players callback — which is what
+  // let a just-added recruit show up and then vanish on a big dynasty whose
+  // reads outrun the window ("sits for like 10 seconds and then disappears").
+  // The elapsed-time path remains only as a fallback for unstamped callers.
+  const isStaleFreshRead = (dynastyId, meta, tsRef, idRef) => {
+    if (idRef.current !== dynastyId) return false
+    const lastWrite = tsRef.current || 0
+    if (!lastWrite) return false
+    if (meta?.requestedAt != null) return meta.requestedAt <= lastWrite
+    return Date.now() - lastWrite < RECENT_WRITE_PROTECTION_MS
+  }
+
   // Given a freshly-arrived snapshot's version of a dynasty (`fresh`) and
   // whatever this app already had for that same dynasty a moment ago
   // (`prev`), returns `fresh` with any field written in the last
@@ -6739,21 +6766,26 @@ export function DynastyProvider({ children }) {
       // the cache — the recap-saved-on-laptop-but-missing-on-phone
       // bug. The state-update functions are written to be no-ops
       // when the dynasty is no longer the current one.
-      const onFreshGames = (fresh) => {
+      // A background server read can only be trusted if it STARTED after our
+      // most recent local write to that collection — a read already in flight
+      // when the user saved cannot contain what they just saved, no matter how
+      // long it takes to come back. The old guard was purely elapsed-time
+      // ("ignore fresh data for 10s after a write"), which loses the race on a
+      // big dynasty where the read takes longer than the window: the user adds
+      // a recruit, sees it, and ~10s later a pre-write snapshot lands and wipes
+      // it — "it sits in the system for like 10 seconds and then disappears."
+      // requestedAt makes that deterministic instead of a stopwatch bet.
+      const onFreshGames = (fresh, meta) => {
         if (skipListenerUpdatesCountRef.current > 0) return // active save in flight; don't clobber
-        // Defensive timestamp guard. Firestore's eventual consistency
-        // sometimes delivers a stale subcollection snapshot (cached or
-        // mid-flight) AFTER a local save's listener-skip count has
-        // decremented to 0. Without this check, that stale fresh
-        // overwrites the just-saved games array — beta tester report
-        // shows up as "games disappear from the weekly recap right
-        // after entering them, but the individual team page still
-        // shows them" (the recap reads currentDynasty.games which got
-        // clobbered; the team page uses a different lookup).
-        if (lastGamesUpdateDynastyIdRef.current === dynastyId &&
-            Date.now() - lastGamesUpdateTimestampRef.current < 10000) {
-          return
-        }
+        // Stale-snapshot guard. Firestore's eventual consistency sometimes
+        // delivers a subcollection snapshot that predates a local save AFTER
+        // that save's listener-skip count has decremented to 0. Without this,
+        // the stale read overwrites the just-saved games array — reported as
+        // "games disappear from the weekly recap right after entering them,
+        // but the individual team page still shows them" (the recap reads
+        // currentDynasty.games which got clobbered; the team page uses a
+        // different lookup).
+        if (isStaleFreshRead(dynastyId, meta, lastGamesUpdateTimestampRef, lastGamesUpdateDynastyIdRef)) return
         setDynasties(prev => prev.map(d =>
           String(d.id) === String(dynastyId) ? { ...d, games: fresh } : d
         ))
@@ -6762,12 +6794,11 @@ export function DynastyProvider({ children }) {
           return { ...prev, games: fresh }
         })
       }
-      const onFreshPlayers = (fresh) => {
+      const onFreshPlayers = (fresh, meta) => {
         if (skipListenerUpdatesCountRef.current > 0) return
-        if (lastPlayersUpdateDynastyIdRef.current === dynastyId &&
-            Date.now() - lastPlayersUpdateTimestampRef.current < 10000) {
-          return
-        }
+        // Same stale-read rule as games — this is the one that made a
+        // just-added recruit vanish on a large dynasty.
+        if (isStaleFreshRead(dynastyId, meta, lastPlayersUpdateTimestampRef, lastPlayersUpdateDynastyIdRef)) return
         setDynasties(prev => prev.map(d =>
           String(d.id) === String(dynastyId) ? { ...d, players: fresh } : d
         ))
@@ -7794,16 +7825,15 @@ export function DynastyProvider({ children }) {
             // in-flight local save has called this; defer to the
             // local state to avoid clobber.
             const dynId = dynasty.id
-            const onFreshGames = (fresh) => {
+            const onFreshGames = (fresh, meta) => {
               if (skipListenerUpdatesCountRef.current > 0) return
               // Don't let a background server-read (kicked off before a local save)
               // overwrite games that were just committed locally. The cache-first
-              // read in getDynastyGames dispatches a getDocsFromServer fetch BEFORE
-              // the save batch runs; if that server read wins the race against the
-              // write it returns pre-save data, which would revert the UI to blank
-              // and make subsequent addGame calls create duplicates.
-              if (lastGamesUpdateDynastyIdRef.current === dynId &&
-                  Date.now() - lastGamesUpdateTimestampRef.current < 15000) return
+              // read dispatches a getDocsFromServer fetch BEFORE the save batch
+              // runs; if that read wins the race it returns pre-save data, which
+              // would revert the UI to blank and make subsequent addGame calls
+              // create duplicates.
+              if (isStaleFreshRead(dynId, meta, lastGamesUpdateTimestampRef, lastGamesUpdateDynastyIdRef)) return
               setDynasties(prev => prev.map(d =>
                 String(d.id) === String(dynId) ? { ...d, games: fresh } : d
               ))
@@ -7812,8 +7842,12 @@ export function DynastyProvider({ children }) {
                 return { ...prev, games: fresh }
               })
             }
-            const onFreshPlayers = (fresh) => {
+            const onFreshPlayers = (fresh, meta) => {
               if (skipListenerUpdatesCountRef.current > 0) return
+              // Previously UNGUARDED: any background players read that landed
+              // after a local save silently overwrote it, which is what made a
+              // just-added recruit disappear moments later.
+              if (isStaleFreshRead(dynId, meta, lastPlayersUpdateTimestampRef, lastPlayersUpdateDynastyIdRef)) return
               setDynasties(prev => prev.map(d =>
                 String(d.id) === String(dynId) ? { ...d, players: fresh } : d
               ))
@@ -19094,8 +19128,10 @@ export function DynastyProvider({ children }) {
     }
     try {
       const [players, games, recaps, seasons, recruitingDb] = await Promise.all([
-        getPlayersSubcollection(dynId, { onFresh: (fresh) => { if (guard()) apply({ players: fresh }) } }),
-        getGamesSubcollection(dynId, { onFresh: (fresh) => { if (guard()) apply({ games: fresh }) } }),
+        // meta.requestedAt lets apply() drop a read that predates this
+        // editor's own save (see isStaleFreshRead) instead of reverting it.
+        getPlayersSubcollection(dynId, { onFresh: (fresh, meta) => { if (guard() && !isStaleFreshRead(dynId, meta, lastPlayersUpdateTimestampRef, lastPlayersUpdateDynastyIdRef)) apply({ players: fresh }) } }),
+        getGamesSubcollection(dynId, { onFresh: (fresh, meta) => { if (guard() && !isStaleFreshRead(dynId, meta, lastGamesUpdateTimestampRef, lastGamesUpdateDynastyIdRef)) apply({ games: fresh }) } }),
         getWeekRecapsSubcollection(dynId, { onFresh: (fresh) => { if (guard()) apply({ weekRecapsByYear: fresh }) } }),
         getSeasonsSubcollection(dynId, { onFresh: (fresh) => { if (guard()) apply(fresh) } }),
         // Recruiting Database — without this, a teammate's recruit edits stay
