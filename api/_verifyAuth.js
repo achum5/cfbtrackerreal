@@ -40,7 +40,7 @@ export const ADMIN_EMAILS = new Set(['alex.guess1999@gmail.com']);
 // to the permanent free accounts (the owner is covered implicitly via
 // ADMIN_EMAILS). Everyone else subscribes through Stripe. Remaining beta
 // 30-day grants keep premium until they lapse on their own.
-// Grants for these emails are LIFETIME (~100y) — see api/admin/grant-premium.js.
+// Grants for these emails are LIFETIME (~100y) — see api/_handlers/admin/grant-premium.js.
 export const BETA_GRANT_EMAILS = new Set([
   'zekemuck@gmail.com',
 ]);

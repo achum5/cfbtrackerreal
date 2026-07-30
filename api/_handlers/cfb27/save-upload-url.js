@@ -1,6 +1,6 @@
 import { AwsClient } from 'aws4fetch';
-import { verifyPremium } from './_verifyAuth.js';
-import { setCors } from './_cors.js';
+import { verifyPremium } from '../../_verifyAuth.js';
+import { setCors } from '../../_cors.js';
 
 /**
  * Mint a short-lived presigned PUT URL so the browser can upload a CFB 27
@@ -14,7 +14,7 @@ import { setCors } from './_cors.js';
  *   2. We verify the token, validate the size, and sign a PUT URL scoped to
  *      cfb27-saves/{uid}/{uuid}.bin.
  *   3. Client PUTs the raw save bytes straight to R2 using the returned URL.
- *   4. Client calls /api/cfb27-save-parse with the returned `key`, which
+ *   4. Client calls /api/cfb27/save-parse with the returned `key`, which
  *      downloads the object server-side, parses it, and deletes it — saves
  *      are never kept around or served publicly (unlike the image path,
  *      there is no publicUrl here).

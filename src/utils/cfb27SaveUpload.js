@@ -2,7 +2,7 @@
 // imageUpload.js's presigned-R2-PUT pattern (uploadViaR2): the browser
 // uploads the raw save directly to R2 so a multi-megabyte file never hits
 // Vercel's request-body size limit, then a serverless function
-// (api/cfb27-save-parse.js) downloads it server-side and runs the vendored
+// (api/_handlers/cfb27/save-parse.js) downloads it server-side and runs the vendored
 // extractor (api/_lib/cfb27Extract) against it — see the CFB27 PC Save
 // Import plan for why parsing can't happen in the browser tab.
 import { auth } from '../config/firebase'
@@ -25,7 +25,7 @@ export async function uploadAndParseCfb27Save(file, { onProgress, signal } = {})
 
   onProgress?.('uploading')
 
-  const presignRes = await fetch(`${API_BASE}/api/cfb27-save-upload-url`, {
+  const presignRes = await fetch(`${API_BASE}/api/cfb27/save-upload-url`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ size: file.size }),
@@ -44,7 +44,7 @@ export async function uploadAndParseCfb27Save(file, { onProgress, signal } = {})
 
   onProgress?.('parsing')
 
-  const parseRes = await fetch(`${API_BASE}/api/cfb27-save-parse`, {
+  const parseRes = await fetch(`${API_BASE}/api/cfb27/save-parse`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ key }),

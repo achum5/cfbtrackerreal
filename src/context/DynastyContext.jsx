@@ -9209,7 +9209,7 @@ export function DynastyProvider({ children }) {
    * players synced before that field existed).
    *
    * @param {string} dynastyId
-   * @param {object} parsed - the raw result from api/cfb27-save-parse.js (same shape createDynasty's CFB27 import consumes)
+   * @param {object} parsed - the raw result from api/_handlers/cfb27/save-parse.js (same shape createDynasty's CFB27 import consumes)
    * @returns {Promise<{summary: object, unresolvedTeamNames: string[]}>}
    */
   // Walks (week, phase) forward using the SAME transition rules advanceWeek

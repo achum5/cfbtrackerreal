@@ -1,4 +1,4 @@
-// Maps rows extracted from a CFB 27 PC save (via api/cfb27-save-parse.js,
+// Maps rows extracted from a CFB 27 PC save (via api/_handlers/cfb27/save-parse.js,
 // vendored from the verified cfb27-extract tool) into the app's player
 // object shape. Mirrors defaultRosterLoader.js's per-player shaping — same
 // teamsByYear/classByYear/overallByYear/devTraitByYear/attributesByYear
@@ -306,7 +306,7 @@ function isValidRow(row) {
 /**
  * Map one extracted save row into the app's player object shape.
  *
- * @param {object} row - one row from api/cfb27-save-parse.js's `players` array
+ * @param {object} row - one row from api/_handlers/cfb27/save-parse.js's `players` array
  * @param {object} opts
  * @param {number} opts.year - the dynasty's starting year (immutable history key)
  * @param {number} opts.pid - the pid to assign this player
@@ -413,7 +413,7 @@ function resolveTeamTid(team, teamNick, dynastyTeams) {
  * invalid/junk rows and rows whose team name doesn't resolve to a known tid
  * (e.g. the save's "FCS West" placeholder entry).
  *
- * @param {object[]} rows - raw `players` array from api/cfb27-save-parse.js
+ * @param {object[]} rows - raw `players` array from api/_handlers/cfb27/save-parse.js
  * @param {object} dynastyTeams - the dynasty's teams object (tid -> team)
  * @returns {{ byTid: Map<number, object[]>, unresolvedTeamNames: string[] }}
  */
@@ -445,7 +445,7 @@ export function groupExtractedRowsByTid(rows, dynastyTeams) {
  * save team_id space, so this map is the single source of truth for
  * resolving them to app tids without re-deriving team names per row.
  *
- * @param {object[]} rows - raw `players` array from api/cfb27-save-parse.js
+ * @param {object[]} rows - raw `players` array from api/_handlers/cfb27/save-parse.js
  * @param {object} dynastyTeams - the dynasty's teams object (tid -> team)
  * @returns {Map<number, number>} raw team_id -> app tid
  */

@@ -1,5 +1,5 @@
-import { db, FieldValue } from '../_firebaseAdmin.js';
-import { verifyBetaGrant } from '../_verifyAuth.js';
+import { db, FieldValue } from '../../_firebaseAdmin.js';
+import { verifyBetaGrant } from '../../_verifyAuth.js';
 
 /**
  * Self-grant or revoke a premium pass on the CALLER's own user doc.

@@ -1472,7 +1472,7 @@ function mapDepthCharts(rawDepthCharts, rawTeamIdMap, pidByAssetName, pidByPlaye
  * into those itself.
  *
  * @param {object} dynasty - dynasty.players/.teams/.currentYear/.currentTid
- * @param {object} parsed - the raw result from api/cfb27-save-parse.js
+ * @param {object} parsed - the raw result from api/_handlers/cfb27/save-parse.js
  */
 export function buildSyncPlan(dynasty, parsed) {
   const year = Number(dynasty.currentYear)

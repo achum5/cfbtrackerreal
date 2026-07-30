@@ -78,7 +78,7 @@ export const db = initializeFirestore(app, {
 });
 
 // Local Firebase emulator opt-in — lets the REAL Admin SDK code (e.g.
-// api/cfb27-bulk-seed-players.js, run via scripts/dev-cfb27-server.cjs) be
+// api/_handlers/cfb27/bulk-seed-players.js, run via scripts/dev-cfb27-server.cjs) be
 // tested against a real local Firestore/Auth implementation, with zero
 // dependency on production credentials. `import.meta.env.DEV` is a
 // build-time constant Vite hard-replaces to `false` in production builds —

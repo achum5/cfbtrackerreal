@@ -409,7 +409,7 @@ export default function Account() {
         </Card>
 
         {/* Free access — self-serve grant/revoke for the permanent free
-            accounts (lifetime grants; see api/admin/grant-premium.js). */}
+            accounts (lifetime grants; see api/_handlers/admin/grant-premium.js). */}
         {canBetaGrant && (
           <Card>
             <div className="flex items-center justify-between mb-3">

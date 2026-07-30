@@ -1,4 +1,4 @@
-// Calls api/cfb27-save-sync-players.js to bulk-write a CFB 27 existing-dynasty
+// Calls api/_handlers/cfb27/save-sync-players.js to bulk-write a CFB 27 existing-dynasty
 // sync's players-subcollection delta (new arrivals + patches to existing
 // docs) via the Admin SDK's BulkWriter — sibling to cfb27BulkSeed.js, same
 // reasoning (client SDK's offline-write-queue cap), but for merges into an
@@ -18,7 +18,7 @@ export async function syncPlayersToSubcollection(dynastyId, creates, patches) {
   if (!user) throw new Error('Sign in to sync a save file')
   const token = await user.getIdToken()
 
-  const res = await fetch(`${API_BASE}/api/cfb27-save-sync-players`, {
+  const res = await fetch(`${API_BASE}/api/cfb27/save-sync-players`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ dynastyId, creates, patches }),

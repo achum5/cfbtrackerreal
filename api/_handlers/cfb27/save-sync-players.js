@@ -1,6 +1,6 @@
-import { initAdmin } from './_firebaseAdmin.js';
-import { verifyPremium } from './_verifyAuth.js';
-import { setCors } from './_cors.js';
+import { initAdmin } from '../../_firebaseAdmin.js';
+import { verifyPremium } from '../../_verifyAuth.js';
+import { setCors } from '../../_cors.js';
 
 /**
  * Bulk-write the PLAYERS-subcollection delta for an existing-dynasty CFB27

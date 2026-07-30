@@ -1,6 +1,6 @@
-import { initAdmin } from './_firebaseAdmin.js';
-import { verifyPremium } from './_verifyAuth.js';
-import { setCors } from './_cors.js';
+import { initAdmin } from '../../_firebaseAdmin.js';
+import { verifyPremium } from '../../_verifyAuth.js';
+import { setCors } from '../../_cors.js';
 
 /**
  * Bulk-write a CFB 27 save import's full player roster (every resolved

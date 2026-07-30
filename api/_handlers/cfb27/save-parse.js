@@ -2,13 +2,13 @@ import { AwsClient } from 'aws4fetch';
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import { verifyPremium } from './_verifyAuth.js';
-import { setCors } from './_cors.js';
-import { extractFullSave } from './_lib/cfb27Extract/extractPlayers.cjs';
+import { verifyPremium } from '../../_verifyAuth.js';
+import { setCors } from '../../_cors.js';
+import { extractFullSave } from '../../_lib/cfb27Extract/extractPlayers.cjs';
 
 /**
  * Parse a CFB 27 PC save file that the client already uploaded to R2 via
- * /api/cfb27-save-upload-url (see that file for the upload flow/rationale).
+ * /api/cfb27/save-upload-url (see that file for the upload flow/rationale).
  *
  * This function downloads the save server-side (the binary format needs
  * Node's fs/zlib to parse — see api/_lib/cfb27Extract), extracts everything
