@@ -1752,6 +1752,7 @@ function PlayerInner() {
       // dropdown but still surface on the profile awards plate.
       tedHendricksAward: 'Hendricks',
       paulHornungAward: 'Paul Hornung',
+      williamVCampbell: 'William V. Campbell',
       bowlMVP: 'Bowl MVP',
       cfpChampMVP: 'CFP Title MVP',
     }
@@ -4991,6 +4992,8 @@ function PlayerInner() {
           bearBryantCoachOfTheYear: 'Bear Bryant Award',
           broyles: 'Broyles Award',
           shaunAlexander: 'Shaun Alexander Award',
+          paulHornungAward: 'Paul Hornung Award',
+          williamVCampbell: 'William V. Campbell Award',
         }
         const HONOR_LABELS = {
           heismanFinalist: 'Heisman Finalist',
@@ -5002,6 +5005,7 @@ function PlayerInner() {
           bowlMVP: 'Bowl Game MVP',
           cfpChampMVP: 'CFP Championship MVP',
           paulHornungAward: 'Paul Hornung Award',
+          williamVCampbell: 'William V. Campbell Award',
         }
 
         const uniqSortDesc = (arr) => [...new Set(arr.filter(Number.isFinite))].sort((a, b) => b - a)
