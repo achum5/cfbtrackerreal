@@ -1,5 +1,5 @@
 import { initAdmin } from './_firebaseAdmin.js';
-import { verifyAuth } from './_verifyAuth.js';
+import { verifyPremium } from './_verifyAuth.js';
 import { setCors } from './_cors.js';
 
 /**
@@ -58,7 +58,9 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const decoded = await verifyAuth(req, res);
+  // Premium-gated: these endpoints spend R2 + serverless + Firestore
+  // budget per call, and cloud storage is already premium-only.
+  const decoded = await verifyPremium(req, res);
   if (!decoded) return; // verifyAuth already sent 401
   const uid = decoded.uid;
 

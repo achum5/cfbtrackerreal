@@ -2,7 +2,7 @@ import { AwsClient } from 'aws4fetch';
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import { verifyAuth } from './_verifyAuth.js';
+import { verifyPremium } from './_verifyAuth.js';
 import { setCors } from './_cors.js';
 import { extractFullSave } from './_lib/cfb27Extract/extractPlayers.cjs';
 
@@ -44,7 +44,9 @@ export default async function handler(req, res) {
     return res.status(501).json({ error: 'R2 storage not configured' });
   }
 
-  const decoded = await verifyAuth(req, res);
+  // Premium-gated: these endpoints spend R2 + serverless + Firestore
+  // budget per call, and cloud storage is already premium-only.
+  const decoded = await verifyPremium(req, res);
   if (!decoded) return; // verifyAuth already sent 401
   const uid = decoded.uid;
 

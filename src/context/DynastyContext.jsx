@@ -8480,15 +8480,6 @@ export function DynastyProvider({ children }) {
     // whether the whole-country roster + launch team-ratings seed runs (cfb27).
     const editionKey = normalizeEditionKey(dynastyData.gameEdition || DEFAULT_EDITION)
 
-    // A CFB27 save import's own resolved conference alignment (every team, not
-    // just customTeams' replaced slots) takes priority when present.
-    let initialConferences = null
-    if (dynastyData.cfb27Conferences && Object.keys(dynastyData.cfb27Conferences).length > 0) {
-      initialConferences = dynastyData.cfb27Conferences
-    } else if (dynastyData.customTeams && Object.keys(dynastyData.customTeams).length > 0) {
-      initialConferences = getConferencesWithCustomTeams(dynastyData.customTeams)
-    }
-
     // Progress reporter for the create UI. Yields to the event loop after each
     // update so React actually paints the new message/bar before the next
     // (often synchronous and blocking) phase runs.
@@ -8550,7 +8541,11 @@ export function DynastyProvider({ children }) {
     //   the byYear.conference + customConferences writer below so
     //   getTeamConference resolves correctly.
     // - other editions: unchanged teambuilder-only behavior.
-    if (editionKey === 'cfb27') {
+    if (dynastyData.cfb27Conferences && Object.keys(dynastyData.cfb27Conferences).length > 0) {
+      // A PC save import carries the dynasty's ACTUAL alignment (every team,
+      // including mid-dynasty realignment), so it beats the static launch map.
+      initialConferences = dynastyData.cfb27Conferences
+    } else if (editionKey === 'cfb27') {
       initialConferences = {}
       for (const [tidStr, confName] of Object.entries(CFB27_CONFERENCES)) {
         const team = teams[Number(tidStr)]
@@ -8701,6 +8696,7 @@ export function DynastyProvider({ children }) {
           role: coachPosition || 'HC',
           controlledBy: user.uid,
         })
+      : null
 
     // A CFB27 save import's schedule needs to go through the SAME
     // diff/apply pipeline the manual "Enter Schedule" flow uses

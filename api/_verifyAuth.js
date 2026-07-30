@@ -82,3 +82,55 @@ export async function verifyBetaGrant(req, res) {
   }
   return decoded;
 }
+
+/**
+ * Verify the caller AND that they currently have premium.
+ *
+ * The CFB 27 save-import endpoints burn real infrastructure per call (R2
+ * storage + a serverless parse of a ~10MB binary + up to 16k Firestore
+ * writes). They shipped with auth only, which let any signed-in free account
+ * drive that cost. Cloud storage is already premium-only, so gating these is
+ * consistent with the rest of the product rather than a new restriction.
+ *
+ * Mirrors isPremiumData in firestore.rules / subscriptionService.js:
+ *   - tier must be 'premium'
+ *   - active/trialing: premium until currentPeriodEnd (absent = no expiry)
+ *   - past_due: only inside a bounded grace deadline
+ *   - _devGranted comps count while unexpired
+ *
+ * Returns the decoded token on success; sends 401/403 and returns null
+ * otherwise, so callers just `return` when it yields null.
+ */
+export async function verifyPremium(req, res) {
+  const decoded = await verifyAuth(req, res);
+  if (!decoded) return null;
+
+  const { db } = await import('./_firebaseAdmin.js');
+  let data = null;
+  try {
+    const snap = await db.collection('users').doc(decoded.uid).get();
+    data = snap.exists ? snap.data() : null;
+  } catch (err) {
+    console.error('[verifyPremium] user lookup failed:', err);
+    res.status(500).json({ error: 'Could not verify subscription' });
+    return null;
+  }
+
+  const ms = (v) => (v?.toMillis ? v.toMillis()
+    : v?.seconds ? v.seconds * 1000
+    : v ? new Date(v).getTime() : null);
+  const end = ms(data?.currentPeriodEnd);
+  const unexpired = end == null || end > Date.now();
+
+  const premium = !!data && data.tier === 'premium' && (
+    ((data.subscriptionStatus === 'active' || data.subscriptionStatus === 'trialing') && unexpired) ||
+    (data.subscriptionStatus === 'past_due' && end != null && end > Date.now()) ||
+    (data._devGranted === true && unexpired)
+  );
+
+  if (!premium) {
+    res.status(403).json({ error: 'Premium required for CFB 27 save import', requiresUpgrade: true });
+    return null;
+  }
+  return decoded;
+}

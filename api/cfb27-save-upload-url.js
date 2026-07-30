@@ -1,5 +1,5 @@
 import { AwsClient } from 'aws4fetch';
-import { verifyAuth } from './_verifyAuth.js';
+import { verifyPremium } from './_verifyAuth.js';
 import { setCors } from './_cors.js';
 
 /**
@@ -23,7 +23,7 @@ import { setCors } from './_cors.js';
  * the object key so uploads are traceable and per-user cleanup stays possible.
  */
 
-const MAX_BYTES = 150 * 1024 * 1024; // generous headroom over the ~10MB saves seen so far
+const MAX_BYTES = 30 * 1024 * 1024; // real DYNASTY-* saves run ~10MB; 3x headroom
 
 function r2Configured() {
   return Boolean(
@@ -50,7 +50,9 @@ export default async function handler(req, res) {
     return res.status(501).json({ error: 'R2 storage not configured' });
   }
 
-  const decoded = await verifyAuth(req, res);
+  // Premium-gated: these endpoints spend R2 + serverless + Firestore
+  // budget per call, and cloud storage is already premium-only.
+  const decoded = await verifyPremium(req, res);
   if (!decoded) return; // verifyAuth already sent 401
   const uid = decoded.uid;
 
