@@ -61,8 +61,8 @@ const mascotMap = {
   'TTU': 'Texas Tech Red Raiders', 'TULN': 'Tulane Green Wave', 'UH': 'Houston Cougars',
   'UL': 'Lafayette Ragin\' Cajuns', 'UT': 'Tennessee Volunteers',
   // FCS teams
-  'FCSE': 'FCS East Sentinels', 'FCSM': 'FCS Midwest Thunderbirds',
-  'FCSN': 'FCS Northwest Kodiaks', 'FCSW': 'FCS West Rivertoads'
+  'FCSE': 'FCS East Patriots', 'FCSM': 'FCS Midwest Thunderbirds',
+  'FCSN': 'FCS Northwest Grizzlies', 'FCSW': 'FCS West Toads'
 }
 
 // Semifinal structure - USE SLOT IDs for QF lookup (bowl names are configurable!)

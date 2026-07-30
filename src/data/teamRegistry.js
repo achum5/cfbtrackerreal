@@ -1172,6 +1172,7 @@ export const TEAMS = {
     secondaryColor: "#ffc425",
     logo: "https://i.imgur.com/Pjw5U7w.png"
   },
+<<<<<<< HEAD
   // FCS Teams (137-141) — the five generic directional schools. The base
   // fields are CFB 26's identities (colors, no mascot). CFB 27 shipped a new
   // set of generic FCS teams (East=Sentinels, Southeast=Condors,
@@ -1180,10 +1181,22 @@ export const TEAMS = {
   // applied by initializeDynastyTeams only for cfb27+ dynasties, so a CFB 26
   // dynasty keeps the old teams/logos and a CFB 27 dynasty gets the new ones.
   // Abbreviations keep the 5-letter in-game codes.
+=======
+  // FCS Teams (137-141) — match CFB26's actual five generic directional
+  // schools: FCS East, FCS Southeast, FCS Midwest, FCS Northwest, FCS West.
+  // Abbreviations match CFB26's 5-letter in-game codes (FCSE, FCSSE, FCSMW,
+  // FCSNW, FCSW). Existing dynasties created before FCSSE was added (or
+  // that still hold the old 4-letter FCSM / FCSN abbrs and the made-up
+  // nicknames) are migrated forward by migrateFCSFiveTeams() in
+  // DynastyContext. Logos are real in-game screenshots (user-provided,
+  // 2026-07-25) saved locally under public/fcs-logos/ — the prior imgur
+  // logos for all 5 were confirmed-wrong stock clipart, not real assets.
+>>>>>>> 5447f50cc (PC V4)
   137: {
     tid: 137,
     abbr: "FCSE",
     name: "FCS East",
+<<<<<<< HEAD
     primaryColor: "#2F1936",
     secondaryColor: "#8E85A1",
     logo: "https://i.imgur.com/eFyXxwT.png",
@@ -1191,11 +1204,18 @@ export const TEAMS = {
     editionOverrides: {
       cfb27: { primaryColor: "#1C2A4D", secondaryColor: "#C6A15B", nickname: "Sentinels", logo: "https://i.imgur.com/youhHZ5.png" }
     }
+=======
+    primaryColor: "#1B2A4A",
+    secondaryColor: "#C9A227",
+    logo: "/fcs-logos/fcs-east.png",
+    isFCS: true
+>>>>>>> 5447f50cc (PC V4)
   },
   138: {
     tid: 138,
     abbr: "FCSMW",
     name: "FCS Midwest",
+<<<<<<< HEAD
     primaryColor: "#91ABC7",
     secondaryColor: "#1a1a1a",
     logo: "https://i.imgur.com/NOJOPG8.png",
@@ -1203,11 +1223,18 @@ export const TEAMS = {
     editionOverrides: {
       cfb27: { primaryColor: "#7C1D2E", secondaryColor: "#35B5AE", nickname: "Thunderbirds", logo: "https://i.imgur.com/1jzzCpP.png" }
     }
+=======
+    primaryColor: "#5C1A1B",
+    secondaryColor: "#2EC4B6",
+    logo: "/fcs-logos/fcs-midwest.png",
+    isFCS: true
+>>>>>>> 5447f50cc (PC V4)
   },
   139: {
     tid: 139,
     abbr: "FCSNW",
     name: "FCS Northwest",
+<<<<<<< HEAD
     primaryColor: "#BFA544",
     secondaryColor: "#477F62",
     logo: "https://i.imgur.com/uBvbn1s.png",
@@ -1215,11 +1242,18 @@ export const TEAMS = {
     editionOverrides: {
       cfb27: { primaryColor: "#1E4A44", secondaryColor: "#C4A64C", nickname: "Kodiaks", logo: "https://i.imgur.com/PgDD4FD.png" }
     }
+=======
+    primaryColor: "#0D2B2E",
+    secondaryColor: "#FFC72C",
+    logo: "/fcs-logos/fcs-northwest.png",
+    isFCS: true
+>>>>>>> 5447f50cc (PC V4)
   },
   140: {
     tid: 140,
     abbr: "FCSW",
     name: "FCS West",
+<<<<<<< HEAD
     primaryColor: "#462E6A",
     secondaryColor: "#AF9458",
     logo: "https://i.imgur.com/Y8A8u0g.png",
@@ -1227,11 +1261,18 @@ export const TEAMS = {
     editionOverrides: {
       cfb27: { primaryColor: "#D64D95", secondaryColor: "#1A1A1A", nickname: "Rivertoads", logo: "https://i.imgur.com/XfzSZYZ.png" }
     }
+=======
+    primaryColor: "#1A1A1A",
+    secondaryColor: "#E91E8C",
+    logo: "/fcs-logos/fcs-west.png",
+    isFCS: true
+>>>>>>> 5447f50cc (PC V4)
   },
   141: {
     tid: 141,
     abbr: "FCSSE",
     name: "FCS Southeast",
+<<<<<<< HEAD
     primaryColor: "#4A7C59",
     secondaryColor: "#F0E68C",
     logo: "https://i.imgur.com/8qfTMIy.png",
@@ -1239,6 +1280,12 @@ export const TEAMS = {
     editionOverrides: {
       cfb27: { primaryColor: "#26314F", secondaryColor: "#E0691E", nickname: "Condors", logo: "https://i.imgur.com/kwVO5vi.png" }
     }
+=======
+    primaryColor: "#12213A",
+    secondaryColor: "#E8622C",
+    logo: "/fcs-logos/fcs-southeast.png",
+    isFCS: true
+>>>>>>> 5447f50cc (PC V4)
   },
   // FBS additions for CFB 27 (2026 realignment): two FCS programs that
   // reclassified up — North Dakota State (to the Mountain West) and
@@ -1287,6 +1334,15 @@ export const ABBR_TO_TID = {}
 for (const [tid, team] of Object.entries(TEAMS)) {
   ABBR_TO_TID[team.abbr] = parseInt(tid)
 }
+// Legacy 4-letter FCS codes (FCSM/FCSN), superseded by the 5-letter
+// FCSMW/FCSNW when FCSSE was added, but still show up in schedule/game
+// records cached before that migration ran (e.g. a dynasty's
+// teams[tid].byYear[year].schedule entry written by an old sync). Without
+// these aliases, getTidFromAbbr/getGameTeamInfo can't resolve those stale
+// entries to a real tid, so the opponent's logo silently comes back null
+// even though the team itself (and its logo) is right there in TEAMS.
+ABBR_TO_TID['FCSM'] = 138
+ABBR_TO_TID['FCSN'] = 139
 
 // EA's in-game result-column abbreviations differ from our dropdown abbrs for a
 // handful of teams, so a paste (or manual entry) of the game's short code fails

@@ -123,8 +123,8 @@ function getMascotName(abbr, teamsData = null) {
     'WASH': 'Washington Huskies', 'WSU': 'Washington State Cougars',
     'WVU': 'West Virginia Mountaineers', 'WMU': 'Western Michigan Broncos',
     'WKU': 'Western Kentucky Hilltoppers', 'WIS': 'Wisconsin Badgers', 'WYO': 'Wyoming Cowboys',
-    'FCSE': 'FCS East Sentinels', 'FCSM': 'FCS Midwest Thunderbirds',
-    'FCSN': 'FCS Northwest Kodiaks', 'FCSW': 'FCS West Rivertoads'
+    'FCSE': 'FCS East Patriots', 'FCSM': 'FCS Midwest Thunderbirds',
+    'FCSN': 'FCS Northwest Grizzlies', 'FCSW': 'FCS West Toads'
   }
   return mascotMap[abbr] || null
 }

@@ -350,8 +350,8 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
       'MIZ': 'Missouri Tigers', 'OU': 'Oklahoma Sooners',
       'GSU': 'Georgia State Panthers', 'USM': 'Southern Mississippi Golden Eagles',
       // FCS teams
-      'FCSE': 'FCS East Sentinels', 'FCSM': 'FCS Midwest Thunderbirds',
-      'FCSN': 'FCS Northwest Kodiaks', 'FCSW': 'FCS West Rivertoads'
+      'FCSE': 'FCS East Patriots', 'FCSM': 'FCS Midwest Thunderbirds',
+      'FCSN': 'FCS Northwest Grizzlies', 'FCSW': 'FCS West Toads'
     }
     return mascotMap[abbr] || null
   }

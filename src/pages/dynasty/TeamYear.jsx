@@ -2,10 +2,19 @@ import { useState, useRef, useMemo, useLayoutEffect, useEffect } from 'react'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { createPortal } from 'react-dom'
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
+<<<<<<< HEAD
 import { getEditionConfig, isDynastyBlueprintEnabled } from '../../editions'
+=======
+import { getEditionConfig, isPcAutoDynasty } from '../../editions'
+>>>>>>> 5447f50cc (PC V4)
 import DynastyBlueprintPanel from '../../components/DynastyBlueprintPanel'
+import { ProgramGradesBody } from '../../components/ProgramGradesBody'
 import { getCoachByRole } from '../../data/coachModel'
+<<<<<<< HEAD
 import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES, getCustomConferencesForYear, getGamesByType, isPlayerOnRoster, getUserGamePerspective, getTeamConferenceForDynasty, getTeamConferenceLabel, calculateTeamRecordFromGames, getTeamRecord, getTeamRanking, getRecruitingCommitments, getPlayerPositionForYear, getPlayerOverallForYear, lookupByTeamYear, getPlayersLeaving, getTeamRatingsForYear } from '../../context/DynastyContext'
+=======
+import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES, getCustomConferencesForYear, getGamesByType, isPlayerOnRoster, getUserGamePerspective, getTeamConferenceForDynasty, calculateTeamRecordFromGames, getTeamRecord, getTeamRanking, getRecruitingCommitments, getPlayerPositionForYear, getPlayerOverallForYear, lookupByTeamYear, getPlayersLeaving, getTeamRatingsForYear } from '../../context/DynastyContext'
+>>>>>>> 5447f50cc (PC V4)
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useCompareSelection, buildCompareUrl, COMPARE_ICON_PATH } from '../../hooks/useCompareSelection'
 import { StatRings } from '../../components/CfbUI'
@@ -280,8 +289,13 @@ const getMascotName = (abbr, teamsData = null) => {
     'SAM': 'Sam Houston State Bearkats', 'TUL': 'Tulane Green Wave', 'TXTECH': 'Texas Tech Red Raiders',
     'UF': 'Florida Gators', 'UM': 'Miami Hurricanes',
     // FCS teams
+<<<<<<< HEAD
     'FCSE': 'FCS East Sentinels', 'FCSM': 'FCS Midwest Thunderbirds',
     'FCSN': 'FCS Northwest Kodiaks', 'FCSW': 'FCS West Rivertoads'
+=======
+    'FCSE': 'FCS East Patriots', 'FCSM': 'FCS Midwest Thunderbirds',
+    'FCSN': 'FCS Northwest Grizzlies', 'FCSW': 'FCS West Toads'
+>>>>>>> 5447f50cc (PC V4)
   }
   return mascotMap[abbr] || null
 }
@@ -334,6 +348,19 @@ const AWARD_ORDER = [
   'bearBryantCoachOfTheYear', 'broyles',
   'shaunAlexander'
 ]
+
+// Compact "last name only" for the Stat Leaders widget — a plain
+// `.split(' ').pop()` truncated a suffix'd name (e.g. "Chris Henry Jr.") down
+// to just "Jr.", since the suffix itself is the last whitespace-separated
+// token. Keeps a trailing Jr./Sr./II/III/IV/V attached to the real surname.
+const NAME_SUFFIXES = new Set(['jr.', 'jr', 'sr.', 'sr', 'ii', 'iii', 'iv', 'v'])
+function getDisplayLastName(fullName) {
+  const parts = (fullName || '').trim().split(/\s+/).filter(Boolean)
+  if (parts.length <= 1) return parts[0] || ''
+  const last = parts[parts.length - 1]
+  if (NAME_SUFFIXES.has(last.toLowerCase())) return parts.slice(-2).join(' ')
+  return last
+}
 
 // Roster-tab position filter pill. Atomic groups (QB/WR/TE) render
 // as a plain button; composite groups (OL/DL/LB/DB/K/P/RB) get a
@@ -690,6 +717,7 @@ export default function TeamYear() {
   const [userGamesModalGames, setUserGamesModalGames] = useState([])
   const [showStatsEntryModal, setShowStatsEntryModal] = useState(false)
   const [showDetailedStatsModal, setShowDetailedStatsModal] = useState(false)
+  const [showProgramGrades, setShowProgramGrades] = useState(false)
   const [leadersMode, setLeadersMode] = useState('career') // 'career' or 'season'
   const [leadersCategory, setLeadersCategory] = useState('av')
 
@@ -1613,8 +1641,14 @@ export default function TeamYear() {
     }
   }
 
-  // Get team ratings for this year (try both tid and abbr keys for backwards compatibility)
-  const teamRatings = lookupByTeamYear(currentDynasty.teamRatingsByTeamYear, currentDynasty, tid, selectedYear) || null
+  // Get team ratings for this year. getTeamRatingsForYear checks, in order:
+  // the live current-team/current-year value, the CFB27-sync-written
+  // tid/byYear structure (any team, any synced year), then this legacy
+  // teamRatingsByTeamYear map as a last resort — a raw lookupByTeamYear call
+  // against ONLY the legacy map (the old code here) never saw CFB27-synced
+  // ratings for ANY team, since sync never writes to that legacy structure.
+  const ratingsResult = getTeamRatingsForYear(currentDynasty, tid, selectedYear)
+  const teamRatings = (ratingsResult?.overall || ratingsResult?.offense || ratingsResult?.defense) ? ratingsResult : null
 
   // Unified ranking source — getTeamRanking prefers rankByWeek (the
   // canonical per-week store the Rankings page reads), then a saved
@@ -5552,8 +5586,23 @@ export default function TeamYear() {
                         >
                           {statLeaders?.topPasser && statLeaders.topPasser.yards > 0 ? (
                             <>
+<<<<<<< HEAD
                               <PlayerAvatar photoUrl={realPhoto(statLeaders.topPasser.player?.pictureUrl)} teamLogo={teamLogo} name={statLeaders.topPasser.player?.name} size={28} className="hidden xl:flex" />
                               <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: rowTextMuted }}>{statLeaders.topPasser.name.split(' ').pop()}</span>
+=======
+                              {statLeaders.topPasser.player?.pictureUrl ? (
+                                <img src={proxyImageUrl(statLeaders.topPasser.player.pictureUrl, 300)} alt="" className="w-7 h-7 rounded-full object-cover border flex-shrink-0 hidden xl:block" style={{ borderColor: `${rowText}20` }} />
+                              ) : teamLogo ? (
+                                <span className="w-7 h-7 rounded-full bg-white p-1 items-center justify-center flex-shrink-0 hidden xl:flex">
+                                  <img src={teamLogo} alt="" className="w-full h-full object-contain" />
+                                </span>
+                              ) : (
+                                <div className="w-7 h-7 rounded-full items-center justify-center flex-shrink-0 hidden xl:flex" style={{ backgroundColor: `${rowText}20` }}>
+                                  <span className="text-xs font-bold" style={{ color: rowTextMuted }}>{statLeaders.topPasser.name.charAt(0)}</span>
+                                </div>
+                              )}
+                              <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: rowTextMuted }}>{getDisplayLastName(statLeaders.topPasser.name)}</span>
+>>>>>>> 5447f50cc (PC V4)
                               <span className="text-xs lg:text-sm font-bold flex-shrink-0" style={{ color: rowText }}>{statLeaders.topPasser.yards}</span>
                             </>
                           ) : (
@@ -5568,8 +5617,23 @@ export default function TeamYear() {
                         >
                           {statLeaders?.topRusher && statLeaders.topRusher.yards > 0 ? (
                             <>
+<<<<<<< HEAD
                               <PlayerAvatar photoUrl={realPhoto(statLeaders.topRusher.player?.pictureUrl)} teamLogo={teamLogo} name={statLeaders.topRusher.player?.name} size={28} className="hidden xl:flex" />
                               <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: rowTextMuted }}>{statLeaders.topRusher.name.split(' ').pop()}</span>
+=======
+                              {statLeaders.topRusher.player?.pictureUrl ? (
+                                <img src={proxyImageUrl(statLeaders.topRusher.player.pictureUrl, 300)} alt="" className="w-7 h-7 rounded-full object-cover border flex-shrink-0 hidden xl:block" style={{ borderColor: `${rowText}20` }} />
+                              ) : teamLogo ? (
+                                <span className="w-7 h-7 rounded-full bg-white p-1 items-center justify-center flex-shrink-0 hidden xl:flex">
+                                  <img src={teamLogo} alt="" className="w-full h-full object-contain" />
+                                </span>
+                              ) : (
+                                <div className="w-7 h-7 rounded-full items-center justify-center flex-shrink-0 hidden xl:flex" style={{ backgroundColor: `${rowText}20` }}>
+                                  <span className="text-xs font-bold" style={{ color: rowTextMuted }}>{statLeaders.topRusher.name.charAt(0)}</span>
+                                </div>
+                              )}
+                              <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: rowTextMuted }}>{getDisplayLastName(statLeaders.topRusher.name)}</span>
+>>>>>>> 5447f50cc (PC V4)
                               <span className="text-xs lg:text-sm font-bold flex-shrink-0" style={{ color: rowText }}>{statLeaders.topRusher.yards}</span>
                             </>
                           ) : (
@@ -5584,8 +5648,23 @@ export default function TeamYear() {
                         >
                           {statLeaders?.topReceiver && statLeaders.topReceiver.yards > 0 ? (
                             <>
+<<<<<<< HEAD
                               <PlayerAvatar photoUrl={realPhoto(statLeaders.topReceiver.player?.pictureUrl)} teamLogo={teamLogo} name={statLeaders.topReceiver.player?.name} size={28} className="hidden xl:flex" />
                               <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: rowTextMuted }}>{statLeaders.topReceiver.name.split(' ').pop()}</span>
+=======
+                              {statLeaders.topReceiver.player?.pictureUrl ? (
+                                <img src={proxyImageUrl(statLeaders.topReceiver.player.pictureUrl, 300)} alt="" className="w-7 h-7 rounded-full object-cover border flex-shrink-0 hidden xl:block" style={{ borderColor: `${rowText}20` }} />
+                              ) : teamLogo ? (
+                                <span className="w-7 h-7 rounded-full bg-white p-1 items-center justify-center flex-shrink-0 hidden xl:flex">
+                                  <img src={teamLogo} alt="" className="w-full h-full object-contain" />
+                                </span>
+                              ) : (
+                                <div className="w-7 h-7 rounded-full items-center justify-center flex-shrink-0 hidden xl:flex" style={{ backgroundColor: `${rowText}20` }}>
+                                  <span className="text-xs font-bold" style={{ color: rowTextMuted }}>{statLeaders.topReceiver.name.charAt(0)}</span>
+                                </div>
+                              )}
+                              <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: rowTextMuted }}>{getDisplayLastName(statLeaders.topReceiver.name)}</span>
+>>>>>>> 5447f50cc (PC V4)
                               <span className="text-xs lg:text-sm font-bold flex-shrink-0" style={{ color: rowText }}>{statLeaders.topReceiver.yards}</span>
                             </>
                           ) : (
@@ -5600,8 +5679,23 @@ export default function TeamYear() {
                         >
                           {statLeaders?.topTackler && statLeaders.topTackler.tackles > 0 ? (
                             <>
+<<<<<<< HEAD
                               <PlayerAvatar photoUrl={realPhoto(statLeaders.topTackler.player?.pictureUrl)} teamLogo={teamLogo} name={statLeaders.topTackler.player?.name} size={28} className="hidden xl:flex" />
                               <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: rowTextMuted }}>{statLeaders.topTackler.name.split(' ').pop()}</span>
+=======
+                              {statLeaders.topTackler.player?.pictureUrl ? (
+                                <img src={proxyImageUrl(statLeaders.topTackler.player.pictureUrl, 300)} alt="" className="w-7 h-7 rounded-full object-cover border flex-shrink-0 hidden xl:block" style={{ borderColor: `${rowText}20` }} />
+                              ) : teamLogo ? (
+                                <span className="w-7 h-7 rounded-full bg-white p-1 items-center justify-center flex-shrink-0 hidden xl:flex">
+                                  <img src={teamLogo} alt="" className="w-full h-full object-contain" />
+                                </span>
+                              ) : (
+                                <div className="w-7 h-7 rounded-full items-center justify-center flex-shrink-0 hidden xl:flex" style={{ backgroundColor: `${rowText}20` }}>
+                                  <span className="text-xs font-bold" style={{ color: rowTextMuted }}>{statLeaders.topTackler.name.charAt(0)}</span>
+                                </div>
+                              )}
+                              <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: rowTextMuted }}>{getDisplayLastName(statLeaders.topTackler.name)}</span>
+>>>>>>> 5447f50cc (PC V4)
                               <span className="text-xs lg:text-sm font-bold flex-shrink-0" style={{ color: rowText }}>{statLeaders.topTackler.tackles}</span>
                             </>
                           ) : (
@@ -5623,7 +5717,7 @@ export default function TeamYear() {
                               className={`flex flex-col items-center ${statLeaders.topPasser.player?.pid ? 'cursor-pointer' : ''}`}
                               onClick={statLeaders.topPasser.player?.pid ? (e) => { e.preventDefault(); e.stopPropagation(); navigate(`${pathPrefix}/player/${statLeaders.topPasser.player.pid}`) } : undefined}
                             >
-                              <span className="text-[8px] truncate max-w-full" style={{ color: rowTextMuted }}>{statLeaders.topPasser.name.split(' ').pop()}</span>
+                              <span className="text-[8px] truncate max-w-full" style={{ color: rowTextMuted }}>{getDisplayLastName(statLeaders.topPasser.name)}</span>
                               <span className="text-[10px] font-semibold" style={{ color: rowText }}>{statLeaders.topPasser.yards}</span>
                             </div>
                           ) : (
@@ -5639,7 +5733,7 @@ export default function TeamYear() {
                               className={`flex flex-col items-center ${statLeaders.topRusher.player?.pid ? 'cursor-pointer' : ''}`}
                               onClick={statLeaders.topRusher.player?.pid ? (e) => { e.preventDefault(); e.stopPropagation(); navigate(`${pathPrefix}/player/${statLeaders.topRusher.player.pid}`) } : undefined}
                             >
-                              <span className="text-[8px] truncate max-w-full" style={{ color: rowTextMuted }}>{statLeaders.topRusher.name.split(' ').pop()}</span>
+                              <span className="text-[8px] truncate max-w-full" style={{ color: rowTextMuted }}>{getDisplayLastName(statLeaders.topRusher.name)}</span>
                               <span className="text-[10px] font-semibold" style={{ color: rowText }}>{statLeaders.topRusher.yards}</span>
                             </div>
                           ) : (
@@ -5655,7 +5749,7 @@ export default function TeamYear() {
                               className={`flex flex-col items-center ${statLeaders.topReceiver.player?.pid ? 'cursor-pointer' : ''}`}
                               onClick={statLeaders.topReceiver.player?.pid ? (e) => { e.preventDefault(); e.stopPropagation(); navigate(`${pathPrefix}/player/${statLeaders.topReceiver.player.pid}`) } : undefined}
                             >
-                              <span className="text-[8px] truncate max-w-full" style={{ color: rowTextMuted }}>{statLeaders.topReceiver.name.split(' ').pop()}</span>
+                              <span className="text-[8px] truncate max-w-full" style={{ color: rowTextMuted }}>{getDisplayLastName(statLeaders.topReceiver.name)}</span>
                               <span className="text-[10px] font-semibold" style={{ color: rowText }}>{statLeaders.topReceiver.yards}</span>
                             </div>
                           ) : (
@@ -5671,7 +5765,7 @@ export default function TeamYear() {
                               className={`flex flex-col items-center ${statLeaders.topTackler.player?.pid ? 'cursor-pointer' : ''}`}
                               onClick={statLeaders.topTackler.player?.pid ? (e) => { e.preventDefault(); e.stopPropagation(); navigate(`${pathPrefix}/player/${statLeaders.topTackler.player.pid}`) } : undefined}
                             >
-                              <span className="text-[8px] truncate max-w-full" style={{ color: rowTextMuted }}>{statLeaders.topTackler.name.split(' ').pop()}</span>
+                              <span className="text-[8px] truncate max-w-full" style={{ color: rowTextMuted }}>{getDisplayLastName(statLeaders.topTackler.name)}</span>
                               <span className="text-[10px] font-semibold" style={{ color: rowText }}>{statLeaders.topTackler.tackles}</span>
                             </div>
                           ) : (
@@ -5978,8 +6072,17 @@ export default function TeamYear() {
           if (starDiff !== 0) return starDiff
           return (a.name || '').localeCompare(b.name || '')
         })
-        const classScore = calculateRecruitingClassScore(commits)
-        const nationalRank = lookupByTeamYear(currentDynasty?.recruitingClassRankByTeamYear, currentDynasty, tid, selectedYear) ?? null
+        // Synced-first, manual-fallback — same rule Recruiting.jsx uses.
+        // CFB27 sync writes into teams[tid].byYear[year].recruitingClassRank/
+        // .recruitingClassStats.score; the legacy recruitingClassRankByTeamYear
+        // map is manual-entry-only and CFB27 sync never populates it, which is
+        // why this tab showed a blank "—" rank for synced dynasties even
+        // though Recruiting.jsx's commitments page showed the real rank.
+        const syncedClassStats = currentDynasty?.teams?.[tid]?.byYear?.[selectedYear]?.recruitingClassStats
+        const classScore = syncedClassStats?.score ?? calculateRecruitingClassScore(commits)
+        const nationalRank = currentDynasty?.teams?.[tid]?.byYear?.[selectedYear]?.recruitingClassRank
+          ?? lookupByTeamYear(currentDynasty?.recruitingClassRankByTeamYear, currentDynasty, tid, selectedYear)
+          ?? null
         const starCounts = [5, 4, 3, 2, 1].map(n => ({
           count: n,
           total: commits.filter(c => Number(c.stars) === n).length
@@ -6017,7 +6120,23 @@ export default function TeamYear() {
                     </div>
                   </div>
                 </div>
-                <div className="sm:ml-auto">
+                <div className="sm:ml-auto flex items-center gap-2">
+                  {/* Program Grades — only ever populated by CFB27 sync, same
+                      gate the recruiting-class data above uses. Toggles an
+                      inline panel in place, same pattern as the Top Classes
+                      button on the Commitments page. */}
+                  {isPcAutoDynasty(currentDynasty) && (
+                    <button
+                      type="button"
+                      onClick={() => setShowProgramGrades((v) => !v)}
+                      className="px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-colors"
+                      style={showProgramGrades
+                        ? { backgroundColor: viewedPrimaryText, color: viewedPrimary }
+                        : { border: `1px solid var(--surface-4)`, color: 'var(--text-secondary)' }}
+                    >
+                      Program Grades
+                    </button>
+                  )}
                   <Link
                     to={`${pathPrefix}/recruiting/${tid}/${selectedYear}`}
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-sm label-sm transition-colors hover:opacity-90"
@@ -6034,6 +6153,11 @@ export default function TeamYear() {
                   </Link>
                 </div>
               </div>
+              {showProgramGrades && (
+                <div className="px-4 sm:px-5 pb-4 sm:pb-5">
+                  <ProgramGradesBody dynasty={currentDynasty} tid={tid} year={selectedYear} pathPrefix={pathPrefix} />
+                </div>
+              )}
               <div className="grid grid-cols-5 border-t border-surface-4">
                 {starCounts.map(tile => (
                   <div key={tile.count} className="px-2 py-3 text-center border-r border-surface-4 last:border-r-0">
@@ -7642,7 +7766,15 @@ export default function TeamYear() {
                 >
                   <span className="w-5 text-center text-xs font-bold tabular-nums flex-shrink-0 text-txt-tertiary">{i + 1}</span>
                   <span className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: `${accentColor}1f` }}>
+<<<<<<< HEAD
                     <PlayerAvatar photoUrl={realPhoto(p.pictureUrl)} teamLogo={teamLogo} name={p.name} size={32} />
+=======
+                    {p.pictureUrl
+                      ? <img src={proxyImageUrl(p.pictureUrl, 120)} alt="" className="w-full h-full object-cover" />
+                      : teamLogo
+                        ? <img src={teamLogo} alt="" className="w-full h-full object-contain p-1" />
+                        : <span className="text-xs font-bold" style={{ color: accentColor }}>{(p.name || '?').charAt(0)}</span>}
+>>>>>>> 5447f50cc (PC V4)
                   </span>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-txt-primary truncate group-hover:underline">{p.name}</div>

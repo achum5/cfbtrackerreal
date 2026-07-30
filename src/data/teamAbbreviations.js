@@ -32,10 +32,18 @@ export const teamAbbreviations = {
   "EMU": { name: "Eastern Michigan Eagles", backgroundColor: "#006633", textColor: "#FFFFFF" },
   "FAU": { name: "Florida Atlantic Owls", backgroundColor: "#003366", textColor: "#FFFFFF" },
   "FIU": { name: "Florida International Panthers", backgroundColor: "#081E3F", textColor: "#B6862C" },
+<<<<<<< HEAD
   "FCSE": { name: "FCS East Sentinels", backgroundColor: "#1C2A4D", textColor: "#C6A15B", logo: "https://i.imgur.com/youhHZ5.png", isFCS: true },
   "FCSM": { name: "FCS Midwest Thunderbirds", backgroundColor: "#7C1D2E", textColor: "#35B5AE", logo: "https://i.imgur.com/1jzzCpP.png", isFCS: true },
   "FCSN": { name: "FCS Northwest Kodiaks", backgroundColor: "#1E4A44", textColor: "#C4A64C", logo: "https://i.imgur.com/PgDD4FD.png", isFCS: true },
   "FCSW": { name: "FCS West Rivertoads", backgroundColor: "#D64D95", textColor: "#1A1A1A", logo: "https://i.imgur.com/XfzSZYZ.png", isFCS: true },
+=======
+  "FCSE": { name: "FCS East", backgroundColor: "#1B2A4A", textColor: "#C9A227", logo: "/fcs-logos/fcs-east.png", isFCS: true },
+  "FCSM": { name: "FCS Midwest", backgroundColor: "#5C1A1B", textColor: "#2EC4B6", logo: "/fcs-logos/fcs-midwest.png", isFCS: true },
+  "FCSN": { name: "FCS Northwest", backgroundColor: "#0D2B2E", textColor: "#FFC72C", logo: "/fcs-logos/fcs-northwest.png", isFCS: true },
+  "FCSW": { name: "FCS West", backgroundColor: "#1A1A1A", textColor: "#E91E8C", logo: "/fcs-logos/fcs-west.png", isFCS: true },
+  "FCSSE": { name: "FCS Southeast", backgroundColor: "#12213A", textColor: "#E8622C", logo: "/fcs-logos/fcs-southeast.png", isFCS: true },
+>>>>>>> 5447f50cc (PC V4)
   "FLA": { name: "Florida Gators", backgroundColor: "#0021a5", textColor: "#FA4616" },
   "FRES": { name: "Fresno State Bulldogs", backgroundColor: "#C41230", textColor: "#FFFFFF" },
   "FSU": { name: "Florida State Seminoles", backgroundColor: "#782F40", textColor: "#CEB888" },
@@ -260,10 +268,18 @@ export const teamDisplayNameToAbbr = {
   "Eastern Michigan Eagles": "EMU",
   "Florida Atlantic Owls": "FAU",
   "Florida International Panthers": "FIU",
+<<<<<<< HEAD
   "FCS East Sentinels": "FCSE",
   "FCS Midwest Thunderbirds": "FCSM",
   "FCS Northwest Kodiaks": "FCSN",
   "FCS West Rivertoads": "FCSW",
+=======
+  "FCS East": "FCSE",
+  "FCS Midwest": "FCSM",
+  "FCS Northwest": "FCSN",
+  "FCS West": "FCSW",
+  "FCS Southeast": "FCSSE",
+>>>>>>> 5447f50cc (PC V4)
   "Florida Gators": "FLA",
   "Fresno State Bulldogs": "FRES",
   "Florida State Seminoles": "FSU",

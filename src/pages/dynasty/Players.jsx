@@ -4,6 +4,7 @@ import { useDynasty, getPlayerClassForYear } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { useTeamColors } from '../../hooks/useTeamColors'
+import { getTeamLogo } from '../../data/teams'
 import RosterHistoryModal from '../../components/RosterHistoryModal'
 import PlayerAvatar from '../../components/PlayerAvatar'
 import { PageHero, Card, EmptyState, Input, Select, Badge, Button } from '../../components/ui'
@@ -40,6 +41,7 @@ export default function Players() {
   const pathPrefix = usePathPrefix()
   const teamColors = useTeamColors(currentDynasty?.teamName, currentDynasty?.teams || currentDynasty?.customTeams)
   const teamAccent = teamColors?.primary || '#374151'
+  const teamLogo = getTeamLogo(currentDynasty?.teamName, currentDynasty?.teams || currentDynasty?.customTeams)
   const [searchQuery, setSearchQuery] = useState('')
   const [positionFilter, setPositionFilter] = useState('All')
   const [sortBy, setSortBy] = useState('overall')

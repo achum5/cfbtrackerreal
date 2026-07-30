@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { isOpenTarget } from '../../utils/recruitingTargets'
 import { useDynasty, getCustomConferencesForYear, getTeamConferenceForDynasty } from '../../context/DynastyContext'
@@ -79,8 +79,13 @@ const getMascotName = (abbr, teamsData = null) => {
     'GAST': 'Georgia State Panthers', 'OKLA': 'Oklahoma Sooners', 'RUT': 'Rutgers Scarlet Knights',
     'SAM': 'Sam Houston State Bearkats', 'TUL': 'Tulane Green Wave', 'TXTECH': 'Texas Tech Red Raiders',
     'UF': 'Florida Gators', 'UM': 'Miami Hurricanes',
+<<<<<<< HEAD
     'FCSE': 'FCS East Sentinels', 'FCSM': 'FCS Midwest Thunderbirds',
     'FCSN': 'FCS Northwest Kodiaks', 'FCSW': 'FCS West Rivertoads'
+=======
+    'FCSE': 'FCS East Patriots', 'FCSM': 'FCS Midwest Thunderbirds',
+    'FCSN': 'FCS Northwest Grizzlies', 'FCSW': 'FCS West Toads'
+>>>>>>> 5447f50cc (PC V4)
   }
   return mascotMap[abbr] || null
 }
@@ -105,6 +110,11 @@ export default function AllConference() {
   const pathPrefix = usePathPrefix()
   const [filter, setFilter] = useState('first')
   const [showEditModal, setShowEditModal] = useState(false)
+  // Explicit "view the preseason predictions" toggle — separate from the
+  // automatic fallback below, so a year/conference with real final honors
+  // can still be compared against what was predicted. Resets on year change.
+  const [viewPreseason, setViewPreseason] = useState(false)
+  useEffect(() => { setViewPreseason(false) }, [urlYear])
   const teamColors = useTeamColors(currentDynasty?.teamName, currentDynasty?.teams || currentDynasty?.customTeams)
 
   if (!currentDynasty) return null
@@ -162,9 +172,18 @@ export default function AllConference() {
     if (!d) return false
     const byConf = d.allConferenceByConference?.[defaultUserConf]
     if (Array.isArray(byConf) && byConf.length > 0) return true
+<<<<<<< HEAD
     const flat = d.allConference || []
     if (flat.length === 0) return false
     return flat.some(p => entryConference(p, y) === defaultUserConf)
+=======
+    const teams = confTeamsForYear(defaultUserConf, y)
+    const matchesConf = (list) => (list || []).some(p => p.school && (teams.includes(p.school.toUpperCase()) || teams.includes(p.school)))
+    if (matchesConf(d.allConference)) return true
+    // Preseason 1st/2nd Team predictions — only counts as "has data" as a
+    // fallback; a year with real final data always wins above.
+    return matchesConf(d.allConferencePreseason)
+>>>>>>> 5447f50cc (PC V4)
   }
   const mostRecentYearWithData = availableYears.find(yearHasData) || null
   const isFirstSeason = Number(currentDynasty.currentYear) <= Number(currentDynasty.startYear)
@@ -216,6 +235,7 @@ export default function AllConference() {
 
   const displayConference = decodeConference(urlConference) || userConference
 
+<<<<<<< HEAD
   const allConference = useMemo(() => {
     const byConf = yearData.allConferenceByConference
     if (byConf) {
@@ -235,6 +255,37 @@ export default function AllConference() {
     // and dropped every standard school.
     return allConferenceRaw.filter(player => entryConference(player, displayYear) === displayConference)
   }, [yearData, displayConference, displayYear])
+=======
+  const filterByConference = (raw) => {
+    if (!raw || raw.length === 0) return []
+    const conferenceTeamsList = getConferenceTeams(displayConference)
+    return raw.filter(player => {
+      if (!player.school) return false
+      return conferenceTeamsList.includes(player.school.toUpperCase()) || conferenceTeamsList.includes(player.school)
+    })
+  }
+
+  // Preseason 1st/2nd Team predictions (synced the same way as final
+  // All-Conference teams, see cfb27SaveSync.js). Final honors always take
+  // precedence — shown automatically the moment they exist for this
+  // year/conference — but the preseason picks stay available behind an
+  // explicit toggle so they can still be compared against the real
+  // end-of-season teams afterward.
+  const { allConference, isPreseasonView, hasFinalAllConference, hasPreseasonAllConference } = useMemo(() => {
+    const byConf = yearData.allConferenceByConference?.[displayConference]
+    const final = (Array.isArray(byConf) && byConf.length > 0) ? byConf : filterByConference(yearData.allConference || [])
+    const preseason = filterByConference(yearData.allConferencePreseason || [])
+    const hasFinal = final.length > 0
+    const hasPreseason = preseason.length > 0
+    const showPreseason = viewPreseason || (!hasFinal && hasPreseason)
+    return {
+      allConference: showPreseason ? preseason : final,
+      isPreseasonView: showPreseason,
+      hasFinalAllConference: hasFinal,
+      hasPreseasonAllConference: hasPreseason,
+    }
+  }, [yearData, displayConference, viewPreseason])
+>>>>>>> 5447f50cc (PC V4)
 
   const handleYearChange = (year) => {
     navigate(`${pathPrefix}/all-conference/${year}/${encodeConference(displayConference)}`)
@@ -518,7 +569,12 @@ export default function AllConference() {
   return (
     <div className="space-y-6">
       <PageHero
-        title={titleNode}
+        title={
+          <span className="inline-flex items-center gap-2" style={{ fontSize: 'var(--text-display-lg)' }}>
+            <img src="/badges/all-american.png" alt="" className="w-auto shrink-0" style={{ height: '1em' }} />
+            {titleNode}
+          </span>
+        }
         actions={heroActions}
         tabs={hasAnyPlayers ? [
           { key: 'first', label: '1st Team' },
@@ -528,6 +584,31 @@ export default function AllConference() {
         activeTab={filter}
         onTabChange={setFilter}
       />
+
+      {hasAnyPlayers && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant={isPreseasonView ? 'warning' : 'default'}>
+            {isPreseasonView ? 'Preseason All-Conference' : 'All-Conference'}
+          </Badge>
+          {isPreseasonView && (
+            <span className="text-xs text-txt-tertiary">
+              {hasFinalAllConference
+                ? 'Predicted teams from before the season started.'
+                : "Predicted teams — replaced automatically once the season's final honors are announced."}
+            </span>
+          )}
+          {isPreseasonView && hasFinalAllConference && (
+            <Button variant="secondary" size="sm" onClick={() => setViewPreseason(false)}>
+              Back to Final Teams
+            </Button>
+          )}
+          {!isPreseasonView && hasFinalAllConference && hasPreseasonAllConference && (
+            <Button variant="secondary" size="sm" onClick={() => setViewPreseason(true)}>
+              Compare to Preseason Picks
+            </Button>
+          )}
+        </div>
+      )}
 
       {!hasAnyPlayers ? (
         <Card>

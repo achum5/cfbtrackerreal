@@ -2703,7 +2703,13 @@ const BATCH_4 = {
 // ---------------------------------------------------------------------------
 const FCS_TEAMS = {
   "FCS Southeast": {
+    // Updated to match the real bundled logo file (public/fcs-logos/
+    // fcs-southeast.png) — the old snarling-grouper-fish design doesn't
+    // match what's actually there; it's a hawk/eagle head. Nickname
+    // ("Hawks") inferred from the imagery, not confirmed via any in-game
+    // text label — same caveat as the other 3 redone below.
     primaryPMS: null,
+<<<<<<< HEAD
     primaryHex: "#26314F",
     secondaryPMS: null,
     secondaryHex: "#E0691E",
@@ -2712,16 +2718,36 @@ const FCS_TEAMS = {
     helmet: { baseColor: "navy", logoMark: "condor head", stripe: "single white center stripe", finish: "glossy" },
     logoDescription: "A fierce condor head in orange (#E0691E) set against a navy field, feathered crest sweeping back over the crown. Statesboro, Georgia. Placeholder pending the real CFB 27 mark.",
     wordmarkStyle: "Logo-driven brand — the condor head is the primary identity, with no consistent wordmark treatment.",
+=======
+    primaryHex: "#12213A",
+    secondaryPMS: null,
+    secondaryHex: "#E8622C",
+    tertiaryHex: "#FFFFFF",
+    motifs: ["hawk head", "sharp beak"],
+    helmet: { baseColor: "navy", logoMark: "orange hawk head with navy accents", stripe: "single orange center stripe", finish: "glossy" },
+    logoDescription: "A fierce hawk/eagle head shown in profile facing left, with a sharply hooked orange beak and an intense narrowed eye. The head and neck feathers are rendered in burnt orange with layered feather detailing sweeping back from the crown, while the eye area and lower neck carry navy blue shading and outline work for contrast. The whole mark is wrapped in a thin white outer outline. No wordmark.",
+    wordmarkStyle: "Logo-driven brand — the orange hawk head is the primary identity, with no consistent wordmark treatment.",
+>>>>>>> 5447f50cc (PC V4)
     visualEra: "modern/athletic",
     isFictional: true,
     homeJerseyColor: "navy",
     awayJerseyColor: "white",
+<<<<<<< HEAD
     graphicNotes: "Generic in-game FCS opponent — the Condors (Statesboro, Georgia). Navy (#26314F) paired with orange (#E0691E). Placeholder art pending upload of the CFB 27 mark.",
     shortNickname: "Condors",
+=======
+    graphicNotes: "Generic in-game FCS opponent (mascot inferred: Hawks). Navy (#12213A) paired with burnt orange (#E8622C) and a white outer outline. The hawk head is the only mark — no secondary logo, no wordmark fallback.",
+    shortNickname: "Hawks",
+>>>>>>> 5447f50cc (PC V4)
     confidence: "medium"
   },
   "FCS Northwest": {
+    // Updated to match the real bundled logo file (public/fcs-logos/
+    // fcs-northwest.png) — the old stallion-head design doesn't match;
+    // it's a bear head inside a mountain peak with pine trees. Nickname
+    // ("Grizzlies") inferred from the imagery, not confirmed in-game.
     primaryPMS: null,
+<<<<<<< HEAD
     primaryHex: "#1E4A44",
     secondaryPMS: null,
     secondaryHex: "#C4A64C",
@@ -2736,10 +2762,33 @@ const FCS_TEAMS = {
     awayJerseyColor: "white",
     graphicNotes: "Generic in-game FCS opponent — the Kodiaks (Portland, Oregon). Deep pine green (#1E4A44) paired with gold (#C4A64C) over white. Placeholder art pending upload of the CFB 27 mark.",
     shortNickname: "Kodiaks",
+=======
+    primaryHex: "#0D2B2E",
+    secondaryPMS: null,
+    secondaryHex: "#FFC72C",
+    tertiaryHex: "#FFFFFF",
+    motifs: ["bear head", "mountain peak", "pine trees"],
+    helmet: { baseColor: "charcoal", logoMark: "bear head within a mountain peak with pine trees", stripe: "single gold center stripe", finish: "glossy" },
+    logoDescription: "A roaring gray bear head shown front-facing, mouth open with bared teeth, set inside a bold dark charcoal/navy triangular mountain-peak outline. Two small gold pine trees sit at the base of the triangle, one on each side of the bear's neck. The bear's fur is rendered in cool gray tones with dark charcoal shadow detail defining the muzzle, brow, and ears, with a white highlight along the top of the head. The whole mark is wrapped in a thin white outer outline. No wordmark.",
+    wordmarkStyle: "Logo-driven brand — the bear head inside a mountain peak is the primary identity, with no consistent wordmark treatment.",
+    visualEra: "modern/athletic",
+    isFictional: true,
+    homeJerseyColor: "charcoal",
+    awayJerseyColor: "white",
+    graphicNotes: "Generic in-game FCS opponent (mascot inferred: Grizzlies). Dark charcoal/navy (#0D2B2E) paired with gold (#FFC72C) for the pine trees, gray for the bear, and a white outer outline. The bear-in-a-mountain mark is the only logo — no secondary logo, no wordmark fallback.",
+    shortNickname: "Grizzlies",
+>>>>>>> 5447f50cc (PC V4)
     confidence: "medium"
   },
   "FCS Midwest": {
+    // Updated for this year's redesigned in-game logo — the old
+    // donkey/mule-and-lightning-bolt mark ("Rebels") no longer matches what
+    // the game actually renders. Confirmed via a real score graphic attempt
+    // going wrong (the AI invented the old donkey mark from this profile)
+    // and the user's own reference image of the current logo, plus the
+    // in-game schedule/matchup screen naming the mascot "Thunderbirds".
     primaryPMS: null,
+<<<<<<< HEAD
     primaryHex: "#7C1D2E",
     secondaryPMS: null,
     secondaryHex: "#35B5AE",
@@ -2748,16 +2797,35 @@ const FCS_TEAMS = {
     helmet: { baseColor: "maroon", logoMark: "thunderbird", stripe: "single teal center stripe", finish: "glossy" },
     logoDescription: "A stylized thunderbird with outstretched wings, rendered in teal (#35B5AE) with gold outline against a maroon (#7C1D2E) field. Springfield, Missouri. Placeholder pending the real CFB 27 mark.",
     wordmarkStyle: "Logo-driven brand — the thunderbird is the primary identity, with no consistent wordmark treatment.",
+=======
+    primaryHex: "#5C1A1B",
+    secondaryPMS: null,
+    secondaryHex: "#2EC4B6",
+    tertiaryHex: "#FFFFFF",
+    motifs: ["thunderbird head", "angular wing"],
+    helmet: { baseColor: "maroon", logoMark: "teal thunderbird head with maroon wing accent", stripe: "single teal center stripe", finish: "glossy" },
+    logoDescription: "A stylized thunderbird (hawk/bird-of-prey) head shown in profile facing left, rendered in teal/turquoise with dark internal line work defining the eye and curved beak. Behind and around the head, an angular dark maroon wing/flame-shaped backdrop sweeps upward and back, giving the mark a sharp, aggressive silhouette. A thin white outline separates the teal head from the maroon backdrop. No wordmark.",
+    wordmarkStyle: "Logo-driven brand — the teal thunderbird head over an angular maroon wing is the primary identity, with no consistent wordmark treatment.",
+>>>>>>> 5447f50cc (PC V4)
     visualEra: "modern/athletic",
     isFictional: true,
     homeJerseyColor: "maroon",
     awayJerseyColor: "white",
+<<<<<<< HEAD
     graphicNotes: "Generic in-game FCS opponent — the Thunderbirds (Springfield, Missouri). Maroon (#7C1D2E) paired with teal (#35B5AE). Placeholder art pending upload of the CFB 27 mark.",
+=======
+    graphicNotes: "Generic in-game FCS opponent (mascot: Thunderbirds). Dark maroon paired with teal/turquoise, with white used for outline separation between the two. The teal thunderbird head over an angular maroon wing is the only mark — no secondary logos, no wordmark fallback.",
+>>>>>>> 5447f50cc (PC V4)
     shortNickname: "Thunderbirds",
     confidence: "medium"
   },
   "FCS East": {
+    // Updated to match the real bundled logo file (public/fcs-logos/
+    // fcs-east.png) — the old robed-magistrate design doesn't match; it's a
+    // colonial minuteman head in a tricorn hat. Nickname ("Patriots")
+    // inferred from the imagery, not confirmed in-game.
     primaryPMS: null,
+<<<<<<< HEAD
     primaryHex: "#1C2A4D",
     secondaryPMS: null,
     secondaryHex: "#C6A15B",
@@ -2766,16 +2834,36 @@ const FCS_TEAMS = {
     helmet: { baseColor: "gold", logoMark: "colonial minuteman bust", stripe: "single navy center stripe", finish: "glossy" },
     logoDescription: "A colonial minuteman / sentinel bust in profile wearing a tricorn hat, rendered in navy (#1C2A4D) against a gold (#C6A15B) field. Gold helmet. Orangeburg, South Carolina. Placeholder pending the real CFB 27 mark.",
     wordmarkStyle: "Logo-driven brand — the colonial sentinel bust is the primary identity, with no consistent wordmark treatment.",
+=======
+    primaryHex: "#1B2A4A",
+    secondaryPMS: null,
+    secondaryHex: "#C9A227",
+    tertiaryHex: "#D9B896",
+    motifs: ["colonial minuteman head", "tricorn hat"],
+    helmet: { baseColor: "navy", logoMark: "colonial soldier head with tricorn hat", stripe: "single gold center stripe", finish: "glossy" },
+    logoDescription: "A stern, weathered colonial minuteman/patriot soldier head shown facing forward, wearing a navy blue tricorn hat with a gold band and a small gold cockade accent on the front fold. The face has a rugged, angry expression with heavy dark eyebrows, deep-set eyes, and a strong jawline, rendered in a tan/flesh tone with bold black shadow and line work defining the brow, nose, and cheek contours. A popped navy coat collar with gold trim frames the neck. The whole mark is wrapped in a thin white outer outline. No wordmark.",
+    wordmarkStyle: "Logo-driven brand — the colonial minuteman head is the primary identity, with no consistent wordmark treatment.",
+>>>>>>> 5447f50cc (PC V4)
     visualEra: "modern/athletic",
     isFictional: true,
     homeJerseyColor: "navy",
     awayJerseyColor: "white",
+<<<<<<< HEAD
     graphicNotes: "Generic in-game FCS opponent — the Sentinels (Orangeburg, South Carolina). Navy (#1C2A4D) paired with gold (#C6A15B). Placeholder art pending upload of the CFB 27 mark.",
     shortNickname: "Sentinels",
+=======
+    graphicNotes: "Generic in-game FCS opponent (mascot inferred: Patriots/Minutemen). Navy blue (#1B2A4A) paired with gold (#C9A227), a tan flesh tone for the face, and a white outer outline. The soldier head is the only mark — no secondary logo, no wordmark fallback.",
+    shortNickname: "Patriots",
+>>>>>>> 5447f50cc (PC V4)
     confidence: "medium"
   },
   "FCS West": {
+    // Updated to match the real bundled logo file (public/fcs-logos/
+    // fcs-west.png) — the old lightning-bolt design doesn't match; it's an
+    // aggressive pink frog/toad head. Nickname ("Toads") inferred from the
+    // imagery, not confirmed in-game.
     primaryPMS: null,
+<<<<<<< HEAD
     primaryHex: "#D64D95",
     secondaryPMS: null,
     secondaryHex: "#1A1A1A",
@@ -2790,6 +2878,22 @@ const FCS_TEAMS = {
     awayJerseyColor: "white",
     graphicNotes: "Generic in-game FCS opponent — the Rivertoads (Carson, California). Pink (#D64D95) paired with black (#1A1A1A). Placeholder art pending upload of the CFB 27 mark.",
     shortNickname: "Rivertoads",
+=======
+    primaryHex: "#E91E8C",
+    secondaryPMS: null,
+    secondaryHex: "#1A1A1A",
+    tertiaryHex: "#FFFFFF",
+    motifs: ["frog head", "bared teeth"],
+    helmet: { baseColor: "black", logoMark: "pink frog head with bared teeth", stripe: "single pink center stripe", finish: "glossy" },
+    logoDescription: "An aggressive frog/toad head shown facing forward-left, mouth open with small sharp bared teeth and a fierce narrowed eye. The head is rendered in vivid hot pink/magenta as the dominant fill, with a darker rose-pink underside/jaw shade for depth, and bold black outlines defining the eye, mouth, and bumpy skin texture along the brow. The whole mark is wrapped in a thin black outer outline. No wordmark.",
+    wordmarkStyle: "Logo-driven brand — the pink frog head is the primary identity, with no consistent wordmark treatment.",
+    visualEra: "modern/athletic",
+    isFictional: true,
+    homeJerseyColor: "black",
+    awayJerseyColor: "hot pink",
+    graphicNotes: "Generic in-game FCS opponent (mascot inferred: Toads). Hot pink/magenta (#E91E8C) is the dominant color, with black used for outlines and shading. The frog head is the only mark — no secondary logo, no wordmark fallback.",
+    shortNickname: "Toads",
+>>>>>>> 5447f50cc (PC V4)
     confidence: "medium"
   }
 }

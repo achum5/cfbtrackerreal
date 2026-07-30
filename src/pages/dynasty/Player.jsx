@@ -111,8 +111,8 @@ const getMascotName = (abbr, teamsData = null) => {
     'UM': 'Miami Hurricanes', 'UMD': 'Maryland Terrapins', 'UT': 'Tennessee Volunteers',
     'VAN': 'Vanderbilt Commodores',
     // FCS teams
-    'FCSE': 'FCS East Sentinels', 'FCSM': 'FCS Midwest Thunderbirds',
-    'FCSN': 'FCS Northwest Kodiaks', 'FCSW': 'FCS West Rivertoads'
+    'FCSE': 'FCS East Patriots', 'FCSM': 'FCS Midwest Thunderbirds',
+    'FCSN': 'FCS Northwest Grizzlies', 'FCSW': 'FCS West Toads'
   }
   return mascotMap[abbr] || null
 }
@@ -2174,7 +2174,7 @@ function PlayerInner() {
                 <span>{player.position}</span>
                 {player.archetype && <><span style={{ opacity: 0.4 }}>•</span><span className="normal-case">{player.archetype}</span></>}
                 <span style={{ opacity: 0.4 }}>•</span>
-                <span>{player.classByYear?.[dynasty?.currentYear] || player.year}</span>
+                <span>{player.jucoClassLabel || player.classByYear?.[dynasty?.currentYear] || player.year}</span>
                 {(() => {
                   const dt = player.devTraitByYear?.[currentYear] || player.devTraitByYear?.[String(currentYear)] || player.devTrait
                   return dt && dt !== 'Normal' ? <><span style={{ opacity: 0.4 }}>•</span><span>{dt}</span></> : null

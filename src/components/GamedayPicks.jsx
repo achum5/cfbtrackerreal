@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { getTeamRanking, calculateTeamRecordFromGames } from '../context/DynastyContext'
 import { getContrastTextColor } from '../utils/colorUtils'
+import { isPcAutoDynasty } from '../editions'
+import { getGameSpread } from './SportsbookPanel'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -83,6 +85,20 @@ function baseUserWinProb(ctx) {
   let margin = userPow - oppPow
   if (!ctx.isNeutral) margin += ctx.isHome ? 3 : -3
   return clamp01(1 / (1 + Math.exp(-margin / 7)))
+}
+
+// CFB27 (PC auto-sync) version — reuses the exact same power model that drives
+// the Sportsbook line (real recency-weighted win margin, real box-score yards/
+// turnover margin, SOS-adjusted power, team rating) instead of the simplified
+// ovr+rank+record approximation above, so the picks and the posted line always
+// agree on the same matchup. Manual dynasties keep baseUserWinProb unchanged —
+// they don't have reliable ratings/box scores to feed the richer model.
+function cfb27WinProb(dynasty, userTid, opponentTid, isHome, isNeutral, year, week) {
+  const homeTid = (isHome || isNeutral) ? userTid : opponentTid
+  const awayTid = homeTid === userTid ? opponentTid : userTid
+  const spread = getGameSpread(dynasty, homeTid, awayTid, year, week, isNeutral, null)
+  const userFavoredBy = homeTid === userTid ? spread : -spread
+  return clamp01(1 / (1 + Math.exp(-userFavoredBy / 7)))
 }
 
 // ── Analyst definitions ───────────────────────────────────────────────────────
@@ -728,7 +744,10 @@ export default function GamedayPicks({
   // Base win probability from the matchup, then each analyst skews it to their
   // personality and a seeded roll lands their final pick. Seeding on gameKey +
   // analyst id keeps picks stable per matchup (no reshuffle on re-render).
-  const baseProb = baseUserWinProb(ctx)
+  const isCfb27Auto = isPcAutoDynasty(dynasty)
+  const baseProb = isCfb27Auto
+    ? cfb27WinProb(dynasty, userTid, opponentTid, isHome, isNeutral, year, weekProp)
+    : baseUserWinProb(ctx)
 
   const picks = ANALYSTS.map(a => {
     const pUser = a.skew(baseProb, ctx)
