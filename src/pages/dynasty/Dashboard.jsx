@@ -4807,7 +4807,12 @@ export default function Dashboard() {
                 && typeof g.team1Score === 'number' && typeof g.team2Score === 'number'
                 && (g.isPlayed || g.team1Score > 0 || g.team2Score > 0)
               ).length
-              const done = !!weeklyEntered || savedCount > 0
+              // importedCount, NOT savedCount — matches the identical week-N
+              // block above and what shipped before the PC merge. Gating on
+              // savedCount marked this to-do complete as soon as the user's OWN
+              // game was entered, i.e. before any across-the-country results
+              // existed, which is exactly what the comment above rules out.
+              const done = !!weeklyEntered || importedCount > 0
               if (isCfb27Auto) {
                 todos.push(pcViewTodo({
                   key: 'cc-week15-scores-pc',

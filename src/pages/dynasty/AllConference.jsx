@@ -130,11 +130,6 @@ export default function AllConference() {
     const abbr = coachRecord?.team || getCurrentTeamAbbr(currentDynasty)
     return getTeamConferenceForDynasty(currentDynasty, abbr, cy) || 'SEC'
   })()
-  const confTeamsForYear = (conf, y) => {
-    const custom = getCustomConferencesForYear(currentDynasty, y)
-    if (custom && custom[conf]) return custom[conf]
-    return conferenceTeams[conf] || []
-  }
   const teamsData = currentDynasty?.teams || currentDynasty?.customTeams
   // Resolve an honor entry's team, tid-first (durable) then by name. Returns
   // logo/colors/abbr/schoolName. Mirrors AllAmericans so both pages behave the
@@ -166,8 +161,9 @@ export default function AllConference() {
     if (!d) return false
     const byConf = d.allConferenceByConference?.[defaultUserConf]
     if (Array.isArray(byConf) && byConf.length > 0) return true
-    const teams = confTeamsForYear(defaultUserConf, y)
-    const matchesConf = (list) => (list || []).some(p => p.school && (teams.includes(p.school.toUpperCase()) || teams.includes(p.school)))
+    // Same tid-derived membership the filter uses — a name-vs-abbr comparison
+    // here would report "no data" for years the page can actually render.
+    const matchesConf = (list) => (list || []).some(p => entryConference(p, y) === defaultUserConf)
     if (matchesConf(d.allConference)) return true
     // Preseason 1st/2nd Team predictions — only counts as "has data" as a
     // fallback; a year with real final data always wins above.
@@ -225,11 +221,12 @@ export default function AllConference() {
 
   const filterByConference = (raw) => {
     if (!raw || raw.length === 0) return []
-    const conferenceTeamsList = getConferenceTeams(displayConference)
-    return raw.filter(player => {
-      if (!player.school) return false
-      return conferenceTeamsList.includes(player.school.toUpperCase()) || conferenceTeamsList.includes(player.school)
-    })
+    // Tid-derived membership: group each entry by its team's ACTUAL conference
+    // for this year (see entryConference). Robust to full-name schools and
+    // conference renames. The previous form compared a full name ("GEORGIA")
+    // against an abbr list ("UGA") and silently dropped every standard school —
+    // that bug was fixed here once already and must not come back.
+    return raw.filter(player => entryConference(player, displayYear) === displayConference)
   }
 
   // Preseason 1st/2nd Team predictions (synced the same way as final
