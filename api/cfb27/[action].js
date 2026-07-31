@@ -23,16 +23,19 @@
 // deliberately adds no auth of its own, so there's exactly one place per
 // endpoint where access is decided and no chance of a dispatcher-level
 // shortcut silently weakening it.
-import saveUploadUrl from '../_handlers/cfb27/save-upload-url.js'
-import saveParse from '../_handlers/cfb27/save-parse.js'
-import bulkSeedPlayers from '../_handlers/cfb27/bulk-seed-players.js'
-import saveSyncPlayers from '../_handlers/cfb27/save-sync-players.js'
-
+// Handlers are imported LAZILY, per request. Static top-level imports would
+// pull save-parse's dependency chain — madden-franchise (~25 MB) plus a
+// CommonJS extractor and its schema JSON — into EVERY request to this route,
+// including the tiny presign call that needs none of it. That is both a slow
+// cold start and a shared failure domain: anything wrong in the parse chain
+// takes down uploading too, and the client only sees a platform-level 500
+// with no JSON body, which reads as the generic "Could not start upload".
+// Loading on demand keeps each action's failures to itself.
 const ROUTES = {
-  'save-upload-url': saveUploadUrl,
-  'save-parse': saveParse,
-  'bulk-seed-players': bulkSeedPlayers,
-  'save-sync-players': saveSyncPlayers,
+  'save-upload-url': () => import('../_handlers/cfb27/save-upload-url.js'),
+  'save-parse': () => import('../_handlers/cfb27/save-parse.js'),
+  'bulk-seed-players': () => import('../_handlers/cfb27/bulk-seed-players.js'),
+  'save-sync-players': () => import('../_handlers/cfb27/save-sync-players.js'),
 }
 
 export default async function handler(req, res) {
@@ -41,10 +44,22 @@ export default async function handler(req, res) {
   const raw = req.query?.action
   const action = Array.isArray(raw) ? raw[0] : raw
 
-  const route = Object.prototype.hasOwnProperty.call(ROUTES, action) ? ROUTES[action] : null
-  if (!route) {
-    res.status(404).json({ error: 'Unknown endpoint' })
+  const load = Object.prototype.hasOwnProperty.call(ROUTES, action) ? ROUTES[action] : null
+  if (!load) {
+    res.status(404).json({ error: `Unknown endpoint: cfb27/${action ?? '(none)'}` })
     return
   }
-  return route(req, res)
+
+  // Surface an import/boot failure as JSON with an `error` key. Letting it
+  // throw yields Vercel's HTML 500, which the client cannot parse, so the
+  // real cause is replaced by a generic message and the report is undebuggable.
+  let mod
+  try {
+    mod = await load()
+  } catch (err) {
+    console.error(`[api/cfb27/${action}] handler failed to load:`, err)
+    res.status(500).json({ error: `Endpoint unavailable (${action}): ${err?.message || 'load failed'}` })
+    return
+  }
+  return mod.default(req, res)
 }

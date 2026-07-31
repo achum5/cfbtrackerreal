@@ -17,26 +17,32 @@
 // this dispatcher intentionally performs no auth, so the admin allowlist is
 // enforced in exactly one place per endpoint and can't be weakened by a
 // dispatcher-level shortcut.
-import grantPremium from '../_handlers/admin/grant-premium.js'
-import listImages from '../_handlers/admin/list-images.js'
-import recoverOrphan from '../_handlers/admin/recover-orphan.js'
-import reuploadUrl from '../_handlers/admin/reupload-url.js'
-
+// Lazy per-request imports, same rationale as api/cfb27/[action].js: a static
+// import list makes every handler's dependencies (and failures) shared by all
+// four routes.
 const ROUTES = {
-  'grant-premium': grantPremium,
-  'list-images': listImages,
-  'recover-orphan': recoverOrphan,
-  'reupload-url': reuploadUrl,
+  'grant-premium': () => import('../_handlers/admin/grant-premium.js'),
+  'list-images': () => import('../_handlers/admin/list-images.js'),
+  'recover-orphan': () => import('../_handlers/admin/recover-orphan.js'),
+  'reupload-url': () => import('../_handlers/admin/reupload-url.js'),
 }
 
 export default async function handler(req, res) {
   const raw = req.query?.action
   const action = Array.isArray(raw) ? raw[0] : raw
 
-  const route = Object.prototype.hasOwnProperty.call(ROUTES, action) ? ROUTES[action] : null
-  if (!route) {
-    res.status(404).json({ error: 'Unknown endpoint' })
+  const load = Object.prototype.hasOwnProperty.call(ROUTES, action) ? ROUTES[action] : null
+  if (!load) {
+    res.status(404).json({ error: `Unknown endpoint: admin/${action ?? '(none)'}` })
     return
   }
-  return route(req, res)
+  let mod
+  try {
+    mod = await load()
+  } catch (err) {
+    console.error(`[api/admin/${action}] handler failed to load:`, err)
+    res.status(500).json({ error: `Endpoint unavailable (${action}): ${err?.message || 'load failed'}` })
+    return
+  }
+  return mod.default(req, res)
 }
