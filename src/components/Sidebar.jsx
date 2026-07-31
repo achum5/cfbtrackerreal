@@ -197,11 +197,17 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
   // (it's ruleset content, not synced data).
   const showSchemeBuilder = getEditionKey(currentDynasty) === 'cfb27'
 
-  // Injury Report / Players of the Week / Heisman Watch are only ever
-  // populated by CFB27 Sync from Save — no manual-entry path exists for any
-  // of them, so (unlike Scheme Builder above) they must gate on PC, not just
-  // the CFB27 edition — a Console CFB27 dynasty would otherwise show these
-  // and they'd sit permanently empty.
+  // Injury Report / Players of the Week / Heisman Watch / Records are only
+  // ever populated by CFB27 Sync from Save — no manual-entry path exists for
+  // any of them, so (unlike Scheme Builder above) they must gate on PC, not
+  // just the CFB27 edition — a Console CFB27 dynasty would otherwise show
+  // these and they'd sit permanently empty.
+  //
+  // Records specifically reads dynasty.leagueStatRecords, written ONLY by
+  // cfb27SaveSync; its own empty state reads "Run Sync from Save", an action
+  // a console dynasty has no way to perform. Season Stats and Team Stats are
+  // deliberately NOT gated here — those derive from games/boxScore, which a
+  // manually-tracked dynasty fills in itself.
   const isPcAuto = isPcAutoDynasty(currentDynasty)
 
   const navItems = [
@@ -220,8 +226,11 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
     ...(isPcAuto ? [{ name: 'Injury Report', path: `${pathPrefix}/injury-report/${teamTid}` }] : []),
     { name: 'Coach Career', path: `${pathPrefix}/coach-career` },
     { name: 'Leaderboard', path: `${pathPrefix}/dynasty-records` },
+    { name: 'Season Stats', path: `${pathPrefix}/season-stats` },
+    { name: 'Team Stats', path: `${pathPrefix}/team-stats` },
     { name: 'Bowl History', path: `${pathPrefix}/bowl-history` },
     { name: 'CC History', path: `${pathPrefix}/conference-championship-history` },
+    ...(isPcAuto ? [{ name: 'Records', path: `${pathPrefix}/records` }] : []),
     { name: 'Awards', path: `${pathPrefix}/awards` },
     ...(isPcAuto ? [{ name: 'Players of the Week', path: `${pathPrefix}/players-of-week/${currentYear}` }] : []),
     ...(isPcAuto ? [{ name: 'Heisman Watch', path: `${pathPrefix}/heisman-watch/${currentYear}` }] : []),

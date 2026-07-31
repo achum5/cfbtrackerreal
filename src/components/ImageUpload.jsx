@@ -15,6 +15,9 @@ import { uploadImage } from '../utils/imageUpload'
  * - compact: use compact layout (default: false)
  * - disabled: disable the component (default: false)
  * - hideDropzone: hide the dashed drop zone UI (default: false)
+ * - preserveTransparency: re-encode as lossless PNG instead of lossy webp on
+ *   upload, so a true alpha edge (trophy icons, cutout logos) survives —
+ *   lossy webp otherwise degrades sharp/transparent edges (default: false)
  */
 const ImageUpload = forwardRef(function ImageUpload({
   value,
@@ -28,6 +31,7 @@ const ImageUpload = forwardRef(function ImageUpload({
   // Hide the built-in "Paste from Clipboard" button when an external control
   // (e.g. a 3-step Copy → Open AI → Paste row) drives the paste instead.
   hidePasteButton = false,
+  preserveTransparency = false,
 }, ref) {
   const { toast } = useToast()
   const [uploading, setUploading] = useState(false)
@@ -41,7 +45,7 @@ const ImageUpload = forwardRef(function ImageUpload({
   const uploadToCloud = async (file) => {
     try {
       setUploading(true)
-      return await uploadImage(file)
+      return await uploadImage(file, { preserveTransparency })
     } catch (error) {
       toast.error('Failed to upload image: ' + error.message)
       return null

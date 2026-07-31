@@ -103,6 +103,10 @@ function runSerialized(task) {
 
 // Exported so the admin recompress tool can re-encode already-stored images.
 // opts.quality overrides UPLOAD_QUALITY; opts.maxDim overrides MAX_UPLOAD_DIMENSION.
+// opts.preserveTransparency re-encodes as lossless PNG instead of lossy webp
+// (quality is ignored) — for graphics where a hard alpha edge matters (trophy
+// icons, logos) rather than photos, where lossy webp's alpha-adjacent color
+// bleeding and JPEG-style artifacting would visibly degrade sharp edges/text.
 export function compressImageBlob(blob, opts = {}) {
   return runSerialized(() => _compressImageBlobInner(blob, opts))
 }
@@ -172,6 +176,7 @@ async function _compressImageBlobInner(blob, opts = {}) {
 
     const quality = opts.quality ?? UPLOAD_QUALITY
     const maxDim = opts.maxDim ?? MAX_UPLOAD_DIMENSION
+    const outputType = opts.preserveTransparency ? 'image/png' : 'image/webp'
 
     const decoded = await decodeImageSource(blob)
     if (!decoded) {
@@ -190,6 +195,24 @@ async function _compressImageBlobInner(blob, opts = {}) {
     if (!ctx) { decoded.release?.(); return blob }
     ctx.drawImage(decoded.source, 0, 0, w, h)
     decoded.release?.()
+
+    // Transparency-preserving path and the normal photo path need DIFFERENT
+    // encoders, and using the wrong one is destructive either way:
+    //   - preserveTransparency (logos, badges) must stay PNG. Routing it
+    //     through encodeSmaller would re-encode to webp/jpeg and flatten the
+    //     alpha channel onto black. Here the re-encode is mainly about the
+    //     dimension cap, not bytes, so keep the PNG even if it came out
+    //     slightly larger than an already-webp source.
+    //   - everything else goes through encodeSmaller, which tries webp and
+    //     falls back to JPEG. Many browsers (iOS Safari, in-app webviews)
+    //     can't encode webp via toBlob and silently hand back a PNG that's
+    //     LARGER than the source photo.
+    if (opts.preserveTransparency) {
+      const png = await new Promise((resolve) => canvas.toBlob(resolve, outputType, quality))
+      canvas.width = 0
+      canvas.height = 0
+      return (png && png.size > 0) ? png : blob
+    }
 
     const out = await encodeSmaller(canvas, quality, blob.size)
     // Release the canvas backing store before the next queued image decodes.
@@ -267,10 +290,10 @@ async function uploadViaR2(blob, signal) {
  * Upload a single image and return the hosted image URL.
  * Throws on failure — caller decides how to surface (toast, etc.).
  */
-export async function uploadImage(input, { signal } = {}) {
+export async function uploadImage(input, { signal, preserveTransparency } = {}) {
   let blob = coerceToBlob(input)
   // Shrink the source before upload so it loads fast later (see compressImageBlob).
-  blob = await compressImageBlob(blob)
+  blob = await compressImageBlob(blob, { preserveTransparency })
   if (blob.size > MAX_BYTES) {
     throw new Error(`Image must be ≤ ${Math.round(MAX_BYTES / 1024 / 1024)}MB`)
   }

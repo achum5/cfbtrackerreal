@@ -39,6 +39,7 @@ import SortableStatsTable, { PlayerCell } from '../../components/SortableStatsTa
 import { formatScoreHighLow } from '../../utils/scoreFormat'
 import { getCoachStints } from '../../data/coachStats'
 import { getRivalryTrophyForTeams } from '../../utils/trophyEngine'
+import { computeLiveHonorsByPid, mergeHonorLists, matchHonorToPlayer } from '../../utils/honorMatch'
 import TeamOutlook from '../../components/TeamOutlook'
 import RivalriesTab from '../../components/RivalriesTab'
 
@@ -321,7 +322,7 @@ const AWARD_DISPLAY = {
   rimington: 'Rimington Trophy',
   louGroza: 'Lou Groza Award',
   rayGuy: 'Ray Guy Award',
-  returnerOfTheYear: 'Returner of the Year',
+  returnerOfTheYear: 'Jet Award',
   shaunAlexander: 'Shaun Alexander Award',
   paulHornungAward: 'Paul Hornung Award',
   williamVCampbell: 'William V. Campbell Award'
@@ -3568,6 +3569,60 @@ export default function TeamYear() {
             )
           })()}
 
+          {/* All-American / All-Conference Honors — this team's honorees for
+              the selected season. Pulled straight from
+              dynasty.allAmericansByYear (already tid-tagged per entry), not
+              from the player-record arrays, so cfb27 auto-synced honors show
+              up here immediately without needing the per-player merge used
+              on Player.jsx's Awards tab. */}
+          {(() => {
+            const yearHonors = currentDynasty.allAmericansByYear?.[selectedYear] || {}
+            const teamHonorees = [
+              ...(yearHonors.allAmericans || []).map(e => ({ ...e, honorType: 'All-American' })),
+              ...(yearHonors.allConference || []).map(e => ({ ...e, honorType: 'All-Conference' })),
+            ].filter(e => (e.schoolTid ?? resolveTid(e.school, teamsSource)) === tid)
+
+            if (teamHonorees.length === 0) return null
+
+            const desTier = (d) => d === 'first' ? '1st Team' : d === 'second' ? '2nd Team' : d === 'freshman' ? 'Freshman' : d
+
+            return (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-bold uppercase tracking-wider" style={{ color: accentColorMuted }}>{selectedYear} All-Americans / All-Conference</span>
+                </div>
+                <div className="card p-4 flex flex-wrap gap-x-6 gap-y-2 cfb-texture">
+                  {teamHonorees.map((h, idx) => {
+                    const matchingPlayer = matchHonorToPlayer(currentDynasty, h.player, h.school, h.schoolTid)
+                    const linkTo = `${pathPrefix}/${h.honorType === 'All-American' ? 'all-americans' : 'all-conference'}/${selectedYear}`
+                    return (
+                      <div key={`${h.honorType}-${idx}`} className="flex items-center gap-1.5 text-sm">
+                        <img src="/badges/all-american.png" alt="" className="w-auto shrink-0" style={{ height: '1em' }} />
+                        <Link to={linkTo} className="hover:underline" style={{ color: accentColorMuted }}>
+                          {h.honorType} ({desTier(h.designation)}):
+                        </Link>
+                        {matchingPlayer ? (
+                          <Link
+                            to={`${pathPrefix}/player/${matchingPlayer.pid}`}
+                            className="font-semibold hover:underline"
+                            style={{ color: accentColor }}
+                          >
+                            {h.player}
+                          </Link>
+                        ) : (
+                          <span className="font-semibold" style={{ color: accentColor }}>{h.player}</span>
+                        )}
+                        {h.position && (
+                          <span className="text-xs" style={{ color: accentColorMuted }}>({h.position})</span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
+
           {/* Three-column home layout: leaders | prev+next | schedule.
               Three-column activates at xl only — at lg the middle
               column gets squeezed below ~250px (left 300 + right 340
@@ -6666,10 +6721,19 @@ export default function TeamYear() {
         // All-Americans for this team. Honors live in p.allAmericans (array of
         // { designation, year, school, schoolTid }); the legacy p.honors/p.awards
         // fields this used to read no longer exist, so the count was always 0.
-        // Count a player if they earned an All-American honor WITH this team,
-        // matched tid-first (school name is only a legacy fallback).
+        //
+        // Merged with honors re-derived live from dynasty.allAmericansByYear,
+        // because a cfb27 auto-sync never copies synced honors onto the player
+        // record (see utils/honorMatch.js) — without the merge a PC dynasty
+        // counts zero.
+        //
+        // Membership is decided PER HONOR, tid-first: a player counts for this
+        // team only if the honor itself was earned WITH this team. Testing
+        // "was ever on this team AND has any honor" instead would credit a
+        // team for an All-American a player won years later somewhere else.
+        const liveHonorsByPidForTeam = computeLiveHonorsByPid(currentDynasty)
         const teamAllAmericans = (currentDynasty.players || []).filter(p => {
-          const aa = p.allAmericans
+          const aa = mergeHonorLists(p.allAmericans || [], liveHonorsByPidForTeam.get(p.pid)?.allAmericans || [])
           if (!Array.isArray(aa) || aa.length === 0) return false
           return aa.some(h => {
             let hTid = h.schoolTid != null ? Number(h.schoolTid) : null

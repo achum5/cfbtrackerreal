@@ -34,6 +34,9 @@ import PlayerAvatar from './PlayerAvatar'
  *   accentColorMuted — muted text color for non-bold cells
  *   teamBgColor     — team background color (left rail + header tint)
  *   teamBgText      — text color contrasting with teamBgColor
+ *   highlightRow    — optional (row) => boolean; matched rows get a subtle
+ *                      accent-tinted background (e.g. "this is my team's
+ *                      player" on a league-wide table).
  */
 export default function SortableStatsTable({
   title,
@@ -46,6 +49,7 @@ export default function SortableStatsTable({
   teamBgColor,
   teamBgText,
   teamLogo,
+  highlightRow,
 }) {
   const [sortKey, setSortKey] = useState(defaultSortKey || null)
   const [sortDir, setSortDir] = useState(defaultSortDir)
@@ -129,11 +133,17 @@ export default function SortableStatsTable({
             </tr>
           </thead>
           <tbody>
-            {sorted.map((row, i) => (
+            {sorted.map((row, i) => {
+              const isHighlighted = highlightRow ? highlightRow(row) : false
+              return (
               <tr
-                key={row.pid || i}
+                key={row.pid ?? row.tid ?? i}
                 className="border-t transition-colors hover:bg-white/[0.03]"
-                style={{ borderColor: `${accentColor}20` }}
+                style={{
+                  borderColor: `${accentColor}20`,
+                  backgroundColor: isHighlighted ? `${accentColor}14` : undefined,
+                  boxShadow: isHighlighted ? `inset 3px 0 0 ${accentColor}` : undefined,
+                }}
               >
                 {columns.map(col => {
                   const align = col.align === 'left' ? '' : 'text-center'
@@ -151,7 +161,8 @@ export default function SortableStatsTable({
                   )
                 })}
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>
