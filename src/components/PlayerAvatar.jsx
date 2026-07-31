@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { proxyImageUrl } from '../utils/imageProxy'
 
 /**
@@ -8,6 +9,14 @@ import { proxyImageUrl } from '../utils/imageProxy'
  * un-photographed players shows their helmet instead of a wall of identical
  * gray silhouettes. Mirrors the reference implementation already used on the
  * team-page roster cards.
+ *
+ * The chain also runs when a photo URL EXISTS but fails to load. That matters
+ * for CFB 27 PC dynasties: the save sync writes a bundled-portrait path into
+ * every synced player's pictureUrl (see cfb27SaveImport's mapPortraitUrl), and
+ * the portrait pack is ~800 MB / 26k files, so it is not committed to the repo
+ * — it's served from VITE_CFB27_PORTRAIT_BASE. If that isn't configured, or a
+ * single portrait is missing, we fall through to the team logo instead of
+ * rendering a wall of broken-image icons.
  *
  * Props:
  *   photoUrl  — the player's pictureUrl (already placeholder-filtered by the
@@ -20,11 +29,19 @@ import { proxyImageUrl } from '../utils/imageProxy'
 export default function PlayerAvatar({ photoUrl, teamLogo, name = '', size = 40, className = '' }) {
   const box = { width: size, height: size }
   const base = `rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 border border-surface-5 ${className}`
+  // Keyed by URL so a re-render with a DIFFERENT photo retries rather than
+  // staying stuck on the previous one's failure.
+  const [failedUrl, setFailedUrl] = useState(null)
 
-  if (photoUrl) {
+  if (photoUrl && failedUrl !== photoUrl) {
     return (
       <div className={base} style={box}>
-        <img src={proxyImageUrl(photoUrl, 300)} alt={name} className="w-full h-full object-cover" />
+        <img
+          src={proxyImageUrl(photoUrl, 300)}
+          alt={name}
+          className="w-full h-full object-cover"
+          onError={() => setFailedUrl(photoUrl)}
+        />
       </div>
     )
   }
