@@ -9932,10 +9932,31 @@ export function DynastyProvider({ children }) {
           const bytes = new TextEncoder().encode(JSON.stringify(projected)).length
           if (bytes > MAIN_DOC_BYTE_LIMIT) {
             const mb = (bytes / 1e6).toFixed(2)
+            // Name the ACTUAL biggest field rather than assuming a cause. This
+            // used to hard-code "almost always a large Recruiting Database" and
+            // send everyone to Scout Staff → Export JSON. That advice is now
+            // frequently wrong: a CFB 27 PC dynasty carries per-team statRecords
+            // on `teams` (record book, up to 27 entries x ~136 schools) plus
+            // dynasty-level leagueStatRecords, so `teams` can easily be the
+            // largest field — and trimming a Recruiting Database they may not
+            // even have would do nothing. Report the real top offenders and let
+            // the message adapt.
+            const sizeOf = (v) => {
+              try { return new TextEncoder().encode(JSON.stringify(v ?? null)).length } catch { return 0 }
+            }
+            const top = Object.entries(projected)
+              .map(([k, v]) => [k, sizeOf(v)])
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 3)
+              .filter(([, n]) => n > 0)
+            const breakdown = top.map(([k, n]) => `${k} (${(n / 1e6).toFixed(2)} MB)`).join(', ')
+            const biggest = top[0]?.[0]
+            const hint = biggest === 'recruitingDatabasePlayers' || biggest === 'players'
+              ? ' Open Scout Staff → Recruiting Database, use Export JSON to back it up, then trim it.'
+              : ''
             throw new Error(
-              `This dynasty's core save is ${mb} MB, over Firestore's 1 MB per-document ` +
-              `limit — almost always a large Recruiting Database. Open Scout Staff, go to the ` +
-              `Recruiting Database, use Export JSON to back it up, then trim it so your saves work again.`
+              `This dynasty's core save is ${mb} MB, over Firestore's 1 MB per-document limit. ` +
+              `Largest fields: ${breakdown}.${hint}`
             )
           }
         } catch (err) {
