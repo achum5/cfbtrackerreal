@@ -1243,7 +1243,7 @@ export function useTickerSections(dynasty) {
         if (!yearStats) return
         const pid = player.pid
 
-        if (!careerStats[pid]) {
+        if (!seasonStats[pid]) {
           // Seed the row with the player's tid (drift-safe) from their most
           // recent teamsByYear season so getLogoUrl resolves the live logo;
           // fall back to the stored team string only when no tid is present.
@@ -1251,7 +1251,7 @@ export function useTickerSections(dynasty) {
             ? Object.keys(player.teamsByYear).map(Number).filter(y => !Number.isNaN(y)).sort((a, b) => b - a)
             : []
           const playerTid = tbyYears.length ? player.teamsByYear[tbyYears[0]] : null
-          careerStats[pid] = {
+          seasonStats[pid] = {
             pid,
             name: player.name,
             team: playerTid != null ? playerTid : player.team,
@@ -1261,6 +1261,30 @@ export function useTickerSections(dynasty) {
             defense: { sacks: 0, int: 0, tkl: 0 },
             kicking: { fgm: 0 }
           }
+        }
+
+        // Accumulate THIS SEASON's line only (yearStats is already scoped to
+        // displayYear above) — not a sum across every year the player has
+        // played, which is what the old career version did.
+        if (yearStats.passing) {
+          seasonStats[pid].passing.yds += yearStats.passing.yds || 0
+          seasonStats[pid].passing.td += yearStats.passing.td || 0
+        }
+        if (yearStats.rushing) {
+          seasonStats[pid].rushing.yds += yearStats.rushing.yds || 0
+          seasonStats[pid].rushing.td += yearStats.rushing.td || 0
+        }
+        if (yearStats.receiving) {
+          seasonStats[pid].receiving.yds += yearStats.receiving.yds || 0
+          seasonStats[pid].receiving.td += yearStats.receiving.td || 0
+        }
+        if (yearStats.defense) {
+          seasonStats[pid].defense.sacks += yearStats.defense.sacks || 0
+          seasonStats[pid].defense.int += yearStats.defense.int || 0
+          seasonStats[pid].defense.tkl += (yearStats.defense.soloTkl || 0) + (yearStats.defense.astTkl || 0)
+        }
+        if (yearStats.kicking) {
+          seasonStats[pid].kicking.fgm += yearStats.kicking.fgm || 0
         }
       })
 

@@ -228,9 +228,14 @@ export function getUserGamePerspective(game, dynasty, options = {}) {
 
   // For PAST years (or if current year has no userId set, or useHistorical): Use coachTeamByYear
   // This correctly attributes historical games to the team coached that year
+  // Function-scoped: the LEGACY userTeam branch far below also compares against
+  // this abbr. It used to be `const` INSIDE the block, so that later reference
+  // resolved to nothing and threw ReferenceError whenever a dynasty actually
+  // reached it (no userTid + a legacy game.userTeam).
+  let userTeamAbbr = null
   if (!userTid) {
     userTid = dynasty.coachTeamByYear?.[yearNum]?.tid ?? dynasty.coachTeamByYear?.[yearStr]?.tid
-    const userTeamAbbr = dynasty.coachTeamByYear?.[yearNum]?.team ?? dynasty.coachTeamByYear?.[yearStr]?.team
+    userTeamAbbr = dynasty.coachTeamByYear?.[yearNum]?.team ?? dynasty.coachTeamByYear?.[yearStr]?.team
 
     // Derive tid from coachTeamByYear[year].team abbr if tid not set
     if (!userTid && userTeamAbbr) {

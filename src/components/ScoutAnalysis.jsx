@@ -1129,6 +1129,9 @@ function buildPositionHub(pos, posPlayers, archList, rosterCtx, availableSpots, 
   const assembledText = '';
   const unmentioned = [];
   if (false) {
+    // Declared so this block is correct if the `if (false)` guard is ever
+    // lifted — it was referencing `sentences` without ever declaring it.
+    const sentences = [];
     const unmLeaving = [];
     const unmCommits = unmentioned.filter(p => p.isIncoming);
     const unmDepth    = unmentioned.filter(p => !p.isLeaving && !p.isIncoming);
