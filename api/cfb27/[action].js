@@ -23,6 +23,15 @@
 // deliberately adds no auth of its own, so there's exactly one place per
 // endpoint where access is decided and no chance of a dispatcher-level
 // shortcut silently weakening it.
+// MEMORY NOTE (see vercel.json "memory"): parsing a real 16,257-player save
+// peaked at ~2,040 MB before the readRecords() field-allowlist patch and
+// ~1,390 MB after it. Both are over Vercel's 1,024 MB default, which is why
+// save-parse died with FUNCTION_INVOCATION_FAILED (an OOM kill, not an
+// exception — no stack reaches the client). The allowlist patch alone is NOT
+// sufficient; the function also needs memory above ~1,390 MB. 2048 MB gives
+// ~47% headroom. 4 GB would work too but is the Performance tier, which
+// requires a paid Vercel plan.
+//
 // BUNDLING NOTE (see vercel.json "functions"): save-parse pulls in
 // madden-franchise, which resolves its data at RUNTIME —
 // fs.readFileSync(path.join(__dirname, `../data/interned-strings/${dir}/${name}`))

@@ -2,7 +2,8 @@
   "functions": {
     "api/cfb27/*.js": {
       "includeFiles": "node_modules/madden-franchise/data/**",
-      "maxDuration": 60
+      "maxDuration": 60,
+      "memory": 2048
     }
   },
   "rewrites": [
