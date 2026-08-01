@@ -9925,12 +9925,30 @@ export function DynastyProvider({ children }) {
         try {
           const OFF_MAIN_DOC = ['players', 'games', 'recruitingDatabasePlayers', 'weekRecapsByYear', 'socialFeedByYear', 'socialCharacters']
           const projected = { ...dynasty }
-          for (const k of OFF_MAIN_DOC) delete projected[k]
-          for (const k of Object.keys(projected)) {
-            if (isSeasonalField(k)) delete projected[k]
+          // Excluding the subcollection-backed fields from the projection is
+          // only honest for a dynasty that has actually MIGRATED them off the
+          // main doc. An un-migrated legacy cloud dynasty still physically
+          // carries players/games/seasonal data ON the server doc — excluding
+          // them here undercounted the real doc, so the guard stayed silent
+          // while the doc sailed past 1 MB, and then the SERVER rejected every
+          // subsequent write (each save batches a main-doc bump, and batches
+          // are atomic — so games, recruiting, recaps, all of it fails while
+          // the UI keeps showing the data locally). That silent months-long
+          // wedge is the "whole season gone except week two" report. For
+          // un-migrated dynasties project the FULL doc, so the guard fires
+          // loudly BEFORE the cap and names the remedy.
+          if (dynasty._subcollectionsMigrated) {
+            for (const k of OFF_MAIN_DOC) delete projected[k]
+            for (const k of Object.keys(projected)) {
+              if (isSeasonalField(k)) delete projected[k]
+            }
           }
           for (const [k, v] of Object.entries(updatesWithTimestamp)) {
             if (k.includes('.')) continue
+            // The write path always routes these to subcollections for cloud,
+            // so updates to them never land on the main doc regardless of
+            // migration state — always excluded from the DELTA (the base copy
+            // above still counts the legacy on-doc data when un-migrated).
             if (OFF_MAIN_DOC.includes(k) || isSeasonalField(k)) continue
             projected[k] = v
           }
@@ -9956,9 +9974,13 @@ export function DynastyProvider({ children }) {
               .filter(([, n]) => n > 0)
             const breakdown = top.map(([k, n]) => `${k} (${(n / 1e6).toFixed(2)} MB)`).join(', ')
             const biggest = top[0]?.[0]
-            const hint = biggest === 'recruitingDatabasePlayers' || biggest === 'players'
-              ? ' Open Scout Staff → Recruiting Database, use Export JSON to back it up, then trim it.'
-              : ''
+            // Un-migrated legacy dynasty: the fix is the migration itself —
+            // it moves players/games/seasonal data off the main doc entirely.
+            const hint = !dynasty._subcollectionsMigrated
+              ? ' Fix: open Admin Tools (Danger Zone) and run "Migrate to Subcollections" — it moves the bulky data out of this document.'
+              : (biggest === 'recruitingDatabasePlayers' || biggest === 'players'
+                ? ' Open Scout Staff → Recruiting Database, use Export JSON to back it up, then trim it.'
+                : '')
             throw new Error(
               `This dynasty's core save is ${mb} MB, over Firestore's 1 MB per-document limit. ` +
               `Largest fields: ${breakdown}.${hint}`

@@ -15,9 +15,13 @@ import { useCloudSyncStatus } from '../hooks/useCloudSyncStatus'
 // false-positive that way: offline is offline. The stalled-ack detection
 // stays suppressed; the cloudSyncStatus store is kept for a future revisit.
 export default function CloudSyncBanner() {
-  // Subscribed for the store side effects / future stalled revisit; the
-  // stalled signal is deliberately unused (see note above).
-  useCloudSyncStatus()
+  // The stalled-ack signal stays deliberately unused (see note above) — but
+  // lastError.docTooLarge is a different animal: it's a definitive SERVER
+  // REJECTION, not a maybe-wedged connection, so it cannot false-positive the
+  // way stalled did. It means every save is being refused while the UI keeps
+  // showing the user's data locally — the exact silent-loss mode behind the
+  // "logged a whole season, reloaded, it was gone" report. Loud is correct.
+  const status = useCloudSyncStatus()
   const [online, setOnline] = useState(() =>
     typeof navigator === 'undefined' ? true : navigator.onLine
   )
@@ -32,6 +36,30 @@ export default function CloudSyncBanner() {
       window.removeEventListener('offline', goOffline)
     }
   }, [])
+
+  if (status?.lastError?.docTooLarge) {
+    return (
+      <div
+        role="alert"
+        aria-live="assertive"
+        className="fixed bottom-0 left-0 right-0 z-[9998] px-4 py-3 sm:px-6"
+        style={{ margin: 0, backgroundColor: '#7f1d1d', borderTop: '1px solid #dc2626' }}
+      >
+        <div className="max-w-3xl mx-auto text-center">
+          <p className="text-sm font-semibold text-red-50">
+            Your saves are NOT reaching the cloud
+          </p>
+          <p className="text-xs text-red-100/90 mt-0.5 leading-relaxed">
+            This dynasty&apos;s core save has grown past Firestore&apos;s 1&nbsp;MB limit, so the
+            server is rejecting every save — changes look saved on this device but will be
+            lost on reload. Fix: open Admin Tools (Danger Zone) and run
+            &ldquo;Migrate to Subcollections&rdquo;, then re-check this page. This banner
+            clears on the first save that reaches the cloud.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   if (online) return null
 

@@ -1,3 +1,5 @@
+import { isDocTooLargeError } from './firestoreErrors'
+
 // cloudSyncStatus — a tiny observable store of Firestore write-sync health.
 //
 // The app writes through settleOrProceed (see firestoreWriteGuard.js), which
@@ -90,14 +92,24 @@ export function trackWriteResolved(id) {
   if (!e) return
   if (e.timer) clearTimeout(e.timer)
   inflight.delete(id)
+  // A server-acked write proves the doc is writable again — clear any sticky
+  // rejection state (e.g. doc-too-large after the user ran the subcollection
+  // migration) so its banner dismisses itself exactly when the problem is
+  // actually fixed, not on a timer.
+  if (lastError) lastError = null
   emit()
 }
 
 // The write rejected (permission-denied, oversized doc, etc.) — a real error.
+// Unlike the suppressed stalled-ack signal (which false-positives on wedged
+// but-still-syncing connections), a rejection is definitive: the server
+// refused the write and the data is NOT in the cloud. docTooLarge marks the
+// one rejection class with a specific user remedy (Danger Zone → Migrate to
+// Subcollections); CloudSyncBanner renders it loudly.
 export function trackWriteFailed(id, err) {
   const e = inflight.get(id)
   if (e && e.timer) clearTimeout(e.timer)
   inflight.delete(id)
-  lastError = { message: errText(err), at: Date.now() }
+  lastError = { message: errText(err), at: Date.now(), docTooLarge: isDocTooLargeError(err) }
   emit()
 }
