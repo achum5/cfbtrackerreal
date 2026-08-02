@@ -36,7 +36,7 @@ import { buildTimelineEvents, eventsForYear, labelForEventKind } from '../../uti
 import { computeSeasonAV } from '../../utils/approximateValue'
 import ScoutScorePanel from '../../components/ScoutScorePanel'
 import { predictRecruitOverall } from '../../utils/scoutScore'
-import { getEditionConfig, isCfb27, isPcAutoDynasty } from '../../editions'
+import { getEditionConfig, isPcAutoDynasty } from '../../editions'
 import { getPlayerNil } from '../../data/playerNilModel'
 import nilIcon from '../../assets/blueprint/points.png'
 
@@ -615,7 +615,7 @@ function PlayerInner() {
   // the Edit button is hidden entirely rather than offering an action that
   // doesn't actually stick. Manual/CFB26 dynasties are unaffected.
   const isCfb27Auto = isPcAutoDynasty(dynasty)
-  const scoutStaffEnabled = !!dynasty?.scoutStaffEnabled && isCfb27(dynasty) // CFB 27 only
+  const scoutStaffEnabled = !!dynasty?.scoutStaffEnabled && isPcAutoDynasty(dynasty) // PC save-sync only
   const hasScoutAttributes = !!(player?.attributes && Object.keys(player.attributes).length > 0)
   const enrolledOnRoster = Object.keys(player?.teamsByYear || {})
     .map(Number)

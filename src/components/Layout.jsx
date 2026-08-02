@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext'
 import { useCurrentTeamColors } from '../hooks/useTeamColors'
 import { getTeamLogoByTid } from '../data/teams'
 import { TEAMS, getCurrentTeamAbbr, getCurrentTeamTid, getCurrentTeamName } from '../data/teamRegistry'
-import { isCfb27 } from '../editions'
 import { warmScoutScoresForDynasty } from '../utils/scoutScore'
 import ClassAdvancementModal from './ClassAdvancementModal'
 import CloudSyncBanner from './CloudSyncBanner'
@@ -183,7 +182,7 @@ export default function Layout({ children }) {
     if (!dyn?.id || !(dyn.players?.length > 0)) return
     // Scout Staff mode replaces the MaxPlaysCFB ScoutScore surfaces, so don't
     // warm (or hit) the ScoutScore cache for those dynasties.
-    if (dyn.scoutStaffEnabled && isCfb27(dyn)) return
+    if (dyn.scoutStaffEnabled && isPcAutoDynasty(dyn)) return
     if (warmedDynastyRef.current === dyn.id) return
     warmedDynastyRef.current = dyn.id
 
