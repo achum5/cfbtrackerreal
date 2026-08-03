@@ -2162,6 +2162,17 @@ export function syncGameRanksFromRankByWeek(games, teams, affectedYears) {
         mutated = true
       }
     }
+    // Retire the legacy alias fields on unified-format games. They sit
+    // later in the display fallback chain (team1Rank → userRank → poll),
+    // so a stale userRank/opponentRank resurfaces the exact phantom rank
+    // this sync just cleared. Only for games with tids — a pure-legacy
+    // game (no team1Tid/team2Tid) stores its ONLY rank in these fields
+    // and must not be touched.
+    if ((g.team1Tid != null || g.team2Tid != null) &&
+        (g.userRank != null || g.opponentRank != null)) {
+      updated = { ...updated, userRank: null, opponentRank: null }
+      mutated = true
+    }
     return updated
   })
   return mutated ? next : games
@@ -2730,16 +2741,31 @@ export function getRecordAsOfGame(dynasty, game, tid) {
   if (gameOrder < 15) return calcRecord
 
   // Postseason games (CC + bowls + CFP): CPU teams may not have their full
-  // regular season in dynasty.games. If stored covers more games than calc,
-  // combine stored (reg-season baseline) with calc (postseason contribution).
-  const calcGames = calc.wins + calc.losses
+  // regular season in dynasty.games — stored records (standings uploads)
+  // then know the regular season better than the games array does. Combine
+  // stored (regular-season baseline) with ONLY the postseason games the
+  // array contributes. The old version added the FULL calc (regular +
+  // postseason) on top of stored, double-counting every regular-season
+  // game both sources knew about — on a user team whose entire season is
+  // in the games array, that rendered a 12-2 champion as "24-4".
+  // Regular-season slots are 0–15 (gameSlot: CC=16, bowls/CFP 17–20), so
+  // upToWeek 15 captures exactly the regular season.
+  const regCalc = calculateTeamRecordFromGames(dynasty, tid, game.year, {
+    upToWeek: 15,
+    includeUpToWeek: true
+  })
+  const regCalcGames = regCalc.wins + regCalc.losses
   const stored = getStoredTeamRecord(dynasty, tid, game.year)
   const storedGames = stored ? (stored.wins + stored.losses) : 0
 
-  if (calcGames >= storedGames || storedGames === 0) return calcRecord
+  // The games array knows the regular season at least as well as any
+  // stored record — calc alone is complete and correct.
+  if (regCalcGames >= storedGames || storedGames === 0) return calcRecord
 
-  const totalWins = stored.wins + calc.wins
-  const totalLosses = stored.losses + calc.losses
+  const postWins = calc.wins - regCalc.wins
+  const postLosses = calc.losses - regCalc.losses
+  const totalWins = stored.wins + postWins
+  const totalLosses = stored.losses + postLosses
   return {
     overall: `${totalWins}-${totalLosses}`,
     conference: `${stored.confWins}-${stored.confLosses}`,
