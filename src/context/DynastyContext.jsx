@@ -12458,7 +12458,7 @@ export function DynastyProvider({ children }) {
   // imports update in place. Games involving the user's own team that already
   // have scores entered through the schedule flow are PRESERVED — we never
   // overwrite the user's own results.
-  const saveWeeklyScores = async (dynastyId, weeklyGames, year, week, rankWeekOverride = null) => {
+  const saveWeeklyScores = async (dynastyId, weeklyGames, year, week, rankWeekOverride = null, { allowEmptyClear = false } = {}) => {
     if (blockIfReadOnly(dynastyId, 'save weekly scores')) return
     const dynasty = await findDynastyById(dynastyId)
     if (!dynasty) return []
@@ -12690,7 +12690,14 @@ export function DynastyProvider({ children }) {
     // game (which is preserved separately). The success toast still
     // says "Saved 0 games", so the data loss is invisible until the
     // user opens the recap and notices a single game.
-    if (newByPair.size === 0) {
+    // ...UNLESS the caller has explicitly confirmed an intentional clear.
+    // Without that escape hatch this guard makes a mistakenly-entered week
+    // IMPOSSIBLE to undo through the sheet: emptying it is the only way to
+    // remove the last game, and that is exactly the case the guard refuses.
+    // A user hit this after entering their conference championship at Week
+    // 15 by mistake — "I can't delete it, I've tried by google sheets, the
+    // beta embedded sheet."
+    if (newByPair.size === 0 && !allowEmptyClear) {
       const existingWeeklyCount = existingGames.filter(g =>
         g && Number(g.year) === yearNum && Number(g.week) === weekNum
         && g.source === 'weekly-scores'

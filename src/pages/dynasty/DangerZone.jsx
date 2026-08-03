@@ -1667,7 +1667,17 @@ export default function DangerZone() {
     setGameDeletionStatus('running')
     try {
       const games = currentDynasty.games || []
-      const cleanedGames = games.filter(g => g.id !== gameId)
+      // String-coerce BOTH sides. gameId arrives from a <select>, whose value
+      // is always a string, while a legacy game.id may be a number — a raw
+      // !== between the two is always true, so the filter removed nothing and
+      // the success message below fired anyway. Silent no-op, which reads to
+      // the user as "the delete button does nothing." Matches the context's
+      // deleteGame, which already compares this way.
+      const cleanedGames = games.filter(g => String(g.id) !== String(gameId))
+      if (cleanedGames.length === games.length) {
+        setGameDeletionStatus({ success: false, message: 'That game was not found — nothing was deleted.' })
+        return
+      }
       await updateDynasty(currentDynasty.id, { games: cleanedGames })
       setGameDeletionStatus({ success: true, message: 'Game deleted successfully' })
       setSelectedGameToDelete(null)
