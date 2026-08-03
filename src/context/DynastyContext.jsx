@@ -102,7 +102,7 @@ import {
 } from '../data/teamRegistry'
 import { importUniverse, mergePosts, ensureUniverseLoaded, DEFAULT_SOCIAL_SETTINGS, DEFAULT_SOCIAL_PLATFORM, SOCIAL_UNIVERSE_VERSION } from '../data/socialModel'
 import { findMatchingPlayer, getPlayerLastHonorDescription, normalizePlayerName } from '../utils/playerMatching'
-import { syncDerivedFieldsFromV2, legacyMovementToCanonical } from '../data/rosterModel'
+import { syncDerivedFieldsFromV2, legacyMovementToCanonical, reconcileDevTraitMirror } from '../data/rosterModel'
 import { buildDefaultRosterPlayers, buildAllDefaultRosterPlayers } from '../data/defaultRosterLoader'
 import { bulkSeedPlayers } from '../utils/cfb27BulkSeed'
 import { syncPlayersToSubcollection } from '../utils/cfb27SyncPlayers'
@@ -10119,8 +10119,22 @@ export function DynastyProvider({ children }) {
         // mirror from LAST season, leaving the new-season convenience fields
         // pointing at the wrong team (and skewing the name+team+year dedup key).
         const currentYearForSync = updates?.currentYear ?? dynasty?.currentYear
+        // Mirror-edit reconciliation BEFORE the derive step. Surfaces that set
+        // only the top-level devTrait (recruiting modal, player modal's main
+        // dropdown) would otherwise have the edit silently reverted by
+        // syncDerivedFieldsFromV2, which derives devTrait from devTraitByYear
+        // whenever the map has a currentYear entry — the "dev traits won't
+        // stick" reports. See reconcileDevTraitMirror for the exact rule.
+        const priorPlayersByPid = new Map(
+          (Array.isArray(dynasty?.players) ? dynasty.players : [])
+            .filter(p => p?.pid != null)
+            .map(p => [String(p.pid), p])
+        )
         const normalizedPlayers = mainDocUpdates.players.map(p =>
-          syncDerivedFieldsFromV2(p, currentYearForSync)
+          syncDerivedFieldsFromV2(
+            reconcileDevTraitMirror(p, priorPlayersByPid.get(String(p?.pid)), currentYearForSync),
+            currentYearForSync
+          )
         )
         // Also write normalized players back into updatesWithTimestamp so
         // the local-state update at the bottom of this function shows the
