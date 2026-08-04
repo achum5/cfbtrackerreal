@@ -120,6 +120,7 @@ import { migrateTeamNameParts } from '../data/teams'
 import { isSameWeek, isSameYear } from '../utils/compareUtils'
 import { shapeTargetForDatabase } from '../utils/recruitAttributes'
 import { settleOrProceed } from '../utils/firestoreWriteGuard'
+import { describeInvalidFirestoreValues, findInvalidFirestoreValues } from '../utils/firestorePayloadAudit'
 import { withTimeout } from '../utils/withTimeout'
 import { normalizeEditionKey, DEFAULT_EDITION } from '../editions'
 import { getSyncStamp, setSyncStamp } from '../utils/subcollectionSyncStamp'
@@ -10540,13 +10541,36 @@ export function DynastyProvider({ children }) {
         // parallel fast path.
         const isCalendarWrite = ['currentYear', 'currentPhase', 'currentWeek']
           .some(k => k in mainDocUpdates)
+        // Firestore answers a malformed payload with a bare `invalid-argument`
+        // naming NOTHING. On a whole-league sync payload that's unactionable —
+        // it cost days of back-and-forth once already. Audit only on failure
+        // (the walk is deep and the happy path must stay free) and re-throw
+        // with the offending field paths attached, so the error that reaches
+        // the user's sync banner points straight at the culprit.
+        const withPayloadDiagnostics = (p) => p.catch((err) => {
+          const code = String(err?.code || '')
+          const msg = String(err?.message || '')
+          if (/invalid-argument/i.test(code) || /INVALID_ARGUMENT/.test(msg)) {
+            let detail = ''
+            try { detail = describeInvalidFirestoreValues(mainDocUpdates) } catch { /* audit must never mask the real error */ }
+            if (detail) {
+              err.message = `${msg} — offending field(s): ${detail}`
+              console.error('[updateDynasty] Firestore rejected the payload. Invalid values:', findInvalidFirestoreValues(mainDocUpdates))
+            } else {
+              console.error('[updateDynasty] invalid-argument, but no invalid VALUE found — suspect an illegal field path (empty/`.`-containing key) or an oversized field.', { keys: Object.keys(mainDocUpdates) })
+            }
+          }
+          throw err
+        })
         if (isCalendarWrite && subcollectionPromises.length > 0) {
           writePromises.length = 0
           writePromises.push(
-            Promise.all(subcollectionPromises).then(() => updateDynastyInFirestore(dynastyId, mainDocUpdates))
+            withPayloadDiagnostics(
+              Promise.all(subcollectionPromises).then(() => updateDynastyInFirestore(dynastyId, mainDocUpdates))
+            )
           )
         } else {
-          writePromises.push(updateDynastyInFirestore(dynastyId, mainDocUpdates))
+          writePromises.push(withPayloadDiagnostics(updateDynastyInFirestore(dynastyId, mainDocUpdates)))
         }
       }
 
