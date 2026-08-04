@@ -10043,9 +10043,6 @@ export function DynastyProvider({ children }) {
           // survive (the exact bug that made `teams` keep showing up as
           // the "biggest field" even after that data stopped actually
           // living on the main doc).
-          if (projected.teams) {
-            projected.teams = stripTeamsByYearFlatFields(projected.teams).strippedTeams
-          }
           for (const [k, v] of Object.entries(updatesWithTimestamp)) {
             if (k.includes('.')) continue
             // The write path always routes these to subcollections for cloud,
@@ -10054,6 +10051,17 @@ export function DynastyProvider({ children }) {
             // above still counts the legacy on-doc data when un-migrated).
             if (OFF_MAIN_DOC.includes(k) || isSeasonalField(k)) continue
             projected[k] = v
+          }
+          // Strip AFTER the overlay, not before. Sync from Save (and any
+          // other caller that sends a whole `teams` map) re-installs its own
+          // un-stripped copy via the loop above — stripping first measured
+          // that raw update, every team's byYear ratings/grades/rankings the
+          // router routes to the subcollection and never writes here. Real
+          // case: guard reported "teams (0.71 MB), 1.01 MB total" and
+          // blocked the sync while the server doc measured 42.9 KB with
+          // teams at 33.5 KB.
+          if (projected.teams) {
+            projected.teams = stripTeamsByYearFlatFields(projected.teams).strippedTeams
           }
           const bytes = new TextEncoder().encode(JSON.stringify(projected)).length
           if (bytes > MAIN_DOC_BYTE_LIMIT) {
