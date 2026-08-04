@@ -92,19 +92,41 @@ describe('foldTeamsByYearFieldsFromFlat', () => {
   // are written under two different key names by two different functions.
   // Both are excluded on purpose; if someone adds them to the map, this
   // fails and they have to audit the read sites first.
-  it('does not route conference, record, or teamRecord', () => {
-    const routed = Object.values(TEAMS_BYYEAR_FLAT_FIELDS)
-    expect(routed).not.toContain('conference')
-    expect(routed).not.toContain('record')
-    expect(routed).not.toContain('teamRecord')
+  // These three were held back from routing until the record/teamRecord
+  // collision was resolved (both dual-wrote into teamRecordsByTeamYear under
+  // different keys, so whichever saved last clobbered the other). The fix
+  // gave the CALCULATED variant its own store. This test now pins that
+  // separation — if the two ever collapse back onto one flat field, the
+  // silent-clobber bug is back.
+  it('routes record and teamRecord to SEPARATE flat stores', () => {
+    expect(TEAMS_BYYEAR_FLAT_FIELDS.teamCalculatedRecordByTeamYear).toBe('record')
+    expect(TEAMS_BYYEAR_FLAT_FIELDS.teamRecordsByTeamYear).toBe('teamRecord')
+    expect(TEAMS_BYYEAR_FLAT_FIELDS.conferenceByTeamYear).toBe('conference')
+    // No two sub-fields may share a flat store.
+    const flats = Object.keys(TEAMS_BYYEAR_FLAT_FIELDS)
+    expect(new Set(flats).size).toBe(flats.length)
+    const subs = Object.values(TEAMS_BYYEAR_FLAT_FIELDS)
+    expect(new Set(subs).size).toBe(subs.length)
   })
 
-  it('leaves an inline conference alone even when a flat twin exists', () => {
+  // Conference now follows the same flat-wins rule as everything else: once
+  // it's routed, updateDynasty strips the inline copy from every write, so an
+  // inline value that survives on the main doc is the STALE one. (Before
+  // routing, the reverse was true and this test asserted the opposite —
+  // changing it was the point of the audit, not an oversight.)
+  it('prefers the flat conference over a stale inline copy', () => {
     const out = foldTeamsByYearFieldsFromFlat({
       teams: { 42: { byYear: { 2029: { conference: 'SEC' } } } },
       conferenceByTeamYear: { 42: { 2029: 'Big Ten' } },
     })
-    expect(out.teams[42].byYear[2029].conference).toBe('SEC')
+    expect(out.teams[42].byYear[2029].conference).toBe('Big Ten')
+  })
+
+  // The safety half of the same rule: a dynasty that has NOT yet migrated has
+  // no flat conference, and its inline value must survive untouched.
+  it('keeps an inline conference when no flat twin exists yet', () => {
+    const dynasty = { teams: { 42: { byYear: { 2029: { conference: 'SEC' } } } } }
+    expect(foldTeamsByYearFieldsFromFlat(dynasty).teams[42].byYear[2029].conference).toBe('SEC')
   })
 
   // ── Doesn't invent teams ──────────────────────────────────────────────
