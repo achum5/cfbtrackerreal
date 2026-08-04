@@ -61,6 +61,36 @@ export default function CloudSyncBanner() {
     )
   }
 
+  // Any OTHER definitive server rejection. Same reasoning as docTooLarge —
+  // a rejection cannot false-positive the way stalled acks did — but without
+  // a known remedy we surface the raw error class instead. This existed as
+  // data (cloudSyncStatus captures every rejection) but rendered nowhere, so
+  // a rejected save looked identical to a successful one until the optimistic
+  // state rolled back seconds later ("synced, then everything snapped back").
+  if (status?.lastError && !status.lastError.docTooLarge) {
+    return (
+      <div
+        role="alert"
+        aria-live="assertive"
+        className="fixed bottom-0 left-0 right-0 z-[9998] px-4 py-3 sm:px-6"
+        style={{ margin: 0, backgroundColor: '#7f1d1d', borderTop: '1px solid #dc2626' }}
+      >
+        <div className="max-w-3xl mx-auto text-center">
+          <p className="text-sm font-semibold text-red-50">
+            A save was rejected by the cloud and did NOT sync
+          </p>
+          <p className="text-xs text-red-100/90 mt-0.5 leading-relaxed">
+            The server refused the last save
+            {status.lastError.label ? ` (${status.lastError.label})` : ''}:{' '}
+            <span className="font-mono">{String(status.lastError.message).slice(0, 160)}</span>.
+            Changes may look saved on this device but will revert. Screenshot this
+            banner and report it — this clears on the next save that succeeds.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   if (online) return null
 
   return (

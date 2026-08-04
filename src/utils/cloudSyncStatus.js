@@ -110,6 +110,13 @@ export function trackWriteFailed(id, err) {
   const e = inflight.get(id)
   if (e && e.timer) clearTimeout(e.timer)
   inflight.delete(id)
-  lastError = { message: errText(err), at: Date.now(), docTooLarge: isDocTooLargeError(err) }
+  // Loud by design. A rejection can land AFTER settleOrProceed's grace
+  // released the caller — the save already reported success, so this line
+  // is the only trace of why the data silently reverted. A real field
+  // report ("sync works, then ~30s later everything snaps back to
+  // preseason") was exactly this: the rejection arrived late, was recorded
+  // here, and nothing rendered or logged it.
+  console.error(`[cloudSync] write REJECTED by server${e?.label ? ` (${e.label})` : ''}:`, err)
+  lastError = { message: errText(err), label: e?.label || null, at: Date.now(), docTooLarge: isDocTooLargeError(err) }
   emit()
 }
