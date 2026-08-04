@@ -50,6 +50,13 @@ const SEASONS_SUBCOLLECTION = 'seasons'
 // dedicated subcollection (one doc per year-week) for unrelated reasons.
 export const PER_YEAR_FIELDS = [
   'allAmericansByYear',
+  // Every coach in the league, snapshotted per season. Showed up as a
+  // top-3 main-doc field (~0.08 MB) in a real over-cap report alongside
+  // teams and teamFuture, and it had never been routed anywhere — it is
+  // exactly the {year: value} shape this list exists for, and its only
+  // reader (CoachCareer) indexes it by year, so rehydration restores it
+  // unchanged.
+  'allCoachesByYear',
   'awardsByYear',
   'bowlEligibilityDataByYear',
   'bowlGamesByYear',
