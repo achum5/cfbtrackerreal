@@ -86,12 +86,7 @@ describe('foldTeamsByYearFieldsFromFlat', () => {
     expect(out.teams[42].byYear[2029].rankByWeek).toEqual({ 1: 4, 2: 3 })
   })
 
-  // ── Fields deliberately NOT routed ────────────────────────────────────
-  // conference is documented elsewhere as canonical INLINE with the flat
-  // twin as fallback (the reverse of everything else), and record/teamRecord
-  // are written under two different key names by two different functions.
-  // Both are excluded on purpose; if someone adds them to the map, this
-  // fails and they have to audit the read sites first.
+  // ── The three fields that were held back ──────────────────────────────
   // These three were held back from routing until the record/teamRecord
   // collision was resolved (both dual-wrote into teamRecordsByTeamYear under
   // different keys, so whichever saved last clobbered the other). The fix
