@@ -66,9 +66,19 @@ export function getSyncStatus() {
   return snapshot()
 }
 
+// BOTH code and message. This used to be `err.code || err.message`, which
+// returned 'invalid-argument' and discarded the message — but the message is
+// the only part that says WHICH limit was hit ('too many index entries for
+// entity', 'exceeds the maximum allowed size', 'entity is too big'), and it's
+// also where updateDynasty's payload audit appends the offending field paths.
+// A user screenshotted this banner reading a bare 'invalid-argument' while the
+// message underneath held the actual answer.
 function errText(err) {
   if (!err) return 'unknown error'
-  return err.code || err.message || String(err)
+  const code = err.code ? String(err.code) : ''
+  const msg = err.message ? String(err.message) : ''
+  if (code && msg) return msg.includes(code) ? msg : `${code}: ${msg}`
+  return code || msg || String(err)
 }
 
 // ── Called by settleOrProceed ────────────────────────────────────────────────

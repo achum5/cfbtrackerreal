@@ -82,7 +82,7 @@ export default function CloudSyncBanner() {
           <p className="text-xs text-red-100/90 mt-0.5 leading-relaxed">
             The server refused the last save
             {status.lastError.label ? ` (${status.lastError.label})` : ''}:{' '}
-            <span className="font-mono">{String(status.lastError.message).slice(0, 160)}</span>.
+            <span className="font-mono">{String(status.lastError.message).slice(0, 400)}</span>.
             Changes may look saved on this device but will revert. Screenshot this
             banner and report it — this clears on the next save that succeeds.
           </p>
