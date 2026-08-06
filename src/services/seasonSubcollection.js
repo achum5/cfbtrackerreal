@@ -49,14 +49,12 @@ const SEASONS_SUBCOLLECTION = 'seasons'
 // weekRecapsByYear is intentionally NOT in this list — it has its own
 // dedicated subcollection (one doc per year-week) for unrelated reasons.
 export const PER_YEAR_FIELDS = [
-  'allAmericansByYear',
-  // Every coach in the league, snapshotted per season. Showed up as a
-  // top-3 main-doc field (~0.08 MB) in a real over-cap report alongside
-  // teams and teamFuture, and it had never been routed anywhere — it is
-  // exactly the {year: value} shape this list exists for, and its only
-  // reader (CoachCareer) indexes it by year, so rehydration restores it
-  // unchanged.
+  // Every current FBS head coach, one full national snapshot per season,
+  // forever — the same unbounded per-year growth as staffMovesByYear below.
+  // Was previously unrouted, so a CFB27-synced dynasty's national coach
+  // leaderboard accumulated on the MAIN doc every sync (1 MiB cap risk).
   'allCoachesByYear',
+  'allAmericansByYear',
   'awardsByYear',
   'bowlEligibilityDataByYear',
   'bowlGamesByYear',
