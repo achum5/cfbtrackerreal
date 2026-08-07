@@ -20388,6 +20388,20 @@ export function DynastyProvider({ children }) {
     const dynasty = dynasties.find(d => d.id === dynastyId)
     if (!dynasty) return { success: false, message: 'Dynasty not found' }
 
+    // Subcollections are a CLOUD (Firestore) concept — a local/IndexedDB
+    // dynasty has no 1 MB doc cap to escape and no Firestore doc to split.
+    // Without this guard the migration asked Firestore for the doc and
+    // surfaced a baffling 'Dynasty not found' to a user whose dynasty is
+    // sitting right there (real report: switched to local to dodge broken
+    // cloud saves, then couldn't understand why this button failed).
+    const isCloudDynasty = dynasty.storageType === 'cloud'
+    if (!isCloudDynasty) {
+      return {
+        success: false,
+        message: 'This dynasty uses local storage, which has no size cap — subcollections only apply to cloud dynasties. To move back to cloud, use Settings → storage migration; it sets up subcollections automatically.',
+      }
+    }
+
     if (dynasty._subcollectionsMigrated) {
       return { success: true, message: 'Already migrated to subcollections', alreadyMigrated: true }
     }
