@@ -17,6 +17,12 @@ import GENERIC_PORTRAIT_KEYS from './cfb27GenericPortraitKeys.json'
 import UNIQUE_COACH_PORTRAIT_IDS from './cfb27UniqueCoachPortraitIds.json'
 import GENERIC_COACH_PORTRAIT_KEYS from './cfb27GenericCoachPortraitKeys.json'
 import { calculateRecruitingClassScore } from '../utils/recruitingScore'
+// Portrait host resolution lives in imageProxy.js (dependency-free) so the
+// render-time rebase doesn't have to pull this module's portrait-manifest
+// JSONs into every bundle that renders an image. Re-exported here because
+// this is where portrait URLs are BUILT, so it's the natural import site.
+import { portraitBase, resolvePortraitUrl } from '../utils/imageProxy'
+export { portraitBase, resolvePortraitUrl }
 
 // Static manifests of what actually has a file in public/cfb27-portraits/ —
 // generated from that folder's own listing (regenerate by re-running the
@@ -266,8 +272,7 @@ export function mapPortraitUrl(genericHeadAssetName, portraitId) {
   // where the portrait pack was never deployed — every player photo fell
   // back to the team-logo/silhouette placeholder. mapCoachPortraitUrl below
   // already had this fix; this one just never got it applied.
-  const base = import.meta.env?.VITE_CFB27_PORTRAIT_BASE || window.location.origin
-  return `${String(base).replace(/\/$/, '')}${relPath}`
+  return `${portraitBase()}${relPath}`
 }
 
 // Coach counterpart to mapPortraitUrl — same two-branch scheme, same bundled
@@ -300,8 +305,7 @@ export function mapCoachPortraitUrl(genericHeadAssetName) {
   // bandwidth is free. VITE_CFB27_PORTRAIT_BASE points at that host (e.g. an
   // R2/CDN origin, no trailing slash). Falls back to this app's own origin,
   // which is what a local dev copy of public/cfb27-portraits/ uses.
-  const base = import.meta.env?.VITE_CFB27_PORTRAIT_BASE || window.location.origin
-  return `${String(base).replace(/\/$/, '')}${relPath}`
+  return `${portraitBase()}${relPath}`
 }
 
 // A handful of save rows are junk/placeholder records, not real players.
@@ -390,9 +394,10 @@ export function mapExtractedRowToAppPlayer(row, { year, pid, tid }) {
 
 // The save's own Team table uses a different display name than the app's
 // registry for a handful of real programs (verified against a real save —
-// 12 of 139 team names needed this; everything else resolves directly via
-// `${team} ${team_nick}`). Keyed by the save's exact `${team} ${team_nick}`
-// string, valued by the app's registry name.
+// 10 of 139 team names needed this; everything else resolves directly via
+// `${team} ${team_nick}`, including Louisiana/UL Monroe now that the
+// registry names match the save's own text exactly). Keyed by the save's
+// exact `${team} ${team_nick}` string, valued by the app's registry name.
 const TEAM_NAME_ALIASES = {
   'UConn Huskies': 'Connecticut Huskies',
   'Sam Houston Bearkats': 'Sam Houston State Bearkats',
@@ -403,9 +408,7 @@ const TEAM_NAME_ALIASES = {
   "Hawai'i Rainbow Warriors": 'Hawaii Rainbow Warriors',
   'BYU Cougars': 'Brigham Young Cougars',
   'Delaware Blue Hens': "Delaware Fightin' Blue Hens",
-  "Louisiana Ragin' Cajuns": "Lafayette Ragin' Cajuns",
   'Middle Tennessee Blue Raiders': 'Middle Tennessee State Blue Raiders',
-  'UL Monroe Warhawks': 'Monroe Warhawks',
 }
 
 // Shared by groupExtractedRowsByTid and buildRawTeamIdMap — both resolve a
@@ -519,14 +522,24 @@ export function mapCoachingStaff(rawCoachingStaff, rawTeamId) {
 
 /**
  * A team's whole-league recruiting-class stats, for the "Top Classes"
- * national leaderboard — NOT the user's own detailed per-recruit board
- * (that stays exactly as-is, via reconcileRecruitingBoard in
- * cfb27SaveSync.js). Reuses calculateRecruitingClassScore
- * (src/utils/recruitingScore.js) verbatim — that function is team-agnostic
- * and already proven (used for the user's own class today) to reproduce
- * the in-game class score, so no new formula is introduced here.
+ * national leaderboard — AND, since pass N, the actual named roster behind
+ * those stats (recruitingClassRoster), so a team you're not coaching still
+ * gets a real Commitments list instead of just the aggregate numbers. The
+ * user's own detailed per-recruit BOARD (targets, interest tracking, etc.)
+ * stays exactly as-is via reconcileRecruitingBoard in cfb27SaveSync.js —
+ * this is separate, simpler data: who ended up committed where, for every
+ * team, with no board/interest history attached. Reuses
+ * calculateRecruitingClassScore (src/utils/recruitingScore.js) verbatim —
+ * that function is team-agnostic and already proven (used for the user's
+ * own class today) to reproduce the in-game class score, so no new formula
+ * is introduced here.
  *
- * @param {{stars:number, nationalRank:number|null}[]|undefined} recruits - parsed.leagueRecruitingClasses[rawTeamId]
+ * @param {object[]|undefined} recruits - parsed.leagueRecruitingClasses[rawTeamId],
+ *   each a raw extractPlayers.cjs buildLeagueRecruitingClasses entry
+ *   ({stars, nationalRank, nilCompensation, first_name, last_name, position,
+ *   state_rank, position_rank, hometown, home_state, recruit_class,
+ *   recruit_stage, generic_head_asset_name, portrait_id, height, weight,
+ *   archetype_name, dev_trait})
  * @param {{national:number|null, conference:number|null}|undefined} topClassRank - parsed.topClassRanks[rawTeamId]
  */
 export function mapTeamRecruitingClass(recruits, topClassRank) {
@@ -549,10 +562,38 @@ export function mapTeamRecruitingClass(recruits, topClassRank) {
     else if (s === 1) stats.oneStars++
     stats.totalNil += r.nilCompensation
   }
+  const roster = (recruits || []).map((r) => {
+    const name = `${r?.first_name || ''} ${r?.last_name || ''}`.trim()
+    return {
+      name: name || null,
+      position: mapPosition(r?.position),
+      stars: mapStars(r?.stars),
+      nationalRank: r?.nationalRank ?? null,
+      stateRank: r?.state_rank ?? null,
+      positionRank: r?.position_rank ?? null,
+      hometown: r?.hometown || '',
+      state: mapState(r?.home_state),
+      class: mapRecruitClassLabel(r?.recruit_class),
+      pictureUrl: mapPortraitUrl(r?.generic_head_asset_name, Number(r?.portrait_id)),
+      height: mapHeight(r?.height),
+      weight: mapWeight(r?.weight),
+      archetype: r?.archetype_name || null,
+      // Dev trait stays hidden here until the recruit has actually signed
+      // (National Signing Day) — matching the in-game reveal rule, same
+      // "don't spoil it before signing" gate buildLeagueRecruitDirectory's
+      // is_signed flag exists for. A recruit the user separately scouted on
+      // their OWN board can still reveal it early — that happens downstream
+      // when this roster entry gets enriched with a matched real player
+      // record (Recruiting.jsx/TeamYear.jsx), which carries its own
+      // already-revealed devTrait independent of this gate.
+      devTrait: r?.recruit_stage === 'Signed' ? (r?.dev_trait || null) : null,
+    }
+  }).filter((r) => r.name)
   return {
     recruitingClassRank: topClassRank?.national ?? null,
     recruitingClassConferenceRank: topClassRank?.conference ?? null,
     recruitingClassStats: stats,
+    recruitingClassRoster: roster,
   }
 }
 

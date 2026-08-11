@@ -2841,9 +2841,20 @@ const TEAM_NAME_ALIASES = {
   'Middle Tennessee State Blue Raiders': 'Middle Tennessee Blue Raiders',
   'Sam Houston State Bearkats': 'Sam Houston Bearkats',
   'Southern Mississippi Golden Eagles': 'Southern Miss Golden Eagles',
-  'Monroe Warhawks': 'Louisiana Monroe Warhawks',
+  'UL Monroe Warhawks': 'Louisiana Monroe Warhawks',
   'Massachusetts Minutemen': 'UMass Minutemen',
+  "Louisiana Ragin' Cajuns": 'Louisiana Ragin Cajuns',
+  // Keep the PRE-rename key too. The registry name changed (Lafayette ->
+  // Louisiana), and DynastyContext's RENAMED_REGISTRY_DEFAULTS heals stored
+  // dynasties on load — but only non-custom slots, and only once that load
+  // runs. Anything still carrying the old name (a custom slot, an export, a
+  // device that hasn't reloaded) resolves through this map, and dropping the
+  // old key would silently strip its brand profile.
   "Lafayette Ragin' Cajuns": 'Louisiana Ragin Cajuns',
+  'FCS East': 'FCS East Sentinels',
+  'FCS Midwest': 'FCS Midwest Thunderbirds',
+  'FCS Northwest': 'FCS Northwest Kodiaks',
+  'FCS West': 'FCS West Rivertoads',
 }
 
 /**
