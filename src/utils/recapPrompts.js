@@ -79,7 +79,17 @@ function userPerspective(game, userTid) {
   const oppRank = userIsTeam1 ? game.team2Rank : game.team1Rank
   // homeTeamTid being null means neutral site
   const isHome = game.homeTeamTid == null ? null : Number(game.homeTeamTid) === u
-  const won = userScore != null && oppScore != null ? userScore > oppScore : null
+  // `won` must be null for anything that isn't a DECIDED result, because
+  // recordFromGames treats non-null as win-or-loss with no third option.
+  // This used to be `userScore > oppScore` whenever both were non-null, which
+  // made every UNPLAYED game — stored 0-0, not null-0-null — evaluate to
+  // `false`, i.e. a loss. A real 12-0 dynasty's write-up prompt read 11-1
+  // because an unplayed Week 0 slot was scored as a defeat. Ties are excluded
+  // for the same reason: the app's own calculateTeamRecordFromGames counts a
+  // level game as neither a win nor a loss, and the prompt must agree with the
+  // record the user sees on screen.
+  const isPlayed = game.isPlayed !== false && userScore != null && oppScore != null
+  const won = isPlayed && userScore !== oppScore ? userScore > oppScore : null
   return { won, userScore, oppScore, oppTid, oppAbbr, rank, oppRank, isHome, ot: !!game.ot }
 }
 
@@ -482,7 +492,15 @@ export function buildWeekRecapPrompt(dynasty, year, week, opts = {}) {
     : weekNum === 20 ? 'National Championship' : null
 
   const games = (dynasty?.games || []).filter(g => g && Number(g.year) === yearNum)
+  // A recap describes RESULTS, so an unplayed slot has nothing to say. They
+  // were being listed anyway as a real "0, 0" game line, which is worse than
+  // an omission: the AI has no way to tell a scheduled-but-unplayed game from
+  // a genuine scoreless tie, so it writes up a fictional result. `isPlayed`
+  // is only ever explicitly false on a synced-but-unplayed record — legacy
+  // games predate the field, so `!== false` keeps them included.
+  const isUnplayed = (g) => g.isPlayed === false
   const weekGames = games.filter(g => {
+    if (isUnplayed(g)) return false
     if (Number(g.week) === weekNum) return true
     if (!isPostseason) return false
     // Postseason games don't carry a numeric `week`, so match them by
