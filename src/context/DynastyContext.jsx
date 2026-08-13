@@ -10814,6 +10814,31 @@ export function DynastyProvider({ children }) {
       if (Object.keys(recruitingClassRosterCollect).length > 0) {
         subcollectionPromises.push(
           saveRecruitingClassesSubcollection(dynastyId, recruitingClassRosterCollect)
+            .catch((err) => {
+              // permission-denied here means the recruitingClasses security
+              // rules haven't been deployed to this Firebase project yet —
+              // rules ship via a MANUAL `firebase deploy --only
+              // firestore:rules`, not the git->Vercel pipeline, so the code
+              // can reach users before its rules do. These writes sit in a
+              // Promise.all with every other part of the save: letting this
+              // one optional feature's rejection propagate failed the ENTIRE
+              // whole-league sync with "Missing or insufficient permissions —
+              // synced: nothing yet" for every PC user (live incident, many
+              // reports at once). Degrade to skipping just this data —
+              // opponent recruiting classes won't load until the rules land,
+              // and the next sync after that backfills them. Every OTHER
+              // error still propagates: an invalid payload or size failure is
+              // a real data problem that must surface, not be swallowed.
+              if (String(err?.code || '') === 'permission-denied') {
+                console.error(
+                  '[updateDynasty] recruitingClasses write rejected (permission-denied) — ' +
+                  'security rules for this subcollection are not deployed. Skipping this ' +
+                  'data so the rest of the save proceeds; deploy firestore.rules to fix.'
+                )
+                return
+              }
+              throw err
+            })
         )
       }
       if (mainDocUpdates.teams && typeof mainDocUpdates.teams === 'object') {
