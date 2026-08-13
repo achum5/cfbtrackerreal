@@ -3467,6 +3467,33 @@ export default function DangerZone() {
             )}
           </div>
 
+          {/* The Migrate button must NOT require running Analyze first. The
+              over-limit error banner (and the doc-too-large sync banner) both
+              tell the user to "open Admin Tools and run Migrate to
+              Subcollections" — a real user followed that, found only an
+              Analyze button here, and reported the migrate button missing.
+              For an un-migrated dynasty the migration is the remedy, not a
+              detail of the size readout, so it renders unconditionally. */}
+          {!sizeAnalysis && !currentDynasty._subcollectionsMigrated && (
+            <div className="space-y-3">
+              <p className="text-xs text-txt-tertiary leading-relaxed">
+                This dynasty stores everything in a single cloud document, which
+                has a hard 1MB limit. Migrating moves players, games, and other
+                bulky data into their own storage with no practical limit. Safe
+                to run at any time — nothing is deleted.
+              </p>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleSubcollectionMigration}
+                disabled={subcollectionMigrationStatus === 'running'}
+              >
+                {subcollectionMigrationStatus === 'running' ? 'Migrating...' : 'Migrate to Subcollections'}
+              </Button>
+              <StatusLine status={subcollectionMigrationStatus} />
+            </div>
+          )}
+
           {sizeAnalysis && (
             <div className="space-y-4">
               {/* Size Bar */}
