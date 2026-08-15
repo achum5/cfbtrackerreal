@@ -9628,6 +9628,36 @@ export function DynastyProvider({ children }) {
       console.error('Dynasty not found:', dynastyId)
       return
     }
+
+    // HARD STOP on a year mismatch, before anything is computed or written.
+    // Every part of this sync keys its writes to dynasty.currentYear
+    // (buildSyncPlan's very first line), while the year ROLLOVER is
+    // deliberately manual (computeCfb27SyncSeasonAdvance refuses to cross
+    // it). Those two facts combined made syncing a next-season save
+    // destructive: the 2027 schedule was written INTO 2026, deleting last
+    // season's real games via the schedule diff and CPU-game prune — a real
+    // user lost their previous season's results this way ("it loads the
+    // schedule but it just overwrites the previous one still saying 2026").
+    // The save's SeasonYear only increments once the new season actually
+    // starts, so in normal play (offseason included) the years always match
+    // and this never fires.
+    const saveYear = Number(parsed?.season?.year)
+    const trackerYear = Number(dynasty.currentYear)
+    if (Number.isFinite(saveYear) && Number.isFinite(trackerYear) && saveYear !== trackerYear) {
+      if (saveYear > trackerYear) {
+        throw new Error(
+          `This save is in ${saveYear}, but the tracker is still in ${trackerYear}. ` +
+          `Nothing was synced. Finish out ${trackerYear} in the tracker (advance through the ` +
+          `offseason and start the ${saveYear} season), then run this sync again — syncing a ` +
+          `next-season save early would overwrite last season's schedule and results.`
+        )
+      }
+      throw new Error(
+        `This save is from ${saveYear}, but the tracker is already in ${trackerYear}. ` +
+        `Nothing was synced. This looks like an older save file (or the wrong dynasty's save) — ` +
+        `upload a current save from this dynasty instead.`
+      )
+    }
     await report('Loading dynasty…', 5)
 
     // CRITICAL: dynasty.players/.games (from findDynastyById, a plain state
