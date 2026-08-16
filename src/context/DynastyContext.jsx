@@ -67,6 +67,7 @@ import {
   getSeasonsSubcollection,
   splitSeasonalUpdateByYear,
   writeSeasonalUpdate,
+  replaceSeasonConferenceDivisions,
   diffSeasonalDeletions,
   migrateSeasonalFieldsToSubcollection,
   migrateTeamsByYearDuplicatesToSubcollection,
@@ -19243,6 +19244,16 @@ export function DynastyProvider({ children }) {
         ...cloudPatch,
       }
       if (hasDivisions) {
+        // The dot-key write below routes through writeSeasonalUpdate's
+        // merge-mode setDoc, which can ADD splits but can never REMOVE one
+        // (recursive map merge — an absent or empty key contributes nothing).
+        // The dedicated replace overwrites the year's conferenceDivisions map
+        // exactly as given, so removed splits (and "no splits at all") stick.
+        // The dot key is still passed so the optimistic in-memory state and
+        // listener-revert stamps stay correct; whatever it merges afterwards
+        // is a subset of what the replace already wrote, so order can't
+        // matter.
+        await replaceSeasonConferenceDivisions(dynastyId, year, options.divisions)
         cloudUpdates[`conferenceDivisionsByYear.${yearKey}`] = options.divisions
       }
       if (options.extraUpdates) Object.assign(cloudUpdates, options.extraUpdates)
