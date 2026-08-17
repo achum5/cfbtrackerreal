@@ -63,6 +63,19 @@ function isUserTeam(game, userTid) {
   return Number(game.team1Tid) === Number(userTid) || Number(game.team2Tid) === Number(userTid)
 }
 
+// Has this game actually been decided? The isPlayed flag ALONE is not
+// trustworthy: schedule seeding creates records with isPlayed:false and the
+// user-game score-entry path (unlike the weekly-scores sheet and the CFB27
+// sync) never sets it true, so a strict flag check misreads the user's own
+// played games as unplayed. Mirror WeeklyScores' isGameActuallyPlayed
+// heuristic instead: the flag, or any nonzero score, marks a real result —
+// only an unflagged 0-0 (a scheduled-but-unentered slot) reads as unplayed.
+function gameHasResult(game) {
+  if (game.isPlayed === true) return true
+  if (Number(game.team1Score) > 0 || Number(game.team2Score) > 0) return true
+  return game.isPlayed !== false && game.team1Score != null && game.team2Score != null
+}
+
 // Returns { won, score, oppScore, isHome, oppTid, oppAbbr, rank, oppRank, ot } from
 // the user's perspective for a single game, or null when the user wasn't involved.
 function userPerspective(game, userTid) {
@@ -88,7 +101,15 @@ function userPerspective(game, userTid) {
   // for the same reason: the app's own calculateTeamRecordFromGames counts a
   // level game as neither a win nor a loss, and the prompt must agree with the
   // record the user sees on screen.
-  const isPlayed = game.isPlayed !== false && userScore != null && oppScore != null
+  //
+  // "Played" is the same heuristic WeeklyScores/isGameActuallyPlayed use —
+  // flag OR any score signal — NOT the bare isPlayed flag. Schedule-seeded
+  // records are born isPlayed:false and the user-game score-entry path never
+  // flips it, so a strict flag check dropped the user's OWN played games
+  // (only theirs — sheet-entered CPU games do get the flag) from the recap
+  // and their record: a real report had Stanford 0-0 and its game missing
+  // while every other Week 6 result listed fine.
+  const isPlayed = gameHasResult(game) && userScore != null && oppScore != null
   const won = isPlayed && userScore !== oppScore ? userScore > oppScore : null
   return { won, userScore, oppScore, oppTid, oppAbbr, rank, oppRank, isHome, ot: !!game.ot }
 }
@@ -495,12 +516,12 @@ export function buildWeekRecapPrompt(dynasty, year, week, opts = {}) {
   // A recap describes RESULTS, so an unplayed slot has nothing to say. They
   // were being listed anyway as a real "0, 0" game line, which is worse than
   // an omission: the AI has no way to tell a scheduled-but-unplayed game from
-  // a genuine scoreless tie, so it writes up a fictional result. `isPlayed`
-  // is only ever explicitly false on a synced-but-unplayed record — legacy
-  // games predate the field, so `!== false` keeps them included.
-  const isUnplayed = (g) => g.isPlayed === false
+  // a genuine scoreless tie, so it writes up a fictional result. "Unplayed"
+  // uses gameHasResult (flag OR score signal), NOT the bare isPlayed flag —
+  // see its header comment for the user-game path that carries real scores
+  // with the flag still false.
   const weekGames = games.filter(g => {
-    if (isUnplayed(g)) return false
+    if (!gameHasResult(g)) return false
     if (Number(g.week) === weekNum) return true
     if (!isPostseason) return false
     // Postseason games don't carry a numeric `week`, so match them by

@@ -117,6 +117,29 @@ describe('week recap prompt — unplayed games', () => {
     expect(line).toMatch(/1-0$/)
   })
 
+  // Regression for the regression: the first version of this fix keyed
+  // strictly off the isPlayed flag — but schedule seeding creates the USER'S
+  // own game records with isPlayed:false, and the user-game score-entry path
+  // (unlike the weekly-scores sheet) never flips it. A real report: the
+  // user's Stanford game — and only theirs — vanished from the recap and
+  // their record read 0-0, while every sheet-entered CPU result listed fine.
+  // A game with real scores is played no matter what the flag says.
+  it('counts a scored game whose isPlayed flag is still false (user-entered game)', () => {
+    const withScoredFlagFalse = buildDynasty([{
+      year: 2026, week: 4,
+      team1Tid: 1, team2Tid: 2,
+      team1: 'ALA', team2: 'UGA',
+      team1Score: 24, team2Score: 17,
+      homeTeamTid: 1,
+      isPlayed: false,
+      gameType: 'regular',
+    }])
+    const prompt = buildWeekRecapPrompt(withScoredFlagFalse, 2026, 4)
+    const line = recordLineFor(prompt, 'Alabama Crimson Tide')
+    expect(line).toMatch(/4-0$/)
+    expect(prompt).toMatch(/Alabama Crimson Tide 24 \(W\)/)
+  })
+
   // A genuine 0-0 final is neither a win nor a loss, matching the app's own
   // calculateTeamRecordFromGames.
   it('counts a real scoreless tie as neither a win nor a loss', () => {
