@@ -53,6 +53,22 @@ describe('resolvePortraitUrl', () => {
     }
   })
 
+  // The exact case scripts/backfill-portrait-urls.cjs was written to fix: a
+  // player synced BEFORE the CDN existed, whose stored pictureUrl points at
+  // the app's own origin where the pack was never deployed. Handled at render
+  // time, which is why that backfill is redundant here — see the script's
+  // own header. If this test is ever removed, re-read that header before
+  // assuming the stored data is fine.
+  it('fixes a pre-CDN player URL without any stored-data migration', () => {
+    setBase('https://pub-abc123.r2.dev')
+    expect(resolvePortraitUrl('https://dynastytracker.app/cfb27-portraits/unique/4821.webp'))
+      .toBe('https://pub-abc123.r2.dev/cfb27-portraits/unique/4821.webp')
+    // Coach portraits are recomputed live from the raw asset name rather than
+    // stored, but a stored one must rebase identically.
+    expect(resolvePortraitUrl('https://dynastytracker.app/cfb27-portraits/coach-generic/CoachA.webp'))
+      .toBe('https://pub-abc123.r2.dev/cfb27-portraits/coach-generic/CoachA.webp')
+  })
+
   it('passes through empty and non-string values unchanged', () => {
     setBase('https://cdn.example.com')
     expect(resolvePortraitUrl('')).toBe('')
