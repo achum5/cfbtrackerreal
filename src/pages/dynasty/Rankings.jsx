@@ -8,6 +8,7 @@ import { getContrastTextColor } from '../../utils/colorUtils'
 import { TEAMS, resolveTid } from '../../data/teamRegistry'
 import { PageHero, Card, EmptyState, TitleWithYear, Button } from '../../components/ui'
 import Top25SheetModal from '../../components/Top25SheetModal'
+import Top25MovementChart from '../../components/Top25MovementChart'
 
 const getSchoolName = stripMascotFromName
 
@@ -530,6 +531,24 @@ export default function Rankings() {
       <div className="max-w-6xl mx-auto">
         <PollColumn data={top25} pollType="media" />
       </div>
+
+      {/* Season-long rank movement. Needs at least two polls to plot a line —
+          a single snapshot is what the table above already is. */}
+      {availableWeeks.length >= 2 && (
+        <div className="max-w-6xl mx-auto">
+          <Card>
+            <h2 className="text-sm font-black uppercase tracking-[0.12em] text-txt-secondary mb-3">
+              Rank Movement
+            </h2>
+            <Top25MovementChart
+              dynasty={currentDynasty}
+              year={displayYear}
+              weeks={availableWeeks}
+              weekLabel={weekLabel}
+            />
+          </Card>
+        </div>
+      )}
 
       <Top25SheetModal isOpen={showEditSheet} onClose={() => setShowEditSheet(false)} />
 
