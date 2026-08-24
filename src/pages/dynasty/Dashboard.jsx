@@ -5140,7 +5140,7 @@ export default function Dashboard() {
             const userQFBowlName = getUserQFBowlName()
 
             // CFP Semifinals tracking
-            const userCFPSemifinalGame = findCurrentTeamGame(currentDynasty, g => g.isCFPSemifinal && isSameYear(g.year, currentDynasty.currentYear))
+            const userCFPSemifinalGame = findCurrentTeamGame(currentDynasty, g => (g.isCFPSemifinal || g.gameType === GAME_TYPES.CFP_SEMIFINAL) && isSameYear(g.year, currentDynasty.currentYear))
             const userCFPSemifinalShell = findUserCFPGameShell(currentDynasty, 'semifinal', currentDynasty.currentYear)
             // Game-entry gate counterpart to userHasCFPFirstRoundGame etc.
             // — single rule: does the user have a SF game shell in games[]?
@@ -5230,7 +5230,7 @@ export default function Dashboard() {
             const userSFBowlName = getUserSFBowlName()
 
             // CFP Championship tracking
-            const userCFPChampionshipGame = findCurrentTeamGame(currentDynasty, g => g.isCFPChampionship && isSameYear(g.year, currentDynasty.currentYear))
+            const userCFPChampionshipGame = findCurrentTeamGame(currentDynasty, g => (g.isCFPChampionship || g.gameType === GAME_TYPES.CFP_CHAMPIONSHIP) && isSameYear(g.year, currentDynasty.currentYear))
             const userCFPChampionshipShell = findUserCFPGameShell(currentDynasty, 'championship', currentDynasty.currentYear)
             // Game-entry gate counterpart — single rule, same shape as the
             // other Has* booleans.
@@ -8566,7 +8566,7 @@ export default function Dashboard() {
 
             {/* CFP Semifinal Game */}
             {(() => {
-              const cfpGame = findCurrentTeamGame(currentDynasty, g => g.isCFPSemifinal && isSameYear(g.year, currentDynasty.currentYear))
+              const cfpGame = findCurrentTeamGame(currentDynasty, g => (g.isCFPSemifinal || g.gameType === GAME_TYPES.CFP_SEMIFINAL) && isSameYear(g.year, currentDynasty.currentYear))
               if (!cfpGame) return null
               const oppInfo = cfpGame.perspective?.opponentTid ? getGameTeamInfo(currentDynasty?.teams || TEAMS, cfpGame.perspective.opponentTid) : null
               const oppAbbr = oppInfo?.abbr
@@ -8618,7 +8618,7 @@ export default function Dashboard() {
 
             {/* CFP Championship Game */}
             {(() => {
-              const cfpGame = findCurrentTeamGame(currentDynasty, g => g.isCFPChampionship && isSameYear(g.year, currentDynasty.currentYear))
+              const cfpGame = findCurrentTeamGame(currentDynasty, g => (g.isCFPChampionship || g.gameType === GAME_TYPES.CFP_CHAMPIONSHIP) && isSameYear(g.year, currentDynasty.currentYear))
               if (!cfpGame) return null
               const oppInfo = cfpGame.perspective?.opponentTid ? getGameTeamInfo(currentDynasty?.teams || TEAMS, cfpGame.perspective.opponentTid) : null
               const oppAbbr = oppInfo?.abbr
