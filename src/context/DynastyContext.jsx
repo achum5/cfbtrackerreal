@@ -849,6 +849,119 @@ export function isCFPGameWinner(game, tid) {
 }
 
 /**
+ * Resolve which bracket slot a CFP game belongs to, from whatever identity
+ * it carries: an explicit cfpSlot, a slot-shaped id, its bowl name, or —
+ * for semifinals/first round — the participants' seeds. Seed lookups are
+ * Number-coerced (legacy cfpSeeds store tid as a string; game records store
+ * numbers — a strict === matched nothing).
+ */
+export function resolveCfpSlotForGame(dynasty, game) {
+  if (!game) return null
+  const type = detectGameType(game)
+  const prefixByType = {
+    [GAME_TYPES.CFP_FIRST_ROUND]: 'cfpfr',
+    [GAME_TYPES.CFP_QUARTERFINAL]: 'cfpqf',
+    [GAME_TYPES.CFP_SEMIFINAL]: 'cfpsf',
+    [GAME_TYPES.CFP_CHAMPIONSHIP]: 'cfpnc',
+  }
+  const prefix = prefixByType[type]
+  if (!prefix) return null
+
+  if (typeof game.cfpSlot === 'string' && game.cfpSlot.startsWith(prefix)) return game.cfpSlot
+  const idMatch = typeof game.id === 'string' && game.id.match(/^(cfp(?:fr|qf|sf)\d|cfpnc)-\d+$/)
+  if (idMatch && idMatch[1].startsWith(prefix)) return idMatch[1]
+  if (prefix === 'cfpnc') return 'cfpnc'
+  if (game.bowlName) {
+    const byBowl = getSlotIdFromBowlName(game.bowlName)
+    if (byBowl && byBowl.startsWith(prefix)) return byBowl
+  }
+
+  const seeds = dynasty?.cfpSeedsByYear?.[game.year] ?? dynasty?.cfpSeedsByYear?.[String(game.year)] ?? []
+  const seedOf = (tid) => {
+    if (tid == null) return null
+    const entry = seeds.find(s => s && s.tid != null && Number(s.tid) === Number(tid))
+    return entry?.seed ?? null
+  }
+  const s1 = seedOf(game.team1Tid)
+  const s2 = seedOf(game.team2Tid)
+
+  if (prefix === 'cfpsf') {
+    // cfpsf1 is the 1/4 half of the bracket (seeds 1,8,9 vs 4,5,12);
+    // cfpsf2 the 2/3 half (2,7,10 vs 3,6,11) — see CFP_BRACKET_FLOW.
+    const SF1 = new Set([1, 4, 5, 8, 9, 12])
+    const SF2 = new Set([2, 3, 6, 7, 10, 11])
+    for (const seed of [s1, s2]) {
+      if (seed == null) continue
+      if (SF1.has(seed)) return 'cfpsf1'
+      if (SF2.has(seed)) return 'cfpsf2'
+    }
+    return null
+  }
+  if (prefix === 'cfpqf') {
+    const slotByByeSeed = { 1: 'cfpqf1', 4: 'cfpqf2', 3: 'cfpqf3', 2: 'cfpqf4' }
+    for (const seed of [s1, s2]) {
+      if (seed != null && slotByByeSeed[seed]) return slotByByeSeed[seed]
+    }
+    return null
+  }
+  if (prefix === 'cfpfr') {
+    const slotByFrSeed = { 5: 'cfpfr1', 12: 'cfpfr1', 8: 'cfpfr2', 9: 'cfpfr2', 6: 'cfpfr3', 11: 'cfpfr3', 7: 'cfpfr4', 10: 'cfpfr4' }
+    for (const seed of [s1, s2]) {
+      if (seed != null && slotByFrSeed[seed]) return slotByFrSeed[seed]
+    }
+  }
+  return null
+}
+
+/**
+ * Land a CFP game save on its bracket-slot record instead of leaving a
+ * parallel freeform record.
+ *
+ * The bracket page addresses every CFP game by its SLOT id
+ * (`cfpsf1-<year>`, via getCFPGameId) and its winner propagation keys off
+ * cfpSlot. A CFP result saved through any other surface (the dashboard's
+ * round tiles → GameEntryModal → addGame) used to land under a freeform
+ * timestamp id with no cfpSlot — so the bracket kept linking to its empty
+ * shell (an editor with no teams in it), the result never propagated, and
+ * the championship stayed TBD even with both semifinals entered. Real
+ * report, three rounds of it.
+ *
+ * Returns { game, updatedGames, structureChanged }: the game re-identified
+ * onto its slot (merged over the shell when one exists), the games array
+ * with the stray/shell duplicates collapsed to that one record, and a flag
+ * telling the caller the write can't take the single-doc fast path (the
+ * old freeform doc must be orphan-cleaned by the full write).
+ */
+export function adoptCfpSlotIdentity(dynasty, game, updatedGames) {
+  const noop = { game, updatedGames, structureChanged: false }
+  if (!game || game.year == null) return noop
+  const slotId = resolveCfpSlotForGame(dynasty, game)
+  if (!slotId) return noop
+  const slotGameId = getCFPGameId(slotId, game.year)
+
+  const needsReId = game.id !== slotGameId
+  const needsSlotField = game.cfpSlot !== slotId
+  if (!needsReId && !needsSlotField) return noop
+
+  // Any OTHER record already holding the slot identity (the bracket's
+  // shell) becomes the base; the incoming result overlays it.
+  const twin = updatedGames.find(g =>
+    g !== game && g.id !== game.id && Number(g.year) === Number(game.year) &&
+    (g.id === slotGameId || g.cfpSlot === slotId)
+  )
+
+  const merged = {
+    ...(twin || {}),
+    ...game,
+    id: slotGameId,
+    cfpSlot: slotId,
+  }
+  const dropIds = new Set([game.id, twin?.id].filter(id => id != null && id !== slotGameId))
+  const nextGames = [...updatedGames.filter(g => g.id !== slotGameId && !dropIds.has(g.id)), merged]
+  return { game: merged, updatedGames: nextGames, structureChanged: needsReId || !!twin }
+}
+
+/**
  * Check if a team lost a CFP game
  */
 export function isCFPGameLoser(game, tid) {
@@ -12228,6 +12341,28 @@ export function DynastyProvider({ children }) {
       updatedGames = [...(dynasty.games || []), game]
     }
 
+    // ─── CFP slot adoption + propagation ────────────────────────────────
+    // A CFP result saved through the dashboard tiles/GameEntryModal must
+    // land on its bracket-slot record and push its winner into the next
+    // round's shell — see adoptCfpSlotIdentity's header for the field
+    // reports behind this. structureChanged forces the full write path
+    // below so the old freeform doc gets orphan-cleaned instead of
+    // lingering as a duplicate in the subcollection.
+    let cfpStructureChanged = false
+    {
+      const adoption = adoptCfpSlotIdentity(dynasty, game, updatedGames)
+      game = adoption.game
+      updatedGames = adoption.updatedGames
+      cfpStructureChanged = adoption.structureChanged
+      if (game.cfpSlot && game.team1Score != null && game.team2Score != null) {
+        const beforeProp = new Map(updatedGames.map(g => [g.id, `${g.team1Tid}|${g.team2Tid}`]))
+        updatedGames = propagateCFPWinner(updatedGames, game)
+        if (updatedGames.some(g => beforeProp.get(g.id) !== `${g.team1Tid}|${g.team2Tid}`)) {
+          cfpStructureChanged = true
+        }
+      }
+    }
+
     // Build updates object - games[] is the single source of truth for CFP games
     // cfpResultsByYear is deprecated and only kept for reading legacy data
     const updates = { games: updatedGames }
@@ -12292,7 +12427,7 @@ export function DynastyProvider({ children }) {
 
     // OPTIMIZATION: For cloud storage with simple game (no box score processing),
     // save just the single game doc instead of rewriting all games
-    if (isCloudStorage && !hasBoxScoreToProcess) {
+    if (isCloudStorage && !hasBoxScoreToProcess && !cfpStructureChanged) {
       console.log(`[addGame] OPTIMIZED: Saving single game ${game.id} to cloud (no box score)`)
 
       try {
