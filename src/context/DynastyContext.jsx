@@ -1753,27 +1753,46 @@ export function getTeamRankForWeek(dynasty, tidOrAbbr, year, week) {
     return n >= 1 && n <= 25 ? n : null
   }
   if (entry) {
-    // Exact week first.
-    const exact = validRank(entry[week] ?? entry[String(week)] ?? entry[Number(week)])
-    if (exact != null) return exact
+    // Exact week first. An EXPLICITLY-PRESENT null/invalid entry means "this
+    // team is unranked as of this week" — the Top 25 sheet save writes exactly
+    // that for teams that fell out of a poll — and must stop the lookup here,
+    // not fall through to carry-forward.
+    const hasExact = week in entry || String(week) in entry || Number(week) in entry
+    if (hasExact) {
+      return validRank(entry[week] ?? entry[String(week)] ?? entry[Number(week)])
+    }
     // CARRY-FORWARD: a poll stands until a newer one is entered. If this exact
     // week has no ranking (e.g. the user entered a preseason / early Top 25 but
     // hasn't entered a fresh poll for this week), fall back to the most recent
-    // EARLIER week that does — including preseason (week 0). Without this, the
-    // Scores page and Sportsbook showed no rank pips for teams that are clearly
-    // ranked on the Rankings page (which displays the latest populated week).
-    // Regular-season weeks (≤20) never inherit a postseason poll (101–105).
+    // EARLIER week with an entry — including preseason (week 0). Without this,
+    // the Scores page and Sportsbook showed no rank pips for teams that are
+    // clearly ranked on the Rankings page (which displays the latest populated
+    // week). Regular-season weeks (≤20) never inherit a postseason poll
+    // (101–105).
+    //
+    // The scan keeps the most recent PRESENT entry, valid or not — an explicit
+    // null at week N is the drop-out marker, and it must win over week N-1's
+    // real rank. The old scan skipped invalid values, so a team that fell out
+    // of the poll carried its last rank forward forever: deleting the rank on
+    // the game re-derived it right back, and re-saving the Top 25 couldn't
+    // clear it either ("rank stuck at #23" report).
     const wk = Number(week)
     if (Number.isFinite(wk)) {
-      let best = null, bestWk = -Infinity
+      let bestRaw
+      let bestWk = -Infinity
       for (const k of Object.keys(entry)) {
         const kw = Number(k)
         if (!Number.isFinite(kw) || kw > wk) continue
         if (wk <= 20 && kw > 20) continue
-        const r = validRank(entry[k])
-        if (r != null && kw > bestWk) { bestWk = kw; best = r }
+        if (kw > bestWk) { bestWk = kw; bestRaw = entry[k] }
       }
-      if (best != null) return best
+      if (bestWk !== -Infinity) {
+        const r = validRank(bestRaw)
+        // A valid rank carries forward; an explicit unranked marker means
+        // unranked from that week on — do NOT continue into the preseason
+        // fallback, which would resurrect an even older rank.
+        return r
+      }
     }
   }
   // Preseason-array fallback — a separate store some dynasties use before any
@@ -3699,6 +3718,17 @@ export function recalculateStatsFromBoxScores(players, games, year, options = {}
     Number(g.year) === yearNum && g.boxScore
   )
 
+  // NOTHING to recompute from -> change NOTHING. This function's clearing
+  // branch below exists to heal stale box-score residue, but stats in
+  // statsByYear are not necessarily box-score-derived: console dynasties
+  // enter whole seasons through the Season Stats sheet, which writes the
+  // same category keys with no game boxScore behind them. When a year has
+  // zero box-scored games, "recompute from box scores" used to mean
+  // "delete every player's season line and zero gamesPlayed" — a real user
+  // lost a whole roster's stats this way when revertWeek triggered a
+  // resync ("stats for my Rice players are now removed").
+  if (gamesWithBoxScores.length === 0) return players
+
   // Build aggregated stats in parallel per-(tid,name) and per-name-only.
   // The tid-scoped index is preferred whenever a player's team-for-year is
   // known - this is what stops two unrelated real players who happen to
@@ -3786,6 +3816,13 @@ export function recalculateStatsFromBoxScores(players, games, year, options = {}
       // (or a team change) doesn't linger forever. A player with nothing to
       // clear is returned as-is to avoid needless object churn across the
       // whole roster.
+      //
+      // ONLY when their team actually appears in a box-scored game this
+      // year, though. If it never does, this player's stats cannot be
+      // residue of these box scores — they came from somewhere else (the
+      // Season Stats sheet), and "healing" them would just destroy manual
+      // data the recompute knows nothing about.
+      if (tid == null || !participantTidUnion.has(Number(tid))) return player
       const hasStaleBoxScoreStats = categoryKeys.some(cat => existingYearStats[cat])
       if (!hasStaleBoxScoreStats) return player
 

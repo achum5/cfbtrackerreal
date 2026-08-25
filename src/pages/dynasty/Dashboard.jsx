@@ -5038,6 +5038,21 @@ export default function Dashboard() {
             // Check if user's team is in the CFP - prefer tid lookup
             const userTeamAbbr = getCurrentTeamAbbr(currentDynasty)
             const cfpSeeds = currentDynasty.cfpSeedsByYear?.[currentDynasty.currentYear] || []
+            // Seed lookup for a GAME side, with the same legacy tolerance the
+            // user-seed resolution below applies: Number-coerced tid first
+            // (legacy seed entries store tid as a string, game records store
+            // numbers — strict === matched nothing), then abbr for entries
+            // written before seeds carried a tid at all. The strict version
+            // silently returned undefined for every team, which made the
+            // championship-opponent fallback below unable to tell the two
+            // semifinals apart — reported as the NC entry stuck on "TBD"
+            // even with both semifinal results entered.
+            const seedForGameSide = (tid, abbr) => cfpSeeds.find(s => {
+              if (!s) return false
+              if (s.tid != null && tid != null && Number(s.tid) === Number(tid)) return true
+              if (s.team && abbr && String(s.team).toUpperCase() === String(abbr).toUpperCase()) return true
+              return false
+            })?.seed
             // Tid match with Number coercion (some legacy entries store tid
             // as a string), then fall back to abbr for entries written under
             // the older schema that didn't carry a tid. Without this fallback
@@ -5186,8 +5201,8 @@ export default function Dashboard() {
                 const opponentBowlSeeds = orangeSeeds.includes(userCFPSeed) ? sugarSeeds : orangeSeeds
                 const opponentQFGame = quarterfinalResults.find(g => {
                   // Check tid first, then fallback to abbr
-                  const team1Seed = cfpSeeds.find(s => s.tid === g.team1Tid)?.seed
-                  const team2Seed = cfpSeeds.find(s => s.tid === g.team2Tid)?.seed
+                  const team1Seed = seedForGameSide(g.team1Tid, g.team1)
+                  const team2Seed = seedForGameSide(g.team2Tid, g.team2)
                   return opponentBowlSeeds.includes(team1Seed) || opponentBowlSeeds.includes(team2Seed)
                 })
                 // Return winnerTid if available, otherwise fall back to winner abbr
@@ -5201,8 +5216,8 @@ export default function Dashboard() {
                 const opponentBowlSeeds = cottonSeeds.includes(userCFPSeed) ? roseSeeds : cottonSeeds
                 const opponentQFGame = quarterfinalResults.find(g => {
                   // Check tid first, then fallback to abbr
-                  const team1Seed = cfpSeeds.find(s => s.tid === g.team1Tid)?.seed
-                  const team2Seed = cfpSeeds.find(s => s.tid === g.team2Tid)?.seed
+                  const team1Seed = seedForGameSide(g.team1Tid, g.team1)
+                  const team2Seed = seedForGameSide(g.team2Tid, g.team2)
                   return opponentBowlSeeds.includes(team1Seed) || opponentBowlSeeds.includes(team2Seed)
                 })
                 // Return winnerTid if available, otherwise fall back to winner abbr
@@ -5266,8 +5281,8 @@ export default function Dashboard() {
               // Find the SF game the user was NOT in
               const opponentSF = semifinalResults.find(g => {
                 // Check tid first, then fallback to abbr
-                const team1Seed = cfpSeeds.find(s => s.tid === g.team1Tid)?.seed
-                const team2Seed = cfpSeeds.find(s => s.tid === g.team2Tid)?.seed
+                const team1Seed = seedForGameSide(g.team1Tid, g.team1)
+                const team2Seed = seedForGameSide(g.team2Tid, g.team2)
                 const gameInPeachBowl = peachBowlSeeds.includes(team1Seed) || peachBowlSeeds.includes(team2Seed)
                 // If user was in Peach, opponent is from Fiesta (not in Peach)
                 return userInPeachBowl ? !gameInPeachBowl : gameInPeachBowl
