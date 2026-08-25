@@ -20,9 +20,26 @@ import { PageHero, Card, EmptyState, TitleWithYear, Select } from '../../compone
 function findBoxScoreGameSummary(dynasty, honoree, week, year) {
   if (!honoree?.tid) return { noGame: true }
   const teamsSource = dynasty.teams || {}
-  const game = (dynasty.games || []).find((g) =>
-    Number(g.year) === Number(year) && Number(g.week) === Number(week)
-    && (Number(g.team1Tid) === honoree.tid || Number(g.team2Tid) === honoree.tid))
+  const yearNum = Number(year)
+  const forHonoreeTeam = (g) => Number(g.team1Tid) === honoree.tid || Number(g.team2Tid) === honoree.tid
+  let game = (dynasty.games || []).find((g) =>
+    Number(g.year) === yearNum && Number(g.week) === Number(week) && forHonoreeTeam(g))
+  // Conference championship games are sometimes stored with a non-numeric
+  // `week` (the manual "Enter Scores" CC flow writes the literal string
+  // 'CCG' instead of the save's real week number — see weekLabel.js's
+  // isNumericWeek), so the exact-week match above can come up empty even
+  // though this honoree's own week key IS the CCG week. Fall back to the
+  // flag — a team plays at most one conference championship game a year,
+  // so this can't accidentally grab the wrong game.
+  // Scoped to late-season weeks. availableWeeks here are the save's RAW week
+  // keys, so without this bound an early-season honoree whose team has no
+  // game record at that week (a data gap) would silently fall through to
+  // their conference championship and show that box score as if it were
+  // September. The CCG's raw week has been observed as both 15 and 16.
+  if (!game && Number(week) >= 15) {
+    game = (dynasty.games || []).find((g) =>
+      Number(g.year) === yearNum && g.isConferenceChampionship && forHonoreeTeam(g))
+  }
   if (!game) return { noGame: true }
 
   const isTeam1 = Number(game.team1Tid) === honoree.tid
