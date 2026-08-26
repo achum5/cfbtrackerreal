@@ -9,6 +9,7 @@ import { TEAMS, resolveTid } from '../../data/teamRegistry'
 import { PageHero, Card, EmptyState, TitleWithYear, Button } from '../../components/ui'
 import Top25SheetModal from '../../components/Top25SheetModal'
 import Top25MovementChart from '../../components/Top25MovementChart'
+import { isPcAutoDynasty } from '../../editions'
 
 const getSchoolName = stripMascotFromName
 
@@ -132,12 +133,24 @@ export default function Rankings() {
       for (const k of weekKeys) {
         const wk = Number(k)
         if (!Number.isFinite(wk)) continue
-        // Canonical poll slots only: Preseason(0), Weeks 1–15, Conf Champ(16),
-        // Bowl Weeks(17–20), CFP rounds + Final(101–105). Skip legacy/orphan
-        // slots like the old shared "100" (deprecated CCG/bowl key) so they
-        // don't surface as a bogus "Week 100" in the picker.
-        const isCanonical = (wk >= 0 && wk <= 20) || (wk >= 101 && wk <= 105)
-        if (!isCanonical) continue
+        // Sync writes rankByWeek/cfpRankByWeek keyed by the save's raw
+        // CurrentWeek counter, which runs continuously through the whole
+        // postseason (CCG, every bowl round, every CFP round) rather than
+        // landing neatly in the app's old 17–20/101–105 slot scheme — a
+        // save with a deep CFP run legitimately produces raw weeks beyond
+        // 20, and a narrow whitelist here silently dropped those synced
+        // weeks from the picker entirely. Only skip the one known-bogus
+        // legacy sentinel ("100", a deprecated shared CCG/bowl key) —
+        // every other non-negative week is a real synced snapshot.
+        // Bounded rather than fully open. The whitelist this replaces existed to
+        // keep orphan/garbage keys out of the picker, and dropping it entirely
+        // would let ANY stray key surface as a real poll week. The save's raw
+        // counter is continuous and has been seen past 20 on a deep CFP run, so
+        // 0-40 covers every legitimate raw week with room to spare, alongside the
+        // app's own canonical 101-105 postseason slots. 100 stays excluded — it's
+        // the deprecated shared CCG/bowl sentinel.
+        const isRealPollWeek = (wk >= 0 && wk <= 40) || (wk >= 101 && wk <= 105)
+        if (!isRealPollWeek || wk === 100) continue
         let v = wk >= 10 ? cfp[k] : media[k]
         if (typeof v !== 'number' || v < 1 || v > 25) v = wk >= 10 ? media[k] : cfp[k]
         if (typeof v !== 'number' || v < 1 || v > 25) continue
@@ -521,7 +534,7 @@ export default function Rankings() {
             label="Top 25"
           />
         }
-        actions={!isViewOnly ? (
+        actions={!isViewOnly && !isPcAutoDynasty(currentDynasty) ? (
           <Button variant="outline" size="sm" onClick={() => setShowEditSheet(true)}>
             Edit Rankings
           </Button>
@@ -550,7 +563,9 @@ export default function Rankings() {
         </div>
       )}
 
-      <Top25SheetModal isOpen={showEditSheet} onClose={() => setShowEditSheet(false)} />
+      {!isPcAutoDynasty(currentDynasty) && (
+        <Top25SheetModal isOpen={showEditSheet} onClose={() => setShowEditSheet(false)} />
+      )}
 
       <style>{`
         .ranking-row:hover {
