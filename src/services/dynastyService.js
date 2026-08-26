@@ -553,6 +553,40 @@ export async function getDynasty(dynastyId) {
   }
 }
 
+// Same as getDynasty above, but forces a server round-trip instead of
+// Firestore's default cache-first read. The main dynasty doc carries
+// `teams` (per-team `byYear[year].rankByWeek` Top 25 history, among other
+// season data) and `rivalries` — fields the CFB27 auto-sync (see
+// syncDynastyFromCFB27Save in DynastyContext.jsx) merges INTO before
+// writing back. buildSyncPlan already re-fetches players/games fresh for
+// exactly this reason (see its own "CRITICAL" comment); this covers the
+// same class of bug for the main doc's own fields. Without it, a sync run
+// against a stale cached snapshot (e.g. right after opening the app, or a
+// write from another session/tab not yet reflected locally) silently wrote
+// that stale `teams` back over Firestore's real data — permanently
+// dropping whichever weeks' rankByWeek entries existed only server-side,
+// which is exactly what made the Top 25 page's week list stay stuck at
+// just Preseason + whatever the last couple of syncs happened to catch.
+export async function getDynastyFromServer(dynastyId) {
+  try {
+    const docRef = doc(db, DYNASTIES_COLLECTION, dynastyId)
+    const docSnap = await getDocFromServer(docRef)
+
+    if (docSnap.exists()) {
+      const data = docSnap.data()
+      const { id: _, ...cleanData } = data
+      return {
+        id: docSnap.id,
+        ...cleanData
+      }
+    }
+    return null
+  } catch (error) {
+    console.error('Error fetching dynasty from server:', error)
+    throw error
+  }
+}
+
 // Get a public dynasty by share code (no authentication required)
 export async function getPublicDynastyByShareCode(shareCode) {
   try {
@@ -732,11 +766,22 @@ export async function getPlayersSubcollection(dynastyId, options = {}) {
     // a Save button) forever with no error. Race it against a timeout so a
     // bad connection surfaces as a catchable error instead of an infinite
     // "Saving…" — callers already fall back to dynasty.players on failure.
+    const requestedAt = Date.now()
     const snapshot = await Promise.race([
       getDocs(playersRef),
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timed out loading players — check your connection and try again.')), 15000)),
     ])
-    return snapshot.docs.map(d => ({ ...d.data(), _firestoreId: d.id }))
+    const fresh = snapshot.docs.map(d => ({ ...d.data(), _firestoreId: d.id }))
+    // The cache-miss branch never hit the network in the background — this
+    // return value IS the fresh server read. Callers that passed onFresh use
+    // it as their "this collection is now server-confirmed" signal (see
+    // isPcDynastyDataConfirmed in DynastyContext.jsx); without firing it
+    // here too, a dynasty whose cache was empty this session would never be
+    // marked confirmed.
+    if (onFresh) {
+      try { onFresh(fresh, { requestedAt }) } catch (e) { console.error('onFresh callback threw:', e) }
+    }
+    return fresh
   } catch (error) {
     console.error('Error fetching players subcollection:', error)
     throw error
@@ -782,8 +827,14 @@ export async function getGamesSubcollection(dynastyId, options = {}) {
   }
 
   try {
+    const requestedAt = Date.now()
     const snapshot = await getDocs(gamesRef)
-    return snapshot.docs.map(d => ({ ...d.data(), _firestoreId: d.id }))
+    const fresh = snapshot.docs.map(d => ({ ...d.data(), _firestoreId: d.id }))
+    // Cache-miss branch — see the matching comment in getPlayersSubcollection.
+    if (onFresh) {
+      try { onFresh(fresh, { requestedAt }) } catch (e) { console.error('onFresh callback threw:', e) }
+    }
+    return fresh
   } catch (error) {
     console.error('Error fetching games subcollection:', error)
     throw error
