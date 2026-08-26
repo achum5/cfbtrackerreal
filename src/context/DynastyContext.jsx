@@ -144,6 +144,7 @@ import { describeInvalidFirestoreValues, findInvalidFirestoreValues } from '../u
 import { withTimeout } from '../utils/withTimeout'
 import { normalizeEditionKey, DEFAULT_EDITION, isPcAutoDynasty } from '../editions'
 import { getSyncStamp, setSyncStamp } from '../utils/subcollectionSyncStamp'
+import { SYNC_PHASES, getPhaseDurations, recordPhaseDuration } from '../utils/syncPhaseTiming'
 
 /**
  * Gate a subcollection getter's billed background server re-read on the
@@ -4236,7 +4237,28 @@ export function isGamePlayed(g) {
  *   updatedSchedule: Array // the schedule with gameId/opponentTid/isBye filled in
  * }}
  */
-export function computeScheduleDiff(dynasty, newSchedule, userTid, year) {
+export function computeScheduleDiff(dynasty, newSchedule, userTid, year, options = {}) {
+  // protectPlayed: leave an already-played game (or one carrying a box score)
+  // completely alone instead of reassigning or removing it.
+  //
+  // OFF by default, and deliberately so. The manual Schedule Entry flow
+  // already handles this the right way: it feeds `playedAffected` to
+  // ScheduleSaveConfirmModal, which warns "N played games will lose data"
+  // and relabels the button "Delete N games and save", so the user sees
+  // the cost and decides. Blocking it there would take away a legitimate
+  // correction (fixing the wrong opponent on a week already scored) AND
+  // silently empty the warning that makes the choice visible.
+  //
+  // Sync from Save has no such prompt — it applies the diff on its own. A
+  // save whose schedule for some week doesn't line up on a later sync would
+  // silently reassign or delete a played game, taking its aiRecap /
+  // scoreGraphic / preview with it, since those live on the game record.
+  // That path passes protectPlayed and stops guessing at settled results.
+  const { protectPlayed = false } = options
+  // Matches what playedAffected already counts as worth warning about — a
+  // box score is real entered data even if isPlayed was never flipped.
+  const hasPlayedData = (g) => isGamePlayed(g) || !!(g?.boxScore && Object.keys(g.boxScore).length > 0)
+
   const existingGames = dynasty.games || []
 
   // Bulletproof against a nullish userTid: without this, `g.userTid ===
@@ -4358,6 +4380,15 @@ export function computeScheduleDiff(dynasty, newSchedule, userTid, year) {
       return
     }
 
+    // A played game's outcome is settled — a later sync disagreeing about
+    // who it was against is the save's schedule not lining up, not a real
+    // correction. Keep it exactly as it stands.
+    if (protectPlayed && hasPlayedData(existing)) {
+      toKeep.push({ week, opponent: entry.opponent })
+      updatedSchedule.push({ ...entry, week, gameId: existing.id, opponentTid: existingOpponentTid, location: existingLocation, isBye: false })
+      return
+    }
+
     // Build the patch we'll apply on save. userTid stays on whichever side
     // it currently sits; we only swap the opponent slot and home flag.
     const userIsTeam1 = existing.team1Tid === userTid
@@ -4383,9 +4414,13 @@ export function computeScheduleDiff(dynasty, newSchedule, userTid, year) {
     updatedSchedule.push({ ...entry, week, gameId: existing.id, opponentTid, isBye: false })
   })
 
-  // toRemove: existing games whose week isn't in the new schedule, or is now BYE
+  // toRemove: existing games whose week isn't in the new schedule, or is now BYE.
+  // Under protectPlayed, a played game is never removed: the save not (yet)
+  // referencing a week it already reported a result for is not evidence the
+  // game never happened, and deleting it discards its attached content.
   const toRemove = []
   existingByWeek.forEach((g, week) => {
+    if (protectPlayed && hasPlayedData(g)) return
     const newEntry = newSchedule.find(e => Number(e.week) === week)
     const isBye = newEntry && (newEntry.opponent?.toUpperCase() === 'BYE' || newEntry.isBye)
     const stillReferenced = referencedWeeks.has(week) && !isBye
@@ -10012,16 +10047,83 @@ export function DynastyProvider({ children }) {
     // A full whole-league sync runs several heavy, fully-synchronous phases
     // (buildSyncPlan, the box-score/conference-game merges, stats recalc)
     // with no internal await, so the UI would otherwise never repaint an
-    // intermediate percentage — report() yields a tick after every call so
-    // React can actually paint before the next blocking phase runs. Same
+    // intermediate percentage — the tick after every onProgress call lets
+    // React actually paint before the next blocking phase runs. Same
     // pattern as createDynasty's own report() helper.
-    const startedAt = Date.now()
-    const report = async (message, pct) => {
+    //
+    // Percentage/ETA are both driven by REAL phase durations recorded from
+    // this dynasty's past syncs (see syncPhaseTiming.js), not guessed fixed
+    // checkpoints — a guess-based system consistently looked nearly done
+    // (65-90%) and then kept running for many more seconds, because the
+    // slow phases (Firestore writes, especially after batch-commit
+    // concurrency limiting) were assigned checkpoints as if they were fast.
+    // First sync for a dynasty falls back to a rough default; every sync
+    // after that is calibrated off what actually happened last time.
+    const syncStartedAt = Date.now()
+    const phaseDurations = getPhaseDurations(dynastyId)
+    const totalEstimatedMs = SYNC_PHASES.reduce((sum, k) => sum + (phaseDurations[k] || 0), 0)
+    const phaseStartOffsetMs = {}
+    {
+      let acc = 0
+      for (const k of SYNC_PHASES) { phaseStartOffsetMs[k] = acc; acc += (phaseDurations[k] || 0) }
+    }
+    let currentPhaseKey = null
+    let currentPhaseStartedAt = syncStartedAt
+    const actualPhaseDurations = {}
+
+    // Core calculation, shared by phase transitions and intra-phase
+    // sub-progress. `subFraction` (0-1) is how far through the CURRENT
+    // phase we are — real (sent/total, chunk index/count) where those
+    // exist, 0 at a bare phase transition otherwise.
+    const reportProgress = async (message, phaseKey, subFraction = 0) => {
       if (!onProgress) return
-      const elapsedMs = Date.now() - startedAt
-      const etaSeconds = pct > 0 && pct < 100 ? Math.round((elapsedMs / pct) * (100 - pct) / 1000) : null
+      const elapsedMs = Date.now() - syncStartedAt
+      const weight = phaseDurations[phaseKey] || 0
+      const expectedElapsedNow = (phaseStartOffsetMs[phaseKey] ?? totalEstimatedMs) + weight * Math.max(0, Math.min(1, subFraction))
+      const pct = totalEstimatedMs > 0
+        ? Math.max(1, Math.min(99, Math.round((expectedElapsedNow / totalEstimatedMs) * 100)))
+        : 50
+      // Pace-adjusted ETA: how much slower/faster THIS run is going,
+      // relative to the historical estimate, over the work actually done
+      // so far — then applies that same pace to the estimated remaining
+      // work. Far more responsive to an actually-slow phase than a flat
+      // "elapsed / pct-so-far" extrapolation, which stays anchored to
+      // whatever the first (often fast) phases implied. Guard the ratio on
+      // a small denominator so the first tick or two (near-zero expected
+      // elapsed) can't produce a wild multiplier.
+      const paceRatio = expectedElapsedNow > 300 ? elapsedMs / expectedElapsedNow : 1
+      const remainingEstimateMs = Math.max(0, totalEstimatedMs - expectedElapsedNow)
+      const etaSeconds = Math.max(0, Math.round((remainingEstimateMs * paceRatio) / 1000))
       try { onProgress({ message, pct, etaSeconds }) } catch (_) {}
       await new Promise((r) => setTimeout(r))
+    }
+
+    // Closes out the actual duration of whichever phase was running (the
+    // interval since the LAST enterPhase call is that phase's real, timed
+    // duration — used to calibrate the NEXT sync), then starts timing the
+    // new one and reports its starting position.
+    const enterPhase = async (phaseKey, message) => {
+      const now = Date.now()
+      if (currentPhaseKey) actualPhaseDurations[currentPhaseKey] = now - currentPhaseStartedAt
+      currentPhaseKey = phaseKey
+      currentPhaseStartedAt = now
+      await reportProgress(message, phaseKey, 0)
+    }
+
+    // Real intra-phase progress (roster writes sent/total, chunk i/count)
+    // without closing the phase out yet.
+    const reportSubProgress = async (message, fraction) => {
+      await reportProgress(message, currentPhaseKey, fraction)
+    }
+
+    // Persists every phase's real measured duration from THIS run so the
+    // next sync's estimate is calibrated off it. Only called on a
+    // successful completion — a failed/partial run's timings aren't a
+    // reliable basis for the next estimate.
+    const finishSyncTiming = () => {
+      const now = Date.now()
+      if (currentPhaseKey) actualPhaseDurations[currentPhaseKey] = now - currentPhaseStartedAt
+      for (const [phase, ms] of Object.entries(actualPhaseDurations)) recordPhaseDuration(dynastyId, phase, ms)
     }
 
     const dynasty = await findDynastyById(dynastyId)
@@ -10059,7 +10161,6 @@ export function DynastyProvider({ children }) {
         `upload a current save from this dynasty instead.`
       )
     }
-    await report('Loading dynasty…', 5)
 
     // CRITICAL: dynasty.players/.games (from findDynastyById, a plain state
     // lookup) are NOT guaranteed to hold the full, current subcollection
@@ -10068,6 +10169,7 @@ export function DynastyProvider({ children }) {
     // writing the result with deleteOrphans:true (which updateDynasty's
     // games path always does) would silently delete real games/players that
     // just weren't loaded into state yet at the moment of the sync.
+    await enterPhase('loadRosterGames', 'Loading dynasty…')
     const freshPlayers = await getDynastyPlayers(dynasty)
     const freshGames = await getDynastyGames(dynasty)
 
@@ -10101,11 +10203,9 @@ export function DynastyProvider({ children }) {
         console.error('Failed to fetch fresh dynasty doc before sync:', err)
       }
     }
-    await report('Loading current roster & games…', 12)
-
-    await report('Comparing against your save…', 15)
+    await enterPhase('buildPlan', 'Loading current roster & games…')
     const plan = buildSyncPlan(dynastyForPlan, parsed)
-    await report('Merging schedule & scores…', 45)
+    await enterPhase('mergeGames', 'Merging schedule & scores…')
 
     // An empty scheduleForUserTeam means the save just doesn't have this
     // year's schedule generated yet (e.g. synced at Preseason Wk 0, before
@@ -10121,7 +10221,7 @@ export function DynastyProvider({ children }) {
     let mergedGames = freshGames
     let scheduleDiff = { updatedSchedule: [] }
     if (plan.scheduleForUserTeam?.length) {
-      scheduleDiff = computeScheduleDiff(dynastyForPlan, plan.scheduleForUserTeam, dynasty.currentTid, dynasty.currentYear)
+      scheduleDiff = computeScheduleDiff(dynastyForPlan, plan.scheduleForUserTeam, dynasty.currentTid, dynasty.currentYear, { protectPlayed: true })
       mergedGames = applyScheduleDiff(freshGames, scheduleDiff)
     }
     mergedGames = applyCfb27GameScores(mergedGames, plan.gameScoresForUserTeam, plan.boxScoresByWeek, Number(dynasty.currentYear))
@@ -10208,7 +10308,7 @@ export function DynastyProvider({ children }) {
       if (Boolean(g.isConferenceGame) === isConferenceGame) return g
       return { ...g, isConferenceGame }
     })
-    await report('Applying game results…', 55)
+    await enterPhase('recalcStats', 'Applying game results…')
 
     // Auto-advance currentWeek/currentPhase to match the save's own season
     // state — computed here (pure function, not by invoking advanceWeek)
@@ -10488,14 +10588,15 @@ export function DynastyProvider({ children }) {
       // manual "Fix Player Stats" admin action uses), or the box scores sit
       // on the games unread and every stats page stays empty.
       const mergedPlayers = recalculateStatsFromBoxScores([...existingByPid.values()], mergedGames, statsYear)
-      await report('Recalculating stats…', 65)
+      await enterPhase('saveRoster', 'Recalculating stats…')
 
       // No Firestore size ceiling applies to a local (IndexedDB) dynasty, so
       // this stays a single write — only cloud dynasties need the chunked
       // sequence below.
-      await report('Saving…', 95)
+      await enterPhase('saveFinal', 'Saving…')
       await updateDynasty(dynastyId, { players: mergedPlayers, teams: plan.mergedTeams, games: mergedGames, ...seasonFieldUpdates, ...teamFutureUpdate, ...playersOfWeekUpdate, ...heismanWatchUpdate, ...rivalriesUpdate, ...draftResultsUpdate, ...cfpSeedsUpdate, ...honorsUpdate, ...userJobChangeUpdate, ...userCoachPortraitUpdate, ...userCoachCareerStatsUpdate, ...coachOffersUpdate, platform: 'pc' })
-      await report('Done', 100)
+      finishSyncTiming()
+      if (onProgress) { try { onProgress({ message: 'Done', pct: 100, etaSeconds: 0 }) } catch (_) {} }
     } else {
       // Same recompute as the local branch, but diffed against freshPlayers
       // (not written wholesale — a cloud dynasty can have thousands of
@@ -10516,7 +10617,7 @@ export function DynastyProvider({ children }) {
       }
       const recalculated = recalculateStatsFromBoxScores([...existingByPid.values()], mergedGames, statsYear)
       const recalculatedByPid = new Map(recalculated.map((p) => [p.pid, p]))
-      await report('Recalculating stats…', 65)
+      await enterPhase('saveRoster', 'Recalculating stats…')
 
       const createPidSet = new Set(plan.toCreatePlayers.map((p) => p.pid))
       const statsPatches = []
@@ -10542,10 +10643,10 @@ export function DynastyProvider({ children }) {
       if (createsWithStats.length || plan.toUpdatePatches.length || plan.departurePatches.length || statsPatches.length) {
         const totalPlayerWrites = createsWithStats.length + plan.toUpdatePatches.length + plan.departurePatches.length + statsPatches.length
         await syncPlayersToSubcollection(dynastyId, createsWithStats, [...plan.toUpdatePatches, ...plan.departurePatches, ...statsPatches], {
-          onProgress: (sent, total) => { report('Saving roster…', 70 + Math.round((sent / Math.max(total || totalPlayerWrites, 1)) * 20)) },
+          onProgress: (sent, total) => { reportSubProgress('Saving roster…', sent / Math.max(total || totalPlayerWrites, 1)) },
         })
       }
-      await report('Saving roster…', 90)
+      await enterPhase('saveFinal', 'Saving roster…')
 
       // Everything left over after players/games/seasonal routing still
       // lands in ONE main-document Firestore write — on a full whole-league
@@ -10574,7 +10675,7 @@ export function DynastyProvider({ children }) {
       const completedLabels = []
       try {
         for (let i = 0; i < chunks.length; i++) {
-          await report(`Saving ${chunkLabel(chunks[i])}…`, 90 + Math.round(((i + 1) / chunks.length) * 10))
+          await reportSubProgress(`Saving ${chunkLabel(chunks[i])}…`, (i + 1) / chunks.length)
           await updateDynasty(dynastyId, chunks[i], { skipPlayersSubcollection: true })
           completedLabels.push(chunkLabel(chunks[i]))
           // Each chunk's updateDynasty call can itself dispatch a burst of
@@ -10595,6 +10696,8 @@ export function DynastyProvider({ children }) {
           `Not synced (safe to re-run the sync): ${failedParts.join(', ')}.`
         throw err
       }
+      finishSyncTiming()
+      if (onProgress) { try { onProgress({ message: 'Done', pct: 100, etaSeconds: 0 }) } catch (_) {} }
     }
 
     return {
