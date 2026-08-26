@@ -10,7 +10,8 @@ vi.mock('firebase/firestore', () => {
     'getDocsFromCache', 'getDocsFromServer', 'addDoc', 'updateDoc',
     'deleteDoc', 'setDoc', 'writeBatch', 'query', 'where', 'onSnapshot',
     'serverTimestamp', 'deleteField', 'arrayUnion', 'arrayRemove',
-    'waitForPendingWrites', 'getCountFromServer',
+    'waitForPendingWrites', 'getCountFromServer', 'orderBy', 'startAfter',
+    'limit', 'documentId',
   ]
   return Object.fromEntries(names.map((n) => [n, () => {}]))
 })
