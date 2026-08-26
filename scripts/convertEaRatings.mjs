@@ -133,13 +133,18 @@ function formatHeight(inches) {
 // Read the current rosters up front, before anything is overwritten. They give
 // us both the team-label -> tid index and the archetype / dev trait / abilities
 // that EA's feed doesn't carry, so a re-run never wipes hand-added data.
+// Names differ in punctuation between the launch workbook and EA's site
+// ("R.J. Jackson Jr." vs "RJ Jackson Jr."), so identity is compared on letters
+// only. Otherwise the same player shows up as both a rename and a carry-over.
+const nameKey = (s) => String(s || '').toLowerCase().replace(/[^a-z]/g, '')
+
 function loadExisting() {
   const byTid = new Map()
   const labelToTid = new Map()
   if (!existsSync(OUT_DIR)) return { byTid, labelToTid }
   for (const f of readdirSync(OUT_DIR).filter((f) => f.endsWith('.json'))) {
     const j = JSON.parse(readFileSync(join(OUT_DIR, f), 'utf8'))
-    byTid.set(j.tid, new Map((j.players || []).map((p) => [p.name.toLowerCase(), p])))
+    byTid.set(j.tid, new Map((j.players || []).map((p) => [nameKey(p.name), p])))
     labelToTid.set(String(j.teamName).toLowerCase().trim(), j.tid)
   }
   return { byTid, labelToTid }
@@ -218,11 +223,32 @@ let wrote = 0
 const report = []
 for (const [tid, { teamName, players: list }] of [...grouped].sort((a, b) => a[0] - b[0])) {
   const prior = byTid.get(tid) || new Map()
-  const shaped = list
-    .map((p) => shape(p, prior.get(`${p.firstName || ''} ${p.lastName || ''}`.trim().toLowerCase())))
-    .sort((a, b) => b.overall - a.overall)
+  const shaped = list.map((p) => shape(p, prior.get(nameKey(`${p.firstName || ''} ${p.lastName || ''}`))))
 
-  report.push({ tid, teamName, before: prior.size, after: shaped.length })
+  // EA's site is itself short on some teams (Navy lists 29 players), and it
+  // omits ~74 players the launch workbook has. Take EA as the base but carry
+  // forward anyone it doesn't list, so a run only ever adds depth.
+  //
+  // The catch: EA prefers the name a player goes by, the workbook the name on
+  // the birth certificate ("Nate Tilmon" / "Nathan Tilmon", "Zeke" / "Ezekiel").
+  // Carried on name alone those land twice, so a prior player also counts as
+  // present when EA lists the same surname at the same position within a few
+  // points of overall. Every pair this caught was unambiguous - 21 of the 22
+  // matched on overall exactly.
+  const fromEa = new Set(shaped.map((p) => nameKey(p.name)))
+  const alsoInEa = (p) =>
+    shaped.some(
+      (e) =>
+        nameKey(e.lastName) === nameKey(p.lastName) &&
+        e.position === p.position &&
+        Math.abs(e.overall - p.overall) <= 3,
+    )
+  const carried = [...prior.entries()]
+    .filter(([k, p]) => !fromEa.has(k) && !alsoInEa(p))
+    .map(([, p]) => p)
+  const merged = [...shaped, ...carried].sort((a, b) => b.overall - a.overall)
+
+  report.push({ tid, teamName, before: prior.size, after: merged.length, carried: carried.length })
 
   if (!args.dryRun) {
     const doc = {
@@ -230,7 +256,7 @@ for (const [tid, { teamName, players: list }] of [...grouped].sort((a, b) => a[0
       teamName,
       source: `EA ratings API (${iterationLabel})`,
       sourceIteration: iterationId,
-      players: shaped,
+      players: merged,
     }
     writeFileSync(join(OUT_DIR, `${tid}.json`), JSON.stringify(doc))
     wrote++
@@ -240,7 +266,9 @@ for (const [tid, { teamName, players: list }] of [...grouped].sort((a, b) => a[0
 const before = report.reduce((s, r) => s + r.before, 0)
 const after = report.reduce((s, r) => s + r.after, 0)
 console.log(`iteration: ${iterationId} (${iterationLabel})`)
+const carried = report.reduce((s, r) => s + r.carried, 0)
 console.log(`teams: ${report.length}   players: ${before} -> ${after}  (${after - before >= 0 ? '+' : ''}${after - before})`)
+console.log(`carried forward (in our rosters, absent from EA): ${carried}`)
 const grew = report.filter((r) => r.after !== r.before).sort((a, b) => (b.after - b.before) - (a.after - a.before))
 if (grew.length) {
   console.log(`\nbiggest roster-size changes:`)
