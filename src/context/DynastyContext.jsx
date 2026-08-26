@@ -962,6 +962,81 @@ export function adoptCfpSlotIdentity(dynasty, game, updatedGames) {
 }
 
 /**
+ * Collapse duplicate CFP records that describe the SAME bracket slot.
+ *
+ * A CFP game entered outside the bracket page used to be stored under a
+ * freeform id with no cfpSlot (fixed going forward by adoptCfpSlotIdentity),
+ * which left two records for one game: the bracket's slot record and the
+ * user's actual result. The generic duplicate-shell migration can't clean
+ * this up — it groups by team pair and bails when either side is null, and
+ * an untouched bracket shell has exactly that (team1Tid/team2Tid null). So
+ * the bracket kept linking to the empty shell: clicking the game opened an
+ * editor with no teams in it, and the real result sat in a record nothing
+ * pointed at. Confirmed against a real exported dynasty carrying three of
+ * these at once.
+ *
+ * Grouped by the resolved SLOT rather than by teams, because the slot IS a
+ * CFP game's identity and is the one thing both copies agree on even when
+ * one has no teams at all.
+ *
+ * The richest record wins WHOLESALE (scores beat teams beat neither; ties
+ * go to whichever already sits on the slot id). Deliberately not a
+ * field-by-field merge: team order and score order are paired, and mixing
+ * `team1Tid` from one copy with `team1Score` from another — they're often
+ * stored in opposite order — would silently invert a result.
+ */
+export function healCfpSlotDuplicates(dynasty) {
+  const games = dynasty?.games
+  if (!Array.isArray(games) || games.length < 2) return dynasty
+
+  const bySlot = new Map()
+  games.forEach((g, idx) => {
+    if (!g || g.year == null) return
+    const slot = resolveCfpSlotForGame(dynasty, g)
+    if (!slot) return
+    const key = `${Number(g.year)}|${slot}`
+    if (!bySlot.has(key)) bySlot.set(key, [])
+    bySlot.get(key).push(idx)
+  })
+
+  const replacements = new Map() // idx -> merged game
+  const drop = new Set()
+  for (const [key, idxs] of bySlot) {
+    if (idxs.length < 2) continue
+    const [yearStr, slot] = key.split('|')
+    const slotId = getCFPGameId(slot, Number(yearStr))
+    const rank = (g) => {
+      const hasScores = g.team1Score != null && g.team2Score != null
+      const hasTeams = g.team1Tid != null && g.team2Tid != null
+      return (hasScores ? 4 : 0) + (hasTeams ? 2 : 0) + (g.id === slotId ? 1 : 0)
+    }
+    const sorted = [...idxs].sort((a, b) => rank(games[b]) - rank(games[a]))
+    const keepIdx = sorted[0]
+    const winner = games[keepIdx]
+    // Fill ONLY fields the winner genuinely lacks — never scores or tids,
+    // which must stay paired with each other (see header).
+    const carryOver = {}
+    for (const otherIdx of sorted.slice(1)) {
+      const o = games[otherIdx]
+      for (const field of ['bowlName', 'week', 'gameType']) {
+        if (winner[field] == null && o[field] != null && carryOver[field] == null) carryOver[field] = o[field]
+      }
+      drop.add(otherIdx)
+    }
+    replacements.set(keepIdx, { ...carryOver, ...winner, id: slotId, cfpSlot: slot })
+  }
+
+  if (drop.size === 0 && replacements.size === 0) return dynasty
+  const next = []
+  games.forEach((g, idx) => {
+    if (drop.has(idx)) return
+    next.push(replacements.get(idx) || g)
+  })
+  console.log(`[applyMigrations] Collapsed ${drop.size} duplicate CFP slot record(s)`)
+  return { ...dynasty, games: next }
+}
+
+/**
  * Check if a team lost a CFP game
  */
 export function isCFPGameLoser(game, tid) {
@@ -8159,6 +8234,13 @@ export function DynastyProvider({ children }) {
           }
         }
       }
+
+      // CFP duplicates the pass above structurally cannot catch: it groups by
+      // team pair and bails when either side is null, which is exactly what an
+      // untouched bracket shell looks like. healCfpSlotDuplicates groups by
+      // bracket SLOT instead, so an empty shell and the real result it should
+      // have been are recognized as the same game. See its header.
+      migrated = healCfpSlotDuplicates(migrated)
 
       // Reconstruct dynasty.teams[tid].byYear[year].{rankByWeek,division,
       // schoolGrades,recruitingClassConferenceRank,recruitingClassStats}

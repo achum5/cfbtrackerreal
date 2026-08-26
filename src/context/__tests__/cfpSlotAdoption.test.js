@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveCfpSlotForGame, adoptCfpSlotIdentity, propagateCFPWinner } from '../DynastyContext'
+import { resolveCfpSlotForGame, adoptCfpSlotIdentity, propagateCFPWinner, healCfpSlotDuplicates } from '../DynastyContext'
 
 // Regression tests for the "championship stuck on TBD" chain. The bracket
 // addresses every CFP game by SLOT id (cfpsf1-<year>) and propagates winners
@@ -102,5 +102,75 @@ describe('adoptCfpSlotIdentity', () => {
     // cfpsf1 feeds NC team1 — Rice (tid 10) won, so the TBD slot fills.
     expect(nc.team1Tid).toBe(10)
     expect(nc.team2Tid).toBe(55)
+  })
+})
+
+// Reproduces the exact shape of a real exported dynasty (Rice 2028, Bowl 3)
+// that carried three orphaned CFP records at once: a semifinal whose result
+// lived under a freeform id while the bracket linked to an empty shell, plus
+// two quarterfinals duplicated with their teams stored in the opposite order.
+describe('healCfpSlotDuplicates', () => {
+  const seeds2028 = [
+    { seed: 1, tid: 59 }, { seed: 2, tid: 23 }, { seed: 3, tid: 34 }, { seed: 4, tid: 84 },
+    { seed: 10, tid: 79 }, { seed: 6, tid: 122 },
+  ]
+  const build = () => ({
+    currentYear: 2028,
+    cfpSeedsByYear: { 2028: seeds2028 },
+    games: [
+      // Empty bracket shell — the record the bracket page links to.
+      { id: 'cfpsf1-2028', year: 2028, cfpSlot: 'cfpsf1', gameType: 'cfp_semifinal', bowlName: 'Peach Bowl', week: 'Bowl', team1Tid: null, team2Tid: null, team1Score: null, team2Score: null },
+      // The user's real Peach Bowl, saved under a freeform id.
+      { id: 'cfp-cfp_semifinal-2028-1787606924410', year: 2028, gameType: 'cfp_semifinal', bowlName: 'Peach Bowl', week: 'Bowl', team1Tid: 59, team2Tid: 84, team1Score: null, team2Score: null },
+      // Played QF on its slot record.
+      { id: 'cfpqf4-2028', year: 2028, cfpSlot: 'cfpqf4', gameType: 'cfp_quarterfinal', bowlName: 'Cotton Bowl', team1Tid: 23, team2Tid: 79, team1Score: 23, team2Score: 31 },
+      // Same QF again, freeform, teams+scores in the opposite order.
+      { id: 'cfp-cfp_quarterfinal-2028-1787534776331', year: 2028, gameType: 'cfp_quarterfinal', bowlName: 'Cotton Bowl (CFP QF)', team1Tid: 79, team2Tid: 23, team1Score: 31, team2Score: 23 },
+    ],
+  })
+
+  it('merges the real semifinal onto the bracket shell so the game has teams', () => {
+    const out = healCfpSlotDuplicates(build())
+    const sf = out.games.filter(g => g.gameType === 'cfp_semifinal')
+    expect(sf).toHaveLength(1)
+    expect(sf[0].id).toBe('cfpsf1-2028')
+    expect(sf[0].team1Tid).toBe(59)
+    expect(sf[0].team2Tid).toBe(84)
+    expect(sf[0].bowlName).toBe('Peach Bowl')
+  })
+
+  it('drops the duplicate quarterfinal without inverting the result', () => {
+    const out = healCfpSlotDuplicates(build())
+    const qf = out.games.filter(g => g.gameType === 'cfp_quarterfinal')
+    expect(qf).toHaveLength(1)
+    expect(qf[0].id).toBe('cfpqf4-2028')
+    // Ohio State (79) won 31-23 — whichever slot it occupies must carry 31.
+    const osu = Number(qf[0].team1Tid) === 79 ? qf[0].team1Score : qf[0].team2Score
+    const cu = Number(qf[0].team1Tid) === 79 ? qf[0].team2Score : qf[0].team1Score
+    expect(osu).toBe(31)
+    expect(cu).toBe(23)
+  })
+
+  it('leaves a clean bracket untouched', () => {
+    const clean = {
+      currentYear: 2028,
+      cfpSeedsByYear: { 2028: seeds2028 },
+      games: [
+        { id: 'cfpsf1-2028', year: 2028, cfpSlot: 'cfpsf1', gameType: 'cfp_semifinal', team1Tid: 59, team2Tid: 84, team1Score: 27, team2Score: 21 },
+        { id: 'cfpsf2-2028', year: 2028, cfpSlot: 'cfpsf2', gameType: 'cfp_semifinal', team1Tid: 34, team2Tid: 79, team1Score: 27, team2Score: 21 },
+      ],
+    }
+    expect(healCfpSlotDuplicates(clean)).toBe(clean)
+  })
+
+  it('ignores non-CFP games entirely', () => {
+    const d = {
+      currentYear: 2028,
+      games: [
+        { id: 'a', year: 2028, gameType: 'regular', team1Tid: 1, team2Tid: 2, team1Score: 7, team2Score: 3 },
+        { id: 'b', year: 2028, gameType: 'regular', team1Tid: 1, team2Tid: 2, team1Score: 7, team2Score: 3 },
+      ],
+    }
+    expect(healCfpSlotDuplicates(d)).toBe(d)
   })
 })
