@@ -5565,13 +5565,40 @@ export function getCustomConferencesForYear(dynasty, year) {
   // Build the alignment STRICTLY from each team's own per-tid conference for the
   // season, carrying BACK to the most recent prior season it was set (a conference
   // persists until the team is moved, so a 2036 realignment holds in 2037, 2038…).
-  // No real-world default map and no legacy bulk stores are consulted — those are
-  // folded into the per-tid field once, on load (backfillConferencesPerTeam), so
-  // this resolver never needs them. Only this dynasty's real, non-FCS teams appear;
+  // No real-world default map is consulted, and the per-tid field always wins.
+  // The one exception is a per-team fallback to the bulk customConferencesByYear
+  // snapshot, for a team backfillConferencesPerTeam never reached (see below) —
+  // it can only fill a gap, never override a per-tid answer. Nothing is invented:
+  // only this dynasty's real, non-FCS teams appear;
   // nothing is invented. A team with no conference in any season is simply absent
   // (unassigned) rather than guessed from a default.
   const startYear = Number(dynasty.startYear)
   const minYear = Number.isFinite(startYear) ? Math.min(startYear, yearNum) : (yearNum - 50)
+
+  // Bulk snapshot fallback, per team: backfillConferencesPerTeam is meant to
+  // guarantee every team ends up with a per-tid entry, but it only RUNS
+  // once per dynasty (gated on _conferencesBackfilledV2) and only covers
+  // whatever teams existed in the bulk store AT THAT TIME — a team added
+  // later (teambuilder import, FCS-filler promoted to real, etc.), or one
+  // the initial CFB27 conference-table parse simply missed, has no per-tid
+  // entry and no future write will ever backfill it retroactively. Without
+  // this, such a team is silently "unassigned" forever — invisible on
+  // Conf. Standings / CC History even though the bulk snapshot (captured
+  // once at dynasty creation from the save's real Conference table) may
+  // already have it. Checked per-team, same year + carry-back window as
+  // the per-tid loop above, so it never overrides a real per-tid answer —
+  // it only fills the gap for a team that has none.
+  const bulkByYear = dynasty.customConferencesByYear || {}
+  const findInBulk = (abbr) => {
+    for (let y = yearNum; y >= minYear; y--) {
+      const snapshot = bulkByYear[y] || bulkByYear[String(y)]
+      if (!snapshot) continue
+      for (const [conf, abbrs] of Object.entries(snapshot)) {
+        if (Array.isArray(abbrs) && abbrs.includes(abbr)) return conf
+      }
+    }
+    return null
+  }
 
   const result = {}
   for (const team of Object.values(teams)) {
@@ -5584,6 +5611,7 @@ export function getCustomConferencesForYear(dynasty, year) {
         if (c) { conf = c; break }
       }
     }
+    if (!conf) conf = findInBulk(team.abbr)
     if (!conf) continue
     if (!Array.isArray(result[conf])) result[conf] = []
     result[conf].push(team.abbr)
