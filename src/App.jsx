@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Analytics } from '@vercel/analytics/react'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import DebugLogPanel from './components/DebugLogPanel'
 import { DynastyProvider } from './context/DynastyContext'
 import FaviconManager from './components/FaviconManager'
 import Layout from './components/Layout'
@@ -279,6 +280,10 @@ function App() {
           <AppRoutes />
         </ConfirmProvider>
       </ToastProvider>
+      {/* On-device diagnostic log strip — renders nothing unless the
+          signed-in account is allowlisted AND its Account-page toggle is
+          on for this device. See utils/debugLog.js. */}
+      <DebugLogPanel />
       {/* Pass mode explicitly. @vercel/analytics' auto-detect reads
           process.env.NODE_ENV at bundle time; on Vercel's build that
           string gets substituted with "development" for reasons we

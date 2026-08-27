@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { canUseDebugLog } from '../components/DebugLogPanel'
+import { isDebugLogEnabled, setDebugLogEnabled } from '../utils/debugLog'
 import { useDynasty } from '../context/DynastyContext'
 import { storageService } from '../services/storage'
 import BouncingLogos from '../components/BouncingLogos'
@@ -31,6 +33,7 @@ const BETA_GRANT_EMAILS = new Set([
 
 export default function Account() {
   const { user, isPremium, upgradeToPremium, manageSubscription, subscription, signOut } = useAuth()
+  const [debugLogsOn, setDebugLogsOn] = useState(isDebugLogEnabled())
   const { dynasties } = useDynasty()
   const { toast } = useToast()
   const { confirm } = useConfirm()
@@ -594,6 +597,28 @@ export default function Account() {
                 </div>
               </div>
             )}
+          </Card>
+        )}
+
+        {/* On-device diagnostic logs — allowlisted debug accounts only (see
+            DebugLogPanel.jsx). Toggle is per-device (localStorage): captured
+            warnings/errors render in a strip at the bottom of every page
+            with one-tap copy, for reporting issues that only reproduce on a
+            phone with no devtools. */}
+        {canUseDebugLog(user) && (
+          <Card>
+            <h3 className="label-sm text-txt-primary mb-2">Diagnostic Logs</h3>
+            <p className="text-sm text-txt-secondary mb-3">
+              Show captured warnings and errors in a panel at the bottom of every
+              page on this device, with a copy button for bug reports.
+            </p>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => { setDebugLogEnabled(!debugLogsOn); setDebugLogsOn(!debugLogsOn) }}
+            >
+              {debugLogsOn ? 'Turn Off Logs' : 'Turn On Logs'}
+            </Button>
           </Card>
         )}
 

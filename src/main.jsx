@@ -7,6 +7,11 @@ import './index.css'
 // RouteErrorBoundary, which catches lazy-route failures React-side). The
 // probe-before-reload behavior is unchanged: 404/HTML → genuine stale,
 // reload; anything else → transient, log and continue.
+// Install BEFORE anything else can warn/error, so the buffer holds the
+// whole session when a debug-enabled account opens the log panel later.
+import { installDebugLogCapture } from './utils/debugLog'
+installDebugLogCapture()
+
 import { reloadIfStale, extractUrlFromError, isStaleChunkError } from './utils/chunkReload'
 
 window.addEventListener('vite:preloadError', (event) => {

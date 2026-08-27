@@ -7439,9 +7439,28 @@ export function DynastyProvider({ children }) {
       if (isPcDynastyDocConfirmed(dynastyId)) return // resolved on its own already
       try {
         const fresh = await getDynastyFromServer(dynastyId)
-        if (fresh) {
-          setDynasties(prev => prev.map(d => (String(d.id) === String(dynastyId) ? { ...d, ...fresh } : d)))
-          setCurrentDynasty(prev => (prev && String(prev.id) === String(dynastyId) ? { ...prev, ...fresh } : prev))
+        if (fresh && !phaseTransitionInProgressRef.current) {
+          // ONLY the week/phase scalars this watchdog exists to correct —
+          // NEVER a whole-doc spread. getDynastyFromServer returns the RAW
+          // main doc, and for a subcollection-migrated cloud dynasty that
+          // doc is a hollowed-out shell of the hydrated state: players/
+          // games are deleted (or a stale empty [] from creation), and
+          // `teams` has every seasonal subfield (schedule, teamRatings,
+          // rankByWeek, conference…) stripped into the seasons
+          // subcollection. Spreading it over hydrated state wiped the
+          // roster, every game ("Game not found"), and the schedule about
+          // six seconds after a perfectly good load — reported as
+          // "everything loads, then it just drops". A stale-cache week can
+          // only be BEHIND the server, so applying just these scalars still
+          // fully fixes the stuck-week bug this watchdog was built for.
+          const patch = {}
+          for (const k of ['currentYear', 'currentPhase', 'currentWeek']) {
+            if (fresh[k] !== undefined) patch[k] = fresh[k]
+          }
+          if (Object.keys(patch).length) {
+            setDynasties(prev => prev.map(d => (String(d.id) === String(dynastyId) ? { ...d, ...patch } : d)))
+            setCurrentDynasty(prev => (prev && String(prev.id) === String(dynastyId) ? { ...prev, ...patch } : prev))
+          }
         }
       } catch (err) {
         console.error('[dynastyDoc watchdog] forced server read failed:', err)
