@@ -1,41 +1,59 @@
-// Team to Conference mapping for FBS
-// Conference assignments as of 2024-2025 season
+// Team to Conference mapping for FBS.
+//
+// Aligned to CFB 27 (the 2026 season), matching the in-game conference
+// table — the Pac-12 rebuild (Boise State, Colorado State, Fresno State,
+// San Diego State, Utah State, Texas State), UMass to the MAC, Northern
+// Illinois and UTEP to the Mountain West, Louisiana Tech to the Sun Belt,
+// Jacksonville State to Conference USA. Was the 2024-2025 alignment, which
+// left eleven teams in the wrong conference.
+//
+// This is a FALLBACK, not the source of truth: getTeamConference checks a
+// dynasty's own customConferences first, and a PC dynasty's alignment is
+// rewritten from its save on every sync. It's what a console dynasty with
+// no per-team conference set resolves against — so a wrong entry here
+// silently misfiles that team's conference standings, CC history, and
+// every isConferenceGame check.
+//
+// cfb26 dynasties share this map and predate these moves. They're the
+// minority (cfb27 is DEFAULT_EDITION and, per src/editions/index.js,
+// "essentially every dynasty in the wild"), and only ones with no stored
+// alignment of their own read it at all.
 
 import { TEAMS } from './teamRegistry'
 
 export const conferenceTeams = {
   "ACC": [
-    "BC", "CAL", "CLEM", "DUKE", "FSU", "GT", "LOU", "MIA", "NCST", "UNC", "PITT", "SMU", "SYR", "STAN", "UVA", "VT", "WAKE"
+    "BC", "CAL", "CLEM", "DUKE", "FSU", "GT", "LOU", "MIA", "NCST", "PITT", "SMU", "STAN", "SYR", "UNC", "UVA", "VT", "WAKE"
   ],
   "Big Ten": [
-    "ILL", "IU", "IOWA", "UMD", "MICH", "MSU", "MINN", "NEB", "NU", "OSU", "ORE", "PSU", "PUR", "RUTG", "UCLA", "USC", "WASH", "WIS"
+    "ILL", "IOWA", "IU", "MICH", "MINN", "MSU", "NEB", "NU", "ORE", "OSU", "PSU", "PUR", "RUTG", "UCLA", "UMD", "USC", "WASH", "WIS"
   ],
   "Big 12": [
-    "ARIZ", "ASU", "BU", "BYU", "UC", "COLO", "UH", "ISU", "KU", "KSU", "OKST", "TCU", "TTU", "UCF", "UTAH", "WVU"
+    "ARIZ", "ASU", "BU", "BYU", "COLO", "ISU", "KSU", "KU", "OKST", "TCU", "TTU", "UC", "UCF", "UH", "UTAH", "WVU"
   ],
   "SEC": [
-    "BAMA", "ARK", "AUB", "FLA", "UGA", "UK", "LSU", "MISS", "MSST", "MIZ", "OU", "SCAR", "UT", "TEX", "TAMU", "VAN"
+    "ARK", "AUB", "BAMA", "FLA", "LSU", "MISS", "MIZ", "MSST", "OU", "SCAR", "TAMU", "TEX", "UGA", "UK", "UT", "VAN"
   ],
   "Pac-12": [
-    "ORST", "WSU"
+    "BOIS", "CSU", "FRES", "ORST", "SDSU", "TXST", "USU", "WSU"
   ],
   "American": [
-    "ARMY", "CHAR", "ECU", "FAU", "MEM", "NAVY", "UNT", "RICE", "TEM", "TULN", "TLSA", "UAB", "USF", "UTSA"
+    "ARMY", "CHAR", "ECU", "FAU", "MEM", "NAVY", "RICE", "TEM", "TLSA", "TULN", "UAB", "UNT", "USF", "UTSA"
   ],
   "Mountain West": [
-    "AFA", "BOIS", "CSU", "FRES", "HAW", "NEV", "SDSU", "SJSU", "UNM", "UNLV", "USU", "WYO", "NDSU"
+    "AFA", "HAW", "NDSU", "NEV", "NIU", "SJSU", "UNLV", "UNM", "UTEP", "WYO"
   ],
   "Sun Belt": [
-    "APP", "ARST", "CCU", "GASO", "GSU", "JMU", "JKST", "ULM", "UL", "MRSH", "ODU", "USA", "USM", "TXST", "TROY"
+    "APP", "ARST", "CCU", "GASO", "GSU", "JMU", "LT", "MRSH", "ODU", "TROY", "UL", "ULM", "USA", "USM"
   ],
   "MAC": [
-    "AKR", "BALL", "BGSU", "BUFF", "CMU", "EMU", "KENT", "M-OH", "NIU", "OHIO", "TOL", "WMU", "SAC"
+    "AKR", "BALL", "BGSU", "BUFF", "CMU", "EMU", "KENT", "M-OH", "MASS", "OHIO", "SAC", "TOL", "WMU"
   ],
   "Conference USA": [
-    "DEL", "FIU", "KENN", "LIB", "LT", "MTSU", "MZST", "NMSU", "SHSU", "UTEP", "WKU"
+    "DEL", "FIU", "JKST", "KENN", "LIB", "MTSU", "MZST", "NMSU", "SHSU", "WKU"
   ],
   "Independent": [
-    "ND", "CONN", "MASS"
+    "CONN", "ND"
   ]
 }
 
