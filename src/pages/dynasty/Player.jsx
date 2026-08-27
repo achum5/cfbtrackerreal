@@ -2037,12 +2037,17 @@ function PlayerInner() {
                   <img src={CAPTAIN_PATCH_URL} alt="Team Captain" title="Team Captain" className="w-7 h-7 sm:w-8 sm:h-8 object-contain flex-shrink-0 self-center" />
                 )}
                 {/* Edit — inline right after the name on tablet/desktop, and also
-                    on mobile when there's no photo (so it sits to the RIGHT of the
-                    name instead of pushing it over from the left). */}
+                    on mobile when there's no LEFT column at all (so it sits to the
+                    RIGHT of the name instead of pushing it over from the left).
+                    The condition has to match the left column's own
+                    `heroPictureUrl || heroLogo`, not just heroPictureUrl: a player
+                    with no photo still gets a team-logo column carrying its own
+                    mobile Edit button underneath, so keying this off the photo
+                    alone rendered BOTH buttons at once on mobile. */}
                 {!isViewOnly && !isCfb27Auto && (
                   <button
                     onClick={() => navigate(`${pathPrefix}/player/${pid}/edit`)}
-                    className={`${heroPictureUrl ? 'hidden sm:inline-flex' : 'inline-flex'} items-center justify-center p-1.5 rounded-lg hover:bg-black/20 transition-colors flex-shrink-0 self-center`}
+                    className={`${heroPictureUrl || heroLogo ? 'hidden sm:inline-flex' : 'inline-flex'} items-center justify-center p-1.5 rounded-lg hover:bg-black/20 transition-colors flex-shrink-0 self-center`}
                     style={{ color: teamBgText, border: `1px solid ${teamBgText}40` }}
                     title="Edit Player"
                     aria-label="Edit Player"
