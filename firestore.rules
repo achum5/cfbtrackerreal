@@ -328,6 +328,45 @@ service cloud.firestore {
         allow delete: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
                      && request.auth.uid in parentDynasty().get('editors', []);
+
+        // ─── Per-team shards of a season ──────────────────────────
+        // dynasties/{id}/seasons/{year}/teamShards/{0..7}
+        //
+        // A season doc holds every per-team-year field (schedule,
+        // coaching staff, recruiting commitments, rankByWeek...) for
+        // EVERY team at once, and for a deep dynasty with a full
+        // ~130-team league that one doc crossed the same 1 MiB cap the
+        // per-year split was meant to solve — measured at 1,049,245
+        // bytes on a real dynasty, at which point every write to it was
+        // rejected. The per-team-year data now shards across eight
+        // sibling docs here, ~1/8th each.
+        //
+        // This block is REQUIRED, not decorative: rule matches do not
+        // cascade into subcollections, so without it these paths fall
+        // through to the default deny at the bottom of this file. Every
+        // seasonal save batches its season-doc write together with its
+        // shard writes, and a batch is atomic — one denied shard fails
+        // the whole save, for console and PC dynasties alike. Access is
+        // deliberately identical to the parent season doc: anything a
+        // user may do to a season they may do to that season's shards.
+        match /teamShards/{shardId} {
+          allow read: if isSignedIn()
+                      && parentDynasty().userId == request.auth.uid;
+          allow read: if isSignedIn()
+                      && request.auth.uid in parentDynasty().get('editors', []);
+          allow read: if parentDynasty().isPublic == true;
+
+          allow write: if isPremium()
+                       && parentDynasty().userId == request.auth.uid;
+          allow delete: if isSignedIn()
+                        && parentDynasty().userId == request.auth.uid;
+          allow create, update: if isSignedIn()
+                       && parentDynasty().userId != request.auth.uid
+                       && request.auth.uid in parentDynasty().get('editors', []);
+          allow delete: if isSignedIn()
+                       && parentDynasty().userId != request.auth.uid
+                       && request.auth.uid in parentDynasty().get('editors', []);
+        }
       }
 
       // ─── Week recaps (subcollection) ────────────────────────────
