@@ -72,6 +72,13 @@ export const PER_YEAR_FIELDS = [
   'customConferencesByYear',
   'detailedStatsByYear',
   'draftResultsByYear',
+  // Every drafted player in the LEAGUE, one full class per season, forever
+  // — the same unbounded per-year shape as the fields above, and a much
+  // larger one than its own per-team sibling on the line before. Routed
+  // from its first write so it never accumulates on the main doc; that
+  // exact shape is what pushed a real dynasty's season doc past the 1 MiB
+  // cap, and what retired allCoachesByYear.
+  'leagueDraftResultsByYear',
   'finalPollsByYear',
   'fringeCaseClassByYear',
   'lockedCoachingStaffByYear',

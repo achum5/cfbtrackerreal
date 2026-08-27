@@ -165,3 +165,37 @@ describe('recruiting data round-trip through seasons/teamShards', () => {
     expect(dynasty.teams[54].byYear[2026].recruitingCommitments.signing_1).toEqual(WEEK1)
   })
 })
+
+// leagueDraftResultsByYear holds every drafted player in the LEAGUE, one
+// full class per season, forever — the same unbounded shape that pushed a
+// real dynasty's season doc past 1 MiB and that retired allCoachesByYear.
+// It has to route to the seasons subcollection like its per-team sibling
+// draftResultsByYear, not sit on the main doc.
+describe('leagueDraftResultsByYear routing', () => {
+  it('is season-scoped, like draftResultsByYear', async () => {
+    const { isSeasonalField } = await import('../seasonSubcollection')
+    expect(isSeasonalField('draftResultsByYear')).toBe(true)
+    expect(isSeasonalField('leagueDraftResultsByYear')).toBe(true)
+  })
+
+  it('round-trips a league draft class through a season doc', () => {
+    const store = makeStore()
+    const picks = [
+      { pid: 1, name: 'First Rounder', teamTid: 72, round: 1, position: 'QB' },
+      { pid: 2, name: 'Late Flier', teamTid: 54, round: 7, position: 'CB' },
+    ]
+    store.write(splitSeasonalUpdateByYear({ leagueDraftResultsByYear: { 2026: picks } }))
+    expect(store.read().leagueDraftResultsByYear[2026]).toEqual(picks)
+  })
+
+  it('a later season adds rather than replacing an earlier class', () => {
+    const store = makeStore()
+    const y26 = [{ pid: 1, name: 'Class of 26', round: 1 }]
+    const y27 = [{ pid: 2, name: 'Class of 27', round: 2 }]
+    store.write(splitSeasonalUpdateByYear({ leagueDraftResultsByYear: { 2026: y26 } }))
+    store.write(splitSeasonalUpdateByYear({ leagueDraftResultsByYear: { 2027: y27 } }))
+    const back = store.read()
+    expect(back.leagueDraftResultsByYear[2026]).toEqual(y26)
+    expect(back.leagueDraftResultsByYear[2027]).toEqual(y27)
+  })
+})
