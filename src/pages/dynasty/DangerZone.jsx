@@ -16,7 +16,7 @@ import { SEED_TO_SLOT, getCFPGameId, DEFAULT_BOWL_CONFIG, getBowlForSlot } from 
 import { findMatchingPlayer, normalizePlayerName } from '../../utils/playerMatching'
 import { migrateDynastyToV2 } from '../../data/migrateDynastyV2'
 import { syncDerivedFieldsFromV2 } from '../../data/rosterModel'
-import { EDITIONS, getEditionKey, getEditionConfig } from '../../editions'
+import { EDITIONS, getEditionKey, getEditionConfig, isPcAutoDynasty } from '../../editions'
 import { migrateLegacyCoachesToCids } from '../../data/coachModel'
 import CalendarJumper from '../../components/CalendarJumper'
 import {
@@ -79,6 +79,18 @@ export default function DangerZone() {
   const { id: dynastyId } = useParams()
   const pathPrefix = usePathPrefix()
   useTeamColors(currentDynasty?.teamName, currentDynasty?.teams || currentDynasty?.customTeams)
+  // Gates the "Use With Caution" repair tools below — every one of them was
+  // written for console (manual-entry) failure modes: roster carryover gaps
+  // from advanceWeek's local logic, blank transfer years from Sheet import,
+  // manual redshirt confirmation, CFP brackets from hand-entered results,
+  // etc. None of those failure modes can occur on a PC dynasty (its roster/
+  // transfers/classes/CFP data all come straight from the save every sync,
+  // "save always wins"), so running one would do nothing useful at best —
+  // or actively corrupt data the next sync would otherwise have kept
+  // correct — at worst. isPcAutoDynasty, not isViewOnly: this is about
+  // which tools are ever meaningful for this dynasty's data model, not
+  // about edit permission.
+  const isPc = isPcAutoDynasty(currentDynasty)
 
   // Status states
   const [clearCacheStatus, setClearCacheStatus] = useState(null)
@@ -1021,7 +1033,7 @@ export default function DangerZone() {
   const handleResetCfb27SyncData = async () => {
     const ok = await confirm({
       title: 'Reset all CFB27 sync data?',
-      message: `This wipes EVERYTHING the CFB27 save sync has ever written to this dynasty, for every year: every player, every game, team ratings/rankings/coaching staff/school grades/recruiting classes, Players of the Week, Heisman Watch, All-Americans/All-Conference, named awards, CFP seeds, NFL draft results, the Coach Carousel job-offer list, and the current week/phase (reset to Preseason Wk 0). Your next "Sync from Save" rebuilds everything fresh from whatever save you upload. Use this to recover from accidentally syncing the wrong dynasty's save file. This cannot be undone.`,
+      message: `This wipes EVERYTHING the CFB27 save sync has ever written to this dynasty, for every year: every player, every game, team ratings/rankings/coaching staff/school grades/recruiting classes, Players of the Week, Heisman Watch, All-Americans/All-Conference, named awards, CFP seeds, NFL draft results, the Coach Carousel job-offer list, and the current week/phase (reset to Preseason Wk 0). Your next "Advance Week" rebuilds everything fresh from whatever save you upload. Use this to recover from accidentally syncing the wrong dynasty's save file. This cannot be undone.`,
       confirmLabel: 'Reset Sync Data',
       variant: 'danger',
     })
@@ -1057,7 +1069,7 @@ export default function DangerZone() {
         coachOffers: [],
         newJobData: null,
       })
-      setResetCfb27Status({ success: true, message: 'All CFB27 sync data cleared. Use "Sync from Save" with the correct save file to rebuild.' })
+      setResetCfb27Status({ success: true, message: 'All CFB27 sync data cleared. Use "Advance Week" with the correct save file to rebuild.' })
     } catch (error) {
       setResetCfb27Status({ success: false, message: 'Reset failed: ' + error.message })
     }
@@ -3346,6 +3358,15 @@ export default function DangerZone() {
           subtitle="Known to corrupt records on dynasties started on older builds. Back up first."
         />
         <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
+          {/* Console-only repair tools — every one below fixes a failure mode
+              specific to manual data entry or the local advanceWeek/import
+              logic. None of that applies to a PC dynasty, whose roster,
+              transfers, classes, and CFP data all come straight from the
+              save every sync — running one of these would either do nothing
+              (get overwritten by the next sync) or actively corrupt data the
+              next sync would otherwise have kept correct. See isPc's own
+              comment above. */}
+          {!isPc && (<>
           <ActionCard
             danger
             title="Repair CFP Games"
@@ -3386,6 +3407,10 @@ export default function DangerZone() {
             onClick={handleClearRoster}
             status={clearRosterStatus}
           />
+          </>)}
+          {/* PC-only — hidden for console the same way the tools above are
+              hidden for PC: neither is meaningful on the other platform. */}
+          {isPc && (<>
           <ActionCard
             danger
             pcOnly
@@ -3404,6 +3429,8 @@ export default function DangerZone() {
             onClick={handleRebuildGamesFromSchedule}
             status={rebuildGamesStatus}
           />
+          </>)}
+          {!isPc && (<>
           <Card className="flex flex-col h-full">
             <div className="mb-3">
               <h3 className="label-sm text-txt-primary m-0">Migrate to NCAA 11</h3>
@@ -3442,6 +3469,7 @@ export default function DangerZone() {
             onClick={handleOpenAdvanceModal}
             status={advanceClassesStatus}
           />
+          </>)}
         </div>
       </div>
 

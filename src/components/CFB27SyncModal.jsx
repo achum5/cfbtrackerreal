@@ -1,18 +1,23 @@
 import { useRef, useState } from 'react'
 import { useDynasty } from '../context/DynastyContext'
+import { useConfirm } from './ui/ConfirmDialog'
 import { uploadAndParseCfb27Save } from '../utils/cfb27SaveUpload'
 import Modal from './ui/Modal'
 import Button from './ui/Button'
 
 /**
- * "Sync from Save" — re-uploads a newer CFB27 save against the CURRENT
- * (already-tracked) dynasty and reconciles it: new arrivals, departures,
- * transfers, rating/ranking/coaching-staff updates, schedule scores, and
- * recruiting board changes. Counterpart to the CFB27 import flow in
+ * "Advance Week" for a PC (CFB27) dynasty — re-uploads a newer save against
+ * the CURRENT (already-tracked) dynasty and reconciles it: new arrivals,
+ * departures, transfers, rating/ranking/coaching-staff updates, schedule
+ * scores, and recruiting board changes, then moves the tracker's week/phase
+ * to match. Labeled the same as the manual Advance Week button (console
+ * dynasties) since this is the PC equivalent, even though the mechanism is
+ * an upload rather than a click. Counterpart to the CFB27 import flow in
  * CreateDynasty.jsx, which only ever creates a brand-new dynasty.
  */
 export default function CFB27SyncModal({ isOpen, onClose }) {
-  const { currentDynasty, syncDynastyFromCFB27Save } = useDynasty()
+  const { currentDynasty, syncDynastyFromCFB27Save, updateDynasty } = useDynasty()
+  const { confirm } = useConfirm()
   const fileInputRef = useRef(null)
 
   const [status, setStatus] = useState(null) // null | 'uploading' | 'parsing' | 'syncing' | 'done' | 'error'
@@ -26,6 +31,31 @@ export default function CFB27SyncModal({ isOpen, onClose }) {
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
+
+    // Catches the most common real accident: uploading a DIFFERENT
+    // dynasty's save file into this one (e.g. two saves being played in
+    // parallel). CFB27 autosaves keep the same file name every week for a
+    // given save slot, so once we've recorded one successful sync's file
+    // name, a differently-named file is a strong signal something's wrong.
+    // Soft check only — legitimately renaming/re-exporting the same save is
+    // normal, so this warns instead of blocking, and a confirmed new name
+    // just becomes the new expected one going forward. Checked BEFORE
+    // upload so a "wrong file" mistake doesn't even cost the time to
+    // upload+parse it.
+    const expectedName = currentDynasty?.cfb27SaveFileName
+    if (expectedName && file.name !== expectedName) {
+      const ok = await confirm({
+        title: 'Different save file?',
+        message: `This file ("${file.name}") doesn't match the save you've been using for this dynasty ("${expectedName}"). If this is actually a different dynasty's save, syncing it will overwrite this dynasty's real data. Continue anyway?`,
+        confirmLabel: 'Continue',
+        variant: 'danger',
+      })
+      if (!ok) {
+        e.target.value = ''
+        return
+      }
+    }
+
     setError('')
     setErrorParts(null)
     setResult(null)
@@ -42,6 +72,12 @@ export default function CFB27SyncModal({ isOpen, onClose }) {
         // reads as one continuous bar instead of resetting partway through.
         onProgress: (p) => setProgress({ ...p, pct: 10 + Math.round((p.pct / 100) * 90) }),
       })
+      // Record this sync's file name as the new expected baseline — a
+      // dynasty synced before this feature existed has none yet, and a
+      // just-confirmed rename/re-export shouldn't keep getting flagged.
+      if (file.name !== expectedName) {
+        try { await updateDynasty(currentDynasty.id, { cfb27SaveFileName: file.name }) } catch (_) {}
+      }
       setResult(syncResult)
       setStatus('done')
     } catch (err) {
@@ -76,7 +112,7 @@ export default function CFB27SyncModal({ isOpen, onClose }) {
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="Sync from Save"
+      title="Advance Week"
       size="sm"
       closeOnBackdrop={!busy}
       closeOnEscape={!busy}
@@ -91,8 +127,7 @@ export default function CFB27SyncModal({ isOpen, onClose }) {
       {isCfb27Dynasty && status === null && (
         <>
           <p className="text-sm text-txt-secondary mb-4">
-            Upload a newer save from this same dynasty. The save always wins — anything it tracks (roster, ratings,
-            rankings, coaching staff, schedule scores, recruiting board) overwrites what's here now.
+            Upload an updated save file for this same dynasty. The week will advance and imports all of your new data automatically.
           </p>
           <input
             ref={fileInputRef}
@@ -163,12 +198,6 @@ export default function CFB27SyncModal({ isOpen, onClose }) {
           {result.reachedTargetSeason && (
             <p className="text-xs text-txt-secondary mb-4">
               Week and phase advanced to match your save.
-            </p>
-          )}
-          {result.stoppedAtOffseason && (
-            <p className="text-xs text-txt-secondary mb-4">
-              Advanced through the end of the season — offseason needs your input (player class decisions), so
-              advance the rest manually from here.
             </p>
           )}
           {result.unresolvedTeamNames?.length > 0 && (

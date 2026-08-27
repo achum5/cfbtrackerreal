@@ -6413,7 +6413,18 @@ export default function Dashboard() {
               const hasStandingsData = !!standingsForYear && Object.keys(standingsForYear).length > 0
               const standingsCount = hasStandingsData ? Object.keys(standingsForYear).length : 0
 
-              const hasPollsData = (currentDynasty?.finalPollsByYear?.[yearForW5]?.media?.length > 0) || (currentDynasty?.finalPollsByYear?.[String(yearForW5)]?.media?.length > 0)
+              // PC sync writes the season's real Final Top 25 into
+              // teams[tid].byYear[year].rankByWeek[105] (the same "Final
+              // Poll" slot Rankings.jsx's own week selector already
+              // recognizes — see cfb27SaveSync.js's isFinalPollSync) once
+              // the save itself reports the season is over. Manual/console
+              // entry still goes through finalPollsByYear via the modal
+              // below, so both are checked here.
+              const hasFinalRankByWeek = Object.values(currentDynasty?.teams || {}).some(t =>
+                (t?.byYear?.[yearForW5]?.rankByWeek?.[105] ?? t?.byYear?.[String(yearForW5)]?.rankByWeek?.[105]) != null
+              )
+              const hasPollsData = hasFinalRankByWeek
+                || (currentDynasty?.finalPollsByYear?.[yearForW5]?.media?.length > 0) || (currentDynasty?.finalPollsByYear?.[String(yearForW5)]?.media?.length > 0)
 
               const teamStatsForYear = currentDynasty?.teamStatsByYear?.[yearForW5] || currentDynasty?.teamStatsByYear?.[String(yearForW5)]
               const hasTeamStats = !!teamStatsForYear && Object.keys(teamStatsForYear).length > 0
@@ -6869,8 +6880,20 @@ export default function Dashboard() {
               }
 
               // Staff Moves (coaching carousel) — belongs to the National
-              // Championship phase, not the End of Season Recap.
-              {
+              // Championship phase, not the End of Season Recap. PC-only
+              // exclusion: this is a manual screenshot-and-paste-to-AI
+              // entry (StaffMovesModal), same shape as the AI recap tools,
+              // because the save's Coach table has no history of past
+              // moves at all — each row is a snapshot of who's CURRENTLY
+              // coaching where (FirstName/LastName/Position/TeamIndex),
+              // with no PreviousSchool/PreviousPosition/reason fields to
+              // read a "hired away / fired / went to the NFL" narrative
+              // from. A PC auto-sync dynasty has no save data this task
+              // could ever be filled in from automatically, so showing it
+              // as an actionable to-do is pure busywork for that edition —
+              // console dynasties (already curating everything by hand)
+              // keep it.
+              if (!isCfb27Auto) {
                 const scYear = Number(currentDynasty.currentYear)
                 const staffMoves = currentDynasty?.staffMovesByYear?.[scYear] || currentDynasty?.staffMovesByYear?.[String(scYear)]
                 const staffMovesDone = !!staffMoves?.completed
