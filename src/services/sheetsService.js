@@ -3,6 +3,7 @@
 import { teamAbbreviations, getTeamAbbreviationsList, getSelectableTeamsList, getSchedulableTeamsList } from '../data/teamAbbreviations'
 import { getAbbrFromTeamName, getTidFromAbbr, getAbbrFromTid, TEAMS as DEFAULT_TEAMS, getTeamNameOptions } from '../data/teamRegistry'
 import { getTidFromTeamText } from '../data/teams'
+import { getSortableLastName } from '../utils/playerNames'
 import { conferenceTeams as CANONICAL_CONFERENCES } from '../data/conferenceTeams'
 import { STAT_TABS, STAT_TAB_ORDER, SCORING_SUMMARY, SCORE_TYPES, PAT_RESULTS, QUARTERS, DOWNS, PLAY_TYPES, AI_UNIFIED_TAB, computeUnifiedTabLayout } from '../data/boxScoreConstants'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../context/DynastyContext'
@@ -12519,12 +12520,7 @@ export async function createTrainingResultsSheet(dynastyName, year, players) {
 
     // Sort players by last name
     const sortedPlayers = [...players].sort((a, b) => {
-      const getLastName = (name) => {
-        if (!name) return ''
-        const parts = name.trim().split(' ')
-        return parts[parts.length - 1].toLowerCase()
-      }
-      return getLastName(a.name).localeCompare(getLastName(b.name))
+      return getSortableLastName(a.name).localeCompare(getSortableLastName(b.name))
     })
 
     const totalRows = Math.max(sortedPlayers.length, 20)
@@ -13165,12 +13161,7 @@ export async function createRecruitOverallsSheet(dynastyName, year, recruits) {
 async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetId, recruits) {
   // Sort recruits by last name
   const sortedRecruits = [...recruits].sort((a, b) => {
-    const getLastName = (name) => {
-      if (!name) return ''
-      const parts = name.trim().split(' ')
-      return parts[parts.length - 1].toLowerCase()
-    }
-    return getLastName(a.name).localeCompare(getLastName(b.name))
+    return getSortableLastName(a.name).localeCompare(getSortableLastName(b.name))
   })
 
   const rowCount = Math.max(sortedRecruits.length + 1, 30)
@@ -15171,12 +15162,7 @@ export async function createTransferDestinationsSheet(dynastyName, year, transfe
 
     // Sort players by last name
     const sortedPlayers = [...transferringPlayers].sort((a, b) => {
-      const getLastName = (name) => {
-        if (!name) return ''
-        const parts = name.trim().split(' ')
-        return parts[parts.length - 1].toLowerCase()
-      }
-      return getLastName(a.name).localeCompare(getLastName(b.name))
+      return getSortableLastName(a.name).localeCompare(getSortableLastName(b.name))
     })
 
     const totalRows = Math.max(sortedPlayers.length + 5, 20)
@@ -16128,12 +16114,7 @@ export async function createFringeCaseClassSheet(dynastyName, year, fringeCasePl
 
     // Sort players by last name
     const sortedPlayers = [...fringeCasePlayers].sort((a, b) => {
-      const getLastName = (name) => {
-        if (!name) return ''
-        const parts = name.trim().split(' ')
-        return parts[parts.length - 1].toLowerCase()
-      }
-      return getLastName(a.name).localeCompare(getLastName(b.name))
+      return getSortableLastName(a.name).localeCompare(getSortableLastName(b.name))
     })
 
     const totalRows = Math.max(sortedPlayers.length, 10)

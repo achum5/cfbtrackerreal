@@ -12,6 +12,7 @@ import { useCompareSelection, buildCompareUrl, COMPARE_ICON_PATH } from '../../h
 import { StatRings } from '../../components/CfbUI'
 // Team colors are derived from the viewed team, not the user's team
 import { getContrastTextColor } from '../../utils/colorUtils'
+import { splitLastFirst, getDisplayLastName } from '../../utils/playerNames'
 import { canonicalBoxScore, getPlayerStatsForTid, getTeamStatsForTid, hasAnyTeamStats } from '../../utils/boxScoreHelpers'
 import { computeSeasonAV } from '../../utils/approximateValue'
 import { getConferenceLogo } from '../../data/conferenceLogos'
@@ -339,18 +340,6 @@ const AWARD_ORDER = [
   'shaunAlexander', 'paulHornungAward', 'williamVCampbell'
 ]
 
-// Compact "last name only" for the Stat Leaders widget — a plain
-// `.split(' ').pop()` truncated a suffix'd name (e.g. "Chris Henry Jr.") down
-// to just "Jr.", since the suffix itself is the last whitespace-separated
-// token. Keeps a trailing Jr./Sr./II/III/IV/V attached to the real surname.
-const NAME_SUFFIXES = new Set(['jr.', 'jr', 'sr.', 'sr', 'ii', 'iii', 'iv', 'v'])
-function getDisplayLastName(fullName) {
-  const parts = (fullName || '').trim().split(/\s+/).filter(Boolean)
-  if (parts.length <= 1) return parts[0] || ''
-  const last = parts[parts.length - 1]
-  if (NAME_SUFFIXES.has(last.toLowerCase())) return parts.slice(-2).join(' ')
-  return last
-}
 
 // Team-colored-panel avatar for the Home tab's Stat Leaders / Top Rated
 // hero cards — same photo → team logo → initial fallback chain as the
@@ -2662,15 +2651,12 @@ export default function TeamYear() {
         // Sort by LAST name, then first name. Splitting on the final
         // whitespace handles multi-word first names ("Mary Ann Smith")
         // and "Last, First" style inputs fall back to plain compare.
-        const lastFirst = (full) => {
-          const s = String(full || '').trim()
-          if (!s) return ['', '']
-          const idx = s.lastIndexOf(' ')
-          if (idx < 0) return [s, '']
-          return [s.slice(idx + 1), s.slice(0, idx)]
-        }
-        const [aLast, aFirst] = lastFirst(a.name)
-        const [bLast, bFirst] = lastFirst(b.name)
+        // splitLastFirst, not lastIndexOf(' '): the latter treats a
+        // generational suffix as the surname, so "AJ Azuakolam Jr." sorted
+        // under J instead of A and suffixed players scattered into the wrong
+        // letter of the roster.
+        const [aLast, aFirst] = splitLastFirst(a.name)
+        const [bLast, bFirst] = splitLastFirst(b.name)
         result = aLast.localeCompare(bLast) || aFirst.localeCompare(bFirst)
         break
       }

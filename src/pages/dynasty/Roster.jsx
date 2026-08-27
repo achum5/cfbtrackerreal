@@ -5,15 +5,13 @@ import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import RosterEditModal from '../../components/RosterEditModal'
 import { Button, Card, EmptyState, PageHero } from '../../components/ui'
+import { getSortableLastName } from '../../utils/playerNames'
 
 function getLastName(player) {
   if (player.lastName) return player.lastName.toLowerCase()
-  const name = player.name || ''
-  const parts = name.trim().split(/\s+/)
-  if (parts.length > 1) {
-    return parts[parts.length - 1].toLowerCase()
-  }
-  return (parts[0] || '').toLowerCase()
+  // Fallback for records with no lastName (sheet imports): derive it
+  // suffix-aware, or "AJ Azuakolam Jr." sorts under J instead of A.
+  return getSortableLastName(player.name)
 }
 
 const positionTabs = [
