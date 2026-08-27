@@ -1279,7 +1279,26 @@ export async function saveRecruitingDatabaseSubcollection(dynastyId, players) {
     const existingSnapshot = await getDocs(ref)
     const existingById = new Map(existingSnapshot.docs.map(d => [d.id, d.data()]))
     const nextIds = new Set(toSave.map(p => String(p.pid)))
-    const orphanedIds = [...existingById.keys()].filter(id => !nextIds.has(id))
+    let orphanedIds = [...existingById.keys()].filter(id => !nextIds.has(id))
+
+    // Mass-deletion guard — same rule savePlayersToSubcollection has had all
+    // along, which this save was missing. Every caller sends "the complete
+    // current list" from React state, and a FAILED board load is caught
+    // upstream and treated as an empty board. So one bad load (the recurring
+    // 15s fetch timeout, a rules hiccup, flaky mobile network) followed by
+    // ANY board edit made this orphan pass delete the entire national board
+    // except the handful of rows in memory — silently, and the deletion then
+    // looked like "recruits randomly disappearing" long after the actual
+    // failure. Skipping cleanup keeps stale rows around (harmless, cleaned
+    // next healthy save); deleting real rows is unrecoverable.
+    const existingCount = existingById.size
+    if (orphanedIds.length > 0 && existingCount > 50) {
+      const pct = (orphanedIds.length / existingCount) * 100
+      if (pct > 50) {
+        console.error(`[saveRecruitingDatabaseSubcollection] SAFETY CHECK BLOCKED: would delete ${orphanedIds.length} of ${existingCount} recruits (${pct.toFixed(1)}%) — the in-memory board is likely a failed/partial load, not a real mass removal. Saving ${toSave.length} recruits WITHOUT orphan cleanup.`)
+        orphanedIds = []
+      }
+    }
 
     // Only new or content-changed recruits. _firestoreId is a client-only field
     // that never lands in Firestore, so strip it before both comparing and
