@@ -10534,6 +10534,62 @@ export function DynastyProvider({ children }) {
       plan.mergedTeams = teamsWithDraftResults
     }
 
+    // "Players Leaving" — mirrors handlePlayersLeavingSave's (Dashboard.jsx)
+    // exact write targets (playersLeavingByYear + playersLeavingByTeamYear,
+    // both keyed to the CURRENT year) so a PC-synced entry lands in the SAME
+    // store the console-entry flow uses, and is indistinguishable to every
+    // downstream reader (Draft Results, Transfer Destinations, etc.). A full
+    // replace for THIS year only — plan.playersLeavingUpdate already reflects
+    // every currently-leaving player on the roster this sync, so a player who
+    // was projected to leave in an earlier sync but is no longer in the
+    // save's LeavingPlayer table (persuaded to stay, or the projection
+    // simply changed) correctly drops out here too, same as the console
+    // flow re-saving with someone unchecked.
+    let playersLeavingUpdate = {}
+    if (plan.playersLeavingUpdate) {
+      const teamAbbr = getAbbrFromTid(plan.mergedTeams || dynasty.teams, dynasty.currentTid) || dynasty.teamName
+      const tid = dynasty.currentTid
+      const existingByYear = dynasty.playersLeavingByYear || {}
+      const existingByTeamYear = dynasty.playersLeavingByTeamYear || {}
+      playersLeavingUpdate = {
+        playersLeavingByYear: { ...existingByYear, [dynasty.currentYear]: plan.playersLeavingUpdate },
+        // Dual-keyed (abbr AND tid), exactly like handlePlayersLeavingSave.
+        // getPlayersLeaving reads through lookupByTeamYear, which checks the
+        // TID key BEFORE the abbr key — so writing abbr alone would leave a
+        // stale tid entry from an earlier manual save shadowing everything
+        // this sync just wrote.
+        playersLeavingByTeamYear: {
+          ...existingByTeamYear,
+          [teamAbbr]: { ...(existingByTeamYear[teamAbbr] || {}), [dynasty.currentYear]: plan.playersLeavingUpdate },
+          ...(tid != null ? { [tid]: { ...(existingByTeamYear[tid] || {}), [dynasty.currentYear]: plan.playersLeavingUpdate } } : {}),
+        },
+      }
+      // …and the per-tid teams store, which getPlayersLeaving checks FIRST of
+      // all — ahead of both flat stores. handlePlayersLeavingSave writes it,
+      // so on a dynasty where Players Leaving was ever entered by hand this
+      // is the value that wins; without it the sync's projection is written
+      // correctly and then never read. Folded into plan.mergedTeams because
+      // that is what gets persisted as `teams` below.
+      if (tid != null) {
+        const baseTeams = plan.mergedTeams || dynasty.teams || {}
+        const teamData = baseTeams[tid] || {}
+        const teamByYear = teamData.byYear || {}
+        plan.mergedTeams = {
+          ...baseTeams,
+          [tid]: {
+            ...teamData,
+            byYear: {
+              ...teamByYear,
+              [dynasty.currentYear]: {
+                ...(teamByYear[dynasty.currentYear] || {}),
+                playersLeaving: plan.playersLeavingUpdate,
+              },
+            },
+          },
+        }
+      }
+    }
+
     // Real CFP seed list + bowl-host config — mirrors CFPSeedsModal's exact
     // save shape (cfpSeedsByYear/cfpSeedsByYearTid/cfpBowlConfigByYear) so
     // this sync and manual entry stay fully interchangeable. plan.cfpSeeds
@@ -10668,6 +10724,8 @@ export function DynastyProvider({ children }) {
       userCoachPortrait: 'coach profile',
       userCoachCareerStats: 'coach profile',
       coachOffers: 'coaching carousel',
+      playersLeavingByYear: 'players leaving',
+      playersLeavingByTeamYear: 'players leaving',
     }
     const chunkLabel = (chunk) => {
       const labels = [...new Set(
@@ -10687,7 +10745,7 @@ export function DynastyProvider({ children }) {
       // this stays a single write — only cloud dynasties need the chunked
       // sequence below.
       await enterPhase('saveFinal', 'Saving…')
-      await updateDynasty(dynastyId, { players: mergedPlayers, teams: plan.mergedTeams, games: mergedGames, ...seasonFieldUpdates, ...teamFutureUpdate, ...playersOfWeekUpdate, ...heismanWatchUpdate, ...rivalriesUpdate, ...draftResultsUpdate, ...cfpSeedsUpdate, ...honorsUpdate, ...userJobChangeUpdate, ...userCoachPortraitUpdate, ...userCoachCareerStatsUpdate, ...coachOffersUpdate, platform: 'pc' })
+      await updateDynasty(dynastyId, { players: mergedPlayers, teams: plan.mergedTeams, games: mergedGames, ...seasonFieldUpdates, ...teamFutureUpdate, ...playersOfWeekUpdate, ...heismanWatchUpdate, ...rivalriesUpdate, ...draftResultsUpdate, ...cfpSeedsUpdate, ...honorsUpdate, ...userJobChangeUpdate, ...userCoachPortraitUpdate, ...userCoachCareerStatsUpdate, ...coachOffersUpdate, ...playersLeavingUpdate, platform: 'pc' })
       finishSyncTiming()
       if (onProgress) { try { onProgress({ message: 'Done', pct: 100, etaSeconds: 0 }) } catch (_) {} }
     } else {
@@ -10748,7 +10806,7 @@ export function DynastyProvider({ children }) {
         teams: plan.mergedTeams, games: mergedGames, ...seasonFieldUpdates, ...teamFutureUpdate,
         ...playersOfWeekUpdate, ...heismanWatchUpdate, ...rivalriesUpdate, ...draftResultsUpdate, ...cfpSeedsUpdate,
         ...honorsUpdate, ...userJobChangeUpdate, ...userCoachPortraitUpdate, ...userCoachCareerStatsUpdate,
-        ...coachOffersUpdate, platform: 'pc',
+        ...coachOffersUpdate, ...playersLeavingUpdate, platform: 'pc',
       }
       const chunks = chunkUpdateObject(fullUpdate, { lastKeys: ['currentYear', 'currentPhase', 'currentWeek'] })
 
