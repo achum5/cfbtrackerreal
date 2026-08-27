@@ -1943,7 +1943,11 @@ function PlayerInner() {
 
   return (
     <div
-      className="space-y-4 sm:space-y-6 max-w-6xl mx-auto -mt-4 sm:-mt-6 px-4 sm:px-6 lg:px-8 pt-2 sm:pt-3 pb-4 sm:pb-6"
+      // No horizontal padding of its own: Layout already wraps every page in
+      // px-2 sm:px-4, and stacking px-4/px-6/px-8 on top left the player page
+      // visibly more inset than the Dashboard (which adds none) — 24px per
+      // side on a phone. Vertical spacing is unchanged.
+      className="space-y-4 sm:space-y-6 max-w-6xl mx-auto -mt-4 sm:-mt-6 pt-2 sm:pt-3 pb-4 sm:pb-6"
     >
       {/* Player Header — CFB 27 broadcast banner (team-color wash, chalk
           texture, contrast text). One responsive block for mobile + desktop. */}
