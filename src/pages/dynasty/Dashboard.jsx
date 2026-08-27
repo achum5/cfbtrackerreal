@@ -1957,11 +1957,34 @@ export default function Dashboard() {
     // Update player records with their new team
     const updatedPlayers = [...(currentDynasty.players || [])]
 
+    // Rows this save could not apply, surfaced to the user afterwards. Both
+    // failure modes used to be SILENT: an unmatched player name simply
+    // skipped the row, and an unresolvable team text fell through to
+    // teamsByYear[nextYear] = null, which strands the player on NO team
+    // (isPlayerOnRoster reads that slot as not-on-any-roster), so the player
+    // vanished from every roster view instead of landing on the new team.
+    // Reported as transfers not showing up on their new teams.
+    const skippedRows = []
+
     destinations.forEach(dest => {
-      const playerIndex = updatedPlayers.findIndex(p =>
+      // Exact match first (previous behavior), then punctuation/spacing-blind
+      // fallback: sheet names frequently differ from roster names by a
+      // Jr./apostrophe/period. Loose match applies only when unambiguous.
+      const looseKey = (n) => String(n || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+      let playerIndex = updatedPlayers.findIndex(p =>
         p.name?.toLowerCase().trim() === dest.playerName?.toLowerCase().trim()
       )
-      if (playerIndex !== -1 && dest.newTeam) {
+      if (playerIndex === -1 && dest.playerName) {
+        const matches = updatedPlayers
+          .map((p, i) => ({ p, i }))
+          .filter(({ p }) => looseKey(p.name) === looseKey(dest.playerName))
+        if (matches.length === 1) playerIndex = matches[0].i
+      }
+      if (playerIndex === -1) {
+        if (dest.playerName) skippedRows.push(dest.playerName + ' (no matching player on the roster)')
+        return
+      }
+      if (dest.newTeam) {
         const player = updatedPlayers[playerIndex]
         // Get old team as tid - ALWAYS use tid
         let oldTeamTid = player.team
@@ -1970,10 +1993,16 @@ export default function Dashboard() {
         }
         if (!oldTeamTid) oldTeamTid = teamTid
 
-        // Get newTeam as tid (dest.newTeam could be abbr from sheet)
-        let newTeamTid = dest.newTeam
+        // Get newTeam as tid. The parser already resolved this once
+        // (dest.newTeamTid, its PRIMARY identifier) - trust that first,
+        // then fall back to re-resolving the raw text.
+        let newTeamTid = dest.newTeamTid ?? dest.newTeam
         if (typeof newTeamTid === 'string') {
           newTeamTid = getTidFromAbbr(newTeamTid, currentDynasty)
+        }
+        if (newTeamTid == null) {
+          skippedRows.push(dest.playerName + ' (could not match team "' + dest.newTeam + '")')
+          return
         }
 
         // Check if this is a RECOMMIT (destination = their current team)
@@ -2068,6 +2097,14 @@ export default function Dashboard() {
     }
 
     await updateDynasty(currentDynasty.id, updates)
+
+    if (skippedRows.length) {
+      toast.error(
+        'Saved, but ' + skippedRows.length + ' transfer' + (skippedRows.length === 1 ? '' : 's') +
+        ' could not be applied: ' + skippedRows.join('; ') +
+        '. Fix the name/team in the sheet and import again.'
+      )
+    }
   }
 
   // Handle recruiting class rank save (National Signing Day)
