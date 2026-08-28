@@ -20824,14 +20824,24 @@ export function DynastyProvider({ children }) {
         // window would look complete but silently carry stale main-doc
         // fields — exactly the gap restoreDynastyFromBackupReplace's "true
         // restore" can't afford, since it trusts this file completely.
+        // serverFirst on every subcollection, for the same reason the main
+        // doc below is a server read: these getters are cache-first by
+        // default, and a backup built from THIS device's cache silently
+        // omits any doc the cache never saw (another device's write, a
+        // deleted-elsewhere duplicate). That is not a hypothetical — a
+        // debugging session chased a phantom duplicate game that three
+        // devices' live reads could all see while the exported backup
+        // showed a clean, single copy, precisely because the export
+        // described one device's cache and not the server. A backup, of
+        // all things, must describe the server.
         const [players, games, weekRecaps, seasonalRehydrated, socialFeed, socialChars, recruitingDb, freshMainDoc] = await Promise.all([
-          getPlayersSubcollection(dynasty.id),
-          getGamesSubcollection(dynasty.id),
-          getWeekRecapsSubcollection(dynasty.id),
-          getSeasonsSubcollection(dynasty.id),
-          getSocialFeedSubcollection(dynasty.id),
-          getSocialCharactersSubcollection(dynasty.id),
-          getRecruitingDatabaseSubcollection(dynasty.id),
+          getPlayersSubcollection(dynasty.id, { serverFirst: true }),
+          getGamesSubcollection(dynasty.id, { serverFirst: true }),
+          getWeekRecapsSubcollection(dynasty.id, { serverFirst: true }),
+          getSeasonsSubcollection(dynasty.id, { serverFirst: true }),
+          getSocialFeedSubcollection(dynasty.id, { serverFirst: true }),
+          getSocialCharactersSubcollection(dynasty.id, { serverFirst: true }),
+          getRecruitingDatabaseSubcollection(dynasty.id, { serverFirst: true }),
           getDynastyFromServer(dynasty.id).catch((err) => {
             console.error('Failed to fetch fresh main doc for export:', err)
             return null
