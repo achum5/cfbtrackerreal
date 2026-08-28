@@ -911,26 +911,11 @@ export default function DynastyRecords() {
                           }}
                           onClick={() => setExpandedRowKey(isExpanded ? null : rowKey)}
                         >
-                          {/* Team logo watermark — same treatment as the other
-                              leaderboard categories' rows. */}
-                          {entry.teamLogo && (
-                            <img
-                              src={entry.teamLogo}
-                              alt=""
-                              aria-hidden="true"
-                              className="absolute pointer-events-none select-none"
-                              style={{
-                                top: '50%',
-                                right: isFirst ? '-18px' : isTop3 ? '-14px' : '-10px',
-                                transform: 'translateY(-50%)',
-                                width: isFirst ? '92px' : isTop3 ? '72px' : '56px',
-                                height: isFirst ? '92px' : isTop3 ? '72px' : '56px',
-                                objectFit: 'contain',
-                                opacity: 0.2,
-                                zIndex: -1,
-                              }}
-                            />
-                          )}
+                          {/* No team-logo watermark here. It sat directly
+                              behind the value and the expand chevron at the
+                              right edge, competing with both — and the team is
+                              already shown by the logo badge on each row's
+                              avatar, so it was redundant as well as busy. */}
                           <div className="text-right tabular flex-shrink-0" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: isFirst ? '1.65rem' : isTop3 ? '1.3rem' : '1rem', fontWeight: isFirst ? 900 : isTop3 ? 800 : 600, letterSpacing: '0.5px', lineHeight: 1, width: '2.25rem', color: avRankColor(rank) }}>{rank}</div>
                           {/* Avatar with a small team-logo badge tucked in the
                               corner — the on-air headshot + helmet treatment. */}
@@ -1065,29 +1050,7 @@ export default function DynastyRecords() {
                             isolation: 'isolate',
                           }}
                         >
-                          {/* Team logo watermark — large, faded, bleeding off
-                              the right edge so you can tell a player's team
-                              at a glance without it competing with the name
-                              or value. Negative z-index keeps it behind the
-                              row's own (unpositioned) content. */}
-                          {entry.teamLogo && (
-                            <img
-                              src={entry.teamLogo}
-                              alt=""
-                              aria-hidden="true"
-                              className="absolute pointer-events-none select-none"
-                              style={{
-                                top: '50%',
-                                right: isFirst ? '-18px' : '-14px',
-                                transform: 'translateY(-50%)',
-                                width: isFirst ? '92px' : '68px',
-                                height: isFirst ? '92px' : '68px',
-                                objectFit: 'contain',
-                                opacity: 0.2,
-                                zIndex: -1,
-                              }}
-                            />
-                          )}
+                          {/* No team-logo watermark — see the note on the rows above. */}
                           <div
                             className="text-right tabular flex-shrink-0"
                             style={{
@@ -1370,26 +1333,7 @@ export default function DynastyRecords() {
                             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--surface-3)' }}
                             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
                           >
-                            {/* Team logo watermark — see the card-view rows
-                                above for why this is negative-z-index. */}
-                            {entry.teamLogo && (
-                              <img
-                                src={entry.teamLogo}
-                                alt=""
-                                aria-hidden="true"
-                                className="absolute pointer-events-none select-none"
-                                style={{
-                                  top: '50%',
-                                  right: isFirst ? '-18px' : isTop3 ? '-14px' : '-10px',
-                                  transform: 'translateY(-50%)',
-                                  width: isFirst ? '92px' : isTop3 ? '72px' : '56px',
-                                  height: isFirst ? '92px' : isTop3 ? '72px' : '56px',
-                                  objectFit: 'contain',
-                                  opacity: 0.2,
-                                  zIndex: -1,
-                                }}
-                              />
-                            )}
+                            {/* No team-logo watermark — see the note on the rows above. */}
                             <div
                               className="text-right tabular flex-shrink-0"
                               style={{
