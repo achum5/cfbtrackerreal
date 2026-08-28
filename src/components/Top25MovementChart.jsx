@@ -267,7 +267,10 @@ export default function Top25MovementChart({ dynasty, year, weeks, weekLabel }) 
                 border: `1px solid ${on ? s.color : 'transparent'}`,
               }}
             >
-              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
+              {/* No color dot. The team logo right beside it already
+                  identifies the team, and the chip's own border turns the
+                  team's line color when it's active — so the dot was a third
+                  redundant identifier crowding a very small chip. */}
               {s.logo && <img src={s.logo} alt="" className="w-3.5 h-3.5 object-contain" />}
               {s.abbr}
             </button>

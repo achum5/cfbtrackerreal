@@ -513,14 +513,10 @@ export default function Rankings() {
                 options={weekOptions}
                 onChange={setSelectedWeek}
               />
-              {typeof selectedWeek === 'number' && (
-                <span
-                  className="text-[10px] font-black tracking-[0.15em] px-1.5 py-0.5 rounded flex-shrink-0"
-                  style={{ backgroundColor: 'var(--surface-3)', color: 'var(--text-tertiary)', border: '1px solid var(--surface-5)' }}
-                >
-                  {selectedWeek >= 10 ? 'CFP' : 'MEDIA'}
-                </span>
-              )}
+              {/* No poll-source pill. Which poll a week uses is already
+                  implied by the week itself (CFP rankings only exist from
+                  week 10 on), so the badge just crowded the eyebrow beside
+                  the week selector. */}
             </span>
           ) : (
             selectedLabel

@@ -242,10 +242,17 @@ function GameCard({ game, teams, pathPrefix, recordsByTid, domId, compact = fals
   // Only surface a header strip for non-default states (tie, scheduled).
   // "Final" is implied by a played game's score, so we don't repeat it.
   const statusLabel = !isPlayed ? 'Scheduled' : isTie ? 'Tie' : null
-  const showStatusStrip = statusLabel != null || isNeutral
 
-  // For neutral-site games, prefer a meaningful game label over "Neutral".
+  // A neutral-site game earns a header only when the venue actually NAMES
+  // something — a bowl, a CFP round, a conference championship. A plain
+  // regular-season neutral (a kickoff classic, a rivalry at a neutral site)
+  // used to fall through to the literal word "Neutral", which told the user
+  // nothing and cost a full header row: those cards rendered taller than
+  // every other card in the grid, so a single neutral game knocked its whole
+  // row out of alignment. Returns null for that case now, so the card looks
+  // like any other and the grid stays even.
   const venueLabel = (() => {
+    if (!isNeutral) return null
     const type = detectGameType(game)
     if (type === GAME_TYPES.CFP_CHAMPIONSHIP) return 'National Championship'
     if (type === GAME_TYPES.CFP_SEMIFINAL) return game.bowlName || 'CFP Semifinal'
@@ -253,8 +260,10 @@ function GameCard({ game, teams, pathPrefix, recordsByTid, domId, compact = fals
     if (type === GAME_TYPES.CFP_FIRST_ROUND) return 'CFP First Round'
     if (type === GAME_TYPES.BOWL) return game.bowlName || 'Bowl Game'
     if (type === GAME_TYPES.CONFERENCE_CHAMPIONSHIP) return game.conference ? `${game.conference} Championship` : 'Conf Championship'
-    return 'Neutral'
+    return null
   })()
+
+  const showStatusStrip = statusLabel != null || venueLabel != null
 
   const TeamRow = ({ tid, team, score, won, lost, record, rank }) => {
     const mascot = getMascotNameFromTeams(tid, teams) || team?.name || ''
@@ -356,7 +365,7 @@ function GameCard({ game, teams, pathPrefix, recordsByTid, domId, compact = fals
               {statusLabel}
             </span>
           )}
-          {isNeutral && (
+          {venueLabel && (
             <FitText
               className="flex-1 min-w-0 text-right"
               max={10}
