@@ -18897,6 +18897,19 @@ export function DynastyProvider({ children }) {
     // omission: keep the player record (career history intact) but drop this
     // year's roster membership and record the graduation. The recorded
     // departure also stops the teamHistory backfill from re-adding the year.
+    // fullRoster (opt-in from callers whose UI promises the COMPLETE roster —
+    // the roster entry/edit modals' sheet + paste flows all emit every player):
+    // absence from a full roster is removal intent, not a truncated sheet. The
+    // graduation carve-out below already made exhausted seniors removable; a
+    // departed underclassman (portal, cut) still reappeared on every import —
+    // "it keeps adding old players back after it saves" — because their
+    // preserved record kept its teamsByYear[year] membership. With fullRoster,
+    // EVERY unmatched team player loses this year's membership (record and
+    // career history stay intact); seniors additionally keep the graduation
+    // stamping. The size floor guards a malformed paste: a full CFB roster is
+    // 60-85 players, so a sheet that parsed to a handful must not be allowed
+    // to empty the roster no matter what the caller claims.
+    const fullRosterReplace = options.fullRoster === true && players.length >= 30
     const filteredTeamPlayersNotInSheet = teamPlayersNotInSheet
       .filter(p => !updatedPIDs.has(p.pid))
       .map(p => {
@@ -18904,6 +18917,22 @@ export function DynastyProvider({ children }) {
         const prevY = yearN - 1
         const clsPrev = p.classByYear?.[prevY] ?? p.classByYear?.[String(prevY)]
         const exhausted = clsPrev === 'Sr' || clsPrev === 'RS Sr'
+        if (!exhausted && fullRosterReplace) {
+          const hasThisYear = p.teamsByYear?.[yearN] != null || p.teamsByYear?.[String(yearN)] != null
+          if (!hasThisYear) return p
+          const nextTeamsByYear = { ...(p.teamsByYear || {}) }
+          delete nextTeamsByYear[yearN]
+          delete nextTeamsByYear[String(yearN)]
+          const nextClassByYear = { ...(p.classByYear || {}) }
+          delete nextClassByYear[yearN]
+          delete nextClassByYear[String(yearN)]
+          // No movement record is fabricated — we know they're off the roster,
+          // not WHY (portal, cut, user correction). Membership for this year
+          // is simply gone, so nothing re-adds them: the year-flip carryover
+          // keys on teamsByYear[previousSeasonYear], which no longer names
+          // this team.
+          return { ...p, teamsByYear: nextTeamsByYear, classByYear: nextClassByYear }
+        }
         if (!exhausted) return p
         const hasThisYear = p.teamsByYear?.[yearN] != null || p.teamsByYear?.[String(yearN)] != null
         if (!hasThisYear) return p

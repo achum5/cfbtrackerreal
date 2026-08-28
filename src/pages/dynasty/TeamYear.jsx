@@ -2621,7 +2621,8 @@ export default function TeamYear() {
   }
 
   const handleRosterSave = async (players) => {
-    await saveRoster(currentDynasty.id, players, { teamAbbr, year: selectedYear })
+    // fullRoster — see Roster.jsx's matching comment.
+    await saveRoster(currentDynasty.id, players, { teamAbbr, year: selectedYear, fullRoster: true })
     setShowRosterModal(false)
   }
 

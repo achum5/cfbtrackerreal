@@ -48,7 +48,10 @@ export default function Roster() {
   if (!currentDynasty) return null
 
   const handleRosterSave = async (players) => {
-    await saveRoster(currentDynasty.id, players)
+    // fullRoster: RosterEditModal's sheet/paste flows emit the complete
+    // roster, so a player absent from it was removed on purpose — without
+    // this the merge-only save resurrected them on every import.
+    await saveRoster(currentDynasty.id, players, { fullRoster: true })
     setShowRosterModal(false)
   }
 

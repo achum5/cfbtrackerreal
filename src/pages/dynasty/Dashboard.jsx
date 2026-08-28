@@ -1235,7 +1235,8 @@ export default function Dashboard() {
   }
 
   const handleRosterSave = async (players) => {
-    await saveRoster(currentDynasty.id, players)
+    // fullRoster: RosterEntryModal's flows emit the complete roster.
+    await saveRoster(currentDynasty.id, players, { fullRoster: true })
   }
 
   const handleTeamRatingsSave = async (ratings) => {
