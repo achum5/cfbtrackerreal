@@ -1451,6 +1451,17 @@ export function calculateTeamRecordFromGames(dynasty, tid, year, options = {}) {
   // unordered score pair + same gameType is the same game: a legit rematch
   // (CCG, bowl) differs in gameType, and a same-type same-season rematch with
   // identical scores does not exist in college football.
+  //
+  // resultKeyOf is shared with the upToGameId exclusion below: the excluded
+  // game's OTHER copies must be excluded too, whichever copy survived this
+  // dedup and whichever id the caller happened to hold.
+  const resultKeyOf = (g) => {
+    const gameType = g.gameType || 'regular'
+    const sideKey = (t, a) => (t != null ? `t${Number(t)}` : a ? `a${a}` : `g${g.id}`)
+    const pair = [sideKey(g.team1Tid, g.team1), sideKey(g.team2Tid, g.team2)].sort().join('v')
+    const scores = [Number(g.team1Score), Number(g.team2Score)].sort((x, y) => x - y).join('-')
+    return `${pair}|${scores}|${gameType}`
+  }
   const seenResults = new Set()
   teamGames = teamGames.filter(g => {
     // Create a unique key for each game slot: week + gameType (or 'regular' if not set)
@@ -1463,15 +1474,11 @@ export function calculateTeamRecordFromGames(dynasty, tid, year, options = {}) {
       return false
     }
 
-    // Identify each side by tid, falling back to the stored abbr for legacy
-    // tid-less rows — Number(undefined) is NaN, which would have keyed every
-    // legacy game as the same pair and collapsed genuinely different games
-    // that happened to share a score line. A side with neither is keyed by
-    // the game's own id, which disables cross-record dedup for it.
-    const sideKey = (t, a) => (t != null ? `t${Number(t)}` : a ? `a${a}` : `g${g.id}`)
-    const pair = [sideKey(g.team1Tid, g.team1), sideKey(g.team2Tid, g.team2)].sort().join('v')
-    const scores = [Number(g.team1Score), Number(g.team2Score)].sort((a, b) => a - b).join('-')
-    const resultKey = `${pair}|${scores}|${gameType}`
+    // Sides keyed by tid with an abbr fallback for legacy tid-less rows —
+    // Number(undefined) is NaN, which would have keyed every legacy game as
+    // the same pair. A side with neither is keyed by the game's own id,
+    // which disables cross-record dedup for it. (See resultKeyOf above.)
+    const resultKey = resultKeyOf(g)
     if (seenResults.has(resultKey)) return false
 
     seenGames.set(key, g.id)
@@ -1484,8 +1491,29 @@ export function calculateTeamRecordFromGames(dynasty, tid, year, options = {}) {
 
   // Apply "up to" filters if specified
   if (upToGameId) {
-    const idx = teamGames.findIndex(g => g.id === upToGameId)
-    if (idx >= 0) teamGames = teamGames.slice(0, idx)
+    // "Record BEFORE this game" must exclude EVERY copy of this game, not
+    // just the exact id. A device cache can hold a since-renumbered duplicate
+    // of the same game under a different id (and possibly a different week);
+    // the result-level dedup above keeps only ONE copy — not necessarily the
+    // one whose id the caller holds. The old findIndex-then-slice missed the
+    // id in that case and returned a baseline that already CONTAINED the
+    // game, so folding the in-progress score back in double-counted it
+    // (GameEdit's live record read 0-2 on a 0-1 team, and its more-games-
+    // wins reconciliation then preferred the inflated value). Resolve the
+    // target from the RAW games array (dedup may have dropped that exact
+    // id), then keep only games strictly earlier in slot order that aren't
+    // result-equivalent to it.
+    const target = teamGames.find(g => g.id === upToGameId)
+      || games.find(g => g.id === upToGameId)
+    if (target) {
+      const targetKey = resultKeyOf(target)
+      const cutOrder = getGameOrderForRecord(target)
+      teamGames = teamGames.filter(g => {
+        if (g.id === upToGameId) return false
+        if (resultKeyOf(g) === targetKey) return false
+        return getGameOrderForRecord(g) < cutOrder
+      })
+    }
   }
   if (upToWeek !== undefined) {
     const targetOrder = upToWeek

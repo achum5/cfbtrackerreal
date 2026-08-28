@@ -61,3 +61,47 @@ describe('calculateTeamRecordFromGames result-level dedup', () => {
     expect(r.wins + r.losses).toBe(0)
   })
 })
+
+describe('upToGameId excludes every copy of the target game', () => {
+  // The user's device cache held a since-renumbered duplicate of the same
+  // game under a different id at a different week. GameEdit's live record
+  // asks for the baseline BEFORE the game via upToGameId, then folds the
+  // typed score back in — with the duplicate in the baseline, the fold
+  // double-counted (a 0-1 team's score-graphic prompt read 0-2, and the
+  // more-games-wins reconciliation preferred the inflated value).
+  const shells = Array.from({ length: 5 }, (_, i) => ({
+    id: `shell-${i}`, year: 2026, week: i + 2, gameType: 'regular',
+    team1Tid: 54, team2Tid: 200 + i, team1Score: 0, team2Score: 0, isPlayed: false,
+  }))
+  const phantom = { id: 'old-copy', year: 2026, week: 0, gameType: 'regular', team1Tid: 54, team2Tid: 85, team1Score: 6, team2Score: 33 }
+  const real = { id: 'real-copy', year: 2026, week: 1, gameType: 'regular', team1Tid: 54, team2Tid: 85, team1Score: 6, team2Score: 33 }
+
+  it('regression: baseline before the game is 0-0 even with a cached duplicate', () => {
+    const dynasty = { storageType: 'local', teams: {}, games: [phantom, real, ...shells] }
+    const b = calculateTeamRecordFromGames(dynasty, 54, 2026, { upToGameId: 'real-copy' })
+    expect(`${b.wins}-${b.losses}`).toBe('0-0')
+    // GameEdit then folds the typed 6-33 in: 0-1, matching the game page.
+  })
+
+  it('works when the dedup kept the OTHER copy (target id not in the deduped list)', () => {
+    // Sorted by slot, the week-0 phantom comes first and survives the
+    // result-level dedup; the id the route holds is the dropped week-1 copy.
+    const dynasty = { storageType: 'local', teams: {}, games: [phantom, real] }
+    const b = calculateTeamRecordFromGames(dynasty, 54, 2026, { upToGameId: 'real-copy' })
+    expect(b.wins + b.losses).toBe(0)
+  })
+
+  it('still counts genuinely earlier games in the baseline', () => {
+    const opener = { id: 'wk1', year: 2026, week: 1, gameType: 'regular', team1Tid: 54, team2Tid: 90, team1Score: 30, team2Score: 10 }
+    const later = { id: 'wk3', year: 2026, week: 3, gameType: 'regular', team1Tid: 54, team2Tid: 85, team1Score: 6, team2Score: 33 }
+    const dynasty = { storageType: 'local', teams: {}, games: [opener, later] }
+    const b = calculateTeamRecordFromGames(dynasty, 54, 2026, { upToGameId: 'wk3' })
+    expect(`${b.wins}-${b.losses}`).toBe('1-0')
+  })
+
+  it('no-ops safely when the id matches nothing at all', () => {
+    const dynasty = { storageType: 'local', teams: {}, games: [real] }
+    const b = calculateTeamRecordFromGames(dynasty, 54, 2026, { upToGameId: 'missing' })
+    expect(`${b.wins}-${b.losses}`).toBe('0-1')
+  })
+})
