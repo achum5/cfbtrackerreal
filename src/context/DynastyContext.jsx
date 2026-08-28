@@ -10522,8 +10522,23 @@ export function DynastyProvider({ children }) {
     // actual recovery path if a wrong/stale save ever gets synced, instead
     // of a phase-order guess trying to catch it ahead of time.
     const earlySeasonInfo = mapSeasonInfo(parsed.season)
+    // Clamp offseason weeks at 8 (the app's last defined offseason week —
+    // "Offseason": Custom Conferences/Encourage Transfers/Review Roster).
+    // mapSeasonInfo passes offseason weeks straight through from the save's
+    // own raw counter, which is confirmed correct through week 8 (raw 5 =
+    // Recruiting Week 4, raw 7 = Training Results) but has at least one
+    // unaccounted-for gap after that: a single in-game advance from Training
+    // Results (raw 7) was observed landing on raw 9, never 8, with 9 showing
+    // the exact screen this app already models as week 8 ("Offseason,
+    // <year>" / Encourage Transfers / Custom Conferences). Same shape as the
+    // confirmed CCG->Bowl gap handled in mapSeasonInfo above (a single real
+    // advance ticking the save's raw counter by 2). Without this clamp, that
+    // gap strands a PC dynasty on an undefined week with no task at all.
+    const earlyWeek = earlySeasonInfo
+      ? (earlySeasonInfo.phase === 'offseason' ? Math.min(Number(earlySeasonInfo.week), 8) : Number(earlySeasonInfo.week))
+      : null
     const seasonAdvance = earlySeasonInfo
-      ? { phase: earlySeasonInfo.phase, week: Number(earlySeasonInfo.week), year: syncYear, reachedTarget: true }
+      ? { phase: earlySeasonInfo.phase, week: earlyWeek, year: syncYear, reachedTarget: true }
       : null
     const plan = buildSyncPlan(dynastyForPlan, parsed, {
       targetPhase: seasonAdvance?.phase ?? null,
@@ -10859,8 +10874,13 @@ export function DynastyProvider({ children }) {
             ...teamData,
             byYear: {
               ...teamByYear,
-              [dynasty.currentYear]: {
-                ...(teamByYear[dynasty.currentYear] || {}),
+              // syncYear, not dynasty.currentYear — this store is the one
+              // getPlayersLeaving reads FIRST, so keying it by the stale
+              // pre-rollover year would leave the sync's projection filed
+              // under the wrong season while the two flat stores above
+              // (already on syncYear) sat correct and unread.
+              [syncYear]: {
+                ...(teamByYear[syncYear] || {}),
                 playersLeaving: plan.playersLeavingUpdate,
               },
             },
