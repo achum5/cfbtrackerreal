@@ -10334,8 +10334,23 @@ export function DynastyProvider({ children }) {
     // games path always does) would silently delete real games/players that
     // just weren't loaded into state yet at the moment of the sync.
     await enterPhase('loadRosterGames', 'Loading dynasty…')
-    const freshPlayers = await getDynastyPlayers(dynasty)
-    const freshGames = await getDynastyGames(dynasty)
+    // These three reads don't depend on each other's results — fired
+    // together instead of one after another shaves off two network
+    // round-trips' worth of sequential wait. Per-call error handling is
+    // unchanged: getDynastyPlayers/getDynastyGames still reject the whole
+    // sync on failure exactly as before, while getDynastyFromServer's
+    // failure is still swallowed (a stale local snapshot, no worse than
+    // pre-fix behavior) rather than blocking the sync.
+    const [freshPlayers, freshGames, freshDynastyDoc] = await Promise.all([
+      getDynastyPlayers(dynasty),
+      getDynastyGames(dynasty),
+      dynasty.storageType === 'cloud'
+        ? getDynastyFromServer(dynastyId).catch((err) => {
+            console.error('Failed to fetch fresh dynasty doc before sync:', err)
+            return null
+          })
+        : Promise.resolve(null),
+    ])
 
     // Same staleness risk as players/games above, for the main doc's own
     // fields — `teams` (rankByWeek Top 25 history, cfpSeedsByYear, etc.)
@@ -10347,24 +10362,14 @@ export function DynastyProvider({ children }) {
     // read to close that gap; local (IndexedDB) dynasties have no such
     // cache-vs-server split, so `dynasty` is already authoritative.
     let dynastyForPlan = { ...dynasty, players: freshPlayers, games: freshGames }
-    if (dynasty.storageType === 'cloud') {
-      try {
-        const freshDynastyDoc = await getDynastyFromServer(dynastyId)
-        if (freshDynastyDoc) {
-          dynastyForPlan = {
-            ...dynastyForPlan,
-            teams: freshDynastyDoc.teams ?? dynastyForPlan.teams,
-            rivalries: freshDynastyDoc.rivalries ?? dynastyForPlan.rivalries,
-            cfpSeedsByYear: freshDynastyDoc.cfpSeedsByYear ?? dynastyForPlan.cfpSeedsByYear,
-            coachPosition: freshDynastyDoc.coachPosition ?? dynastyForPlan.coachPosition,
-            newJobData: freshDynastyDoc.newJobData ?? dynastyForPlan.newJobData,
-          }
-        }
-      } catch (err) {
-        // A failed server read here just means the sync proceeds on the
-        // same (potentially stale) local snapshot it always used before
-        // this fix — no worse than before, so don't block the sync over it.
-        console.error('Failed to fetch fresh dynasty doc before sync:', err)
+    if (dynasty.storageType === 'cloud' && freshDynastyDoc) {
+      dynastyForPlan = {
+        ...dynastyForPlan,
+        teams: freshDynastyDoc.teams ?? dynastyForPlan.teams,
+        rivalries: freshDynastyDoc.rivalries ?? dynastyForPlan.rivalries,
+        cfpSeedsByYear: freshDynastyDoc.cfpSeedsByYear ?? dynastyForPlan.cfpSeedsByYear,
+        coachPosition: freshDynastyDoc.coachPosition ?? dynastyForPlan.coachPosition,
+        newJobData: freshDynastyDoc.newJobData ?? dynastyForPlan.newJobData,
       }
     }
     await enterPhase('buildPlan', 'Loading current roster & games…')
@@ -10858,13 +10863,18 @@ export function DynastyProvider({ children }) {
       // mergedPlayers already reconciled+recalculated above, shared with the
       // season-advance check.
       const recalculatedByPid = new Map(mergedPlayers.map((p) => [p.pid, p]))
+      // freshPlayers can run to thousands of rows for a long-running cloud
+      // dynasty — .find() per mergedPlayers entry below used to be an O(n*m)
+      // linear rescan of the whole array on every iteration; a Map keyed by
+      // pid makes each lookup O(1) instead.
+      const freshPlayersByPid = new Map(freshPlayers.map((p) => [p.pid, p]))
       await enterPhase('saveRoster', 'Recalculating stats…')
 
       const createPidSet = new Set(plan.toCreatePlayers.map((p) => p.pid))
       const statsPatches = []
       for (const player of mergedPlayers) {
         if (createPidSet.has(player.pid)) continue // folded into the create doc below instead
-        const freshPlayer = freshPlayers.find((p) => p.pid === player.pid)
+        const freshPlayer = freshPlayersByPid.get(player.pid)
         // stableStringify — same key-order-independence reasoning as the
         // games/players diffs in updateDynasty.
         const before = stableStringify(freshPlayer?.statsByYear?.[statsYear] || null)
