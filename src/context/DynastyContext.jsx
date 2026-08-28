@@ -1442,6 +1442,16 @@ export function calculateTeamRecordFromGames(dynasty, tid, year, options = {}) {
   // CRITICAL: Deduplicate games by week + gameType to prevent double-counting
   // This handles cases where duplicate game records exist for the same matchup
   const seenGames = new Map()
+  // Second net: the SAME result stored under two DIFFERENT week keys. A sync
+  // week renumbering (raw save week vs app week) can leave the same matchup
+  // filed at, say, week 0 AND week 1 — different `week-gameType` keys, so the
+  // slot dedup above never collapses them, and an as-of-week record counted
+  // the game twice (a 1-0 team's score-graphic prompt read "2-0", both teams
+  // inflated by exactly one). Same season + same unordered team pair + same
+  // unordered score pair + same gameType is the same game: a legit rematch
+  // (CCG, bowl) differs in gameType, and a same-type same-season rematch with
+  // identical scores does not exist in college football.
+  const seenResults = new Set()
   teamGames = teamGames.filter(g => {
     // Create a unique key for each game slot: week + gameType (or 'regular' if not set)
     const gameType = g.gameType || 'regular'
@@ -1452,7 +1462,20 @@ export function calculateTeamRecordFromGames(dynasty, tid, year, options = {}) {
       // Duplicate detected - skip silently (use DangerZone to clean up)
       return false
     }
+
+    // Identify each side by tid, falling back to the stored abbr for legacy
+    // tid-less rows — Number(undefined) is NaN, which would have keyed every
+    // legacy game as the same pair and collapsed genuinely different games
+    // that happened to share a score line. A side with neither is keyed by
+    // the game's own id, which disables cross-record dedup for it.
+    const sideKey = (t, a) => (t != null ? `t${Number(t)}` : a ? `a${a}` : `g${g.id}`)
+    const pair = [sideKey(g.team1Tid, g.team1), sideKey(g.team2Tid, g.team2)].sort().join('v')
+    const scores = [Number(g.team1Score), Number(g.team2Score)].sort((a, b) => a - b).join('-')
+    const resultKey = `${pair}|${scores}|${gameType}`
+    if (seenResults.has(resultKey)) return false
+
     seenGames.set(key, g.id)
+    seenResults.add(resultKey)
     return true
   })
 

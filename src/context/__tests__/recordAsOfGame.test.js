@@ -16,17 +16,22 @@ const TID_OPP = 136
 function regularSeasonGames(year, tid, oppTid, { wins, losses }) {
   const games = []
   let week = 1
+  // Scores vary per week: repeating the identical matchup with the identical
+  // score line is exactly the duplicate shape calculateTeamRecordFromGames'
+  // result-level dedup collapses on purpose (a real schedule never repeats
+  // an opponent with the same score in the same season), so a fixture doing
+  // that would test the dedup, not the as-of-week logic.
   for (let i = 0; i < wins; i++) {
     games.push({
       id: `g-${year}-w${week}`, year, week: week++, gameType: 'regular',
-      team1Tid: tid, team2Tid: oppTid, team1Score: 28, team2Score: 14,
+      team1Tid: tid, team2Tid: oppTid, team1Score: 28 + i, team2Score: 14,
       isConferenceGame: week <= 9,
     })
   }
   for (let i = 0; i < losses; i++) {
     games.push({
       id: `g-${year}-w${week}`, year, week: week++, gameType: 'regular',
-      team1Tid: tid, team2Tid: oppTid, team1Score: 10, team2Score: 24,
+      team1Tid: tid, team2Tid: oppTid, team1Score: 10, team2Score: 24 + i,
       isConferenceGame: true,
     })
   }
