@@ -27,3 +27,14 @@ describe('seasonal field routing', () => {
     expect(isSeasonalField('playoffPreviewByYear')).toBe(true)
   })
 })
+
+describe('AI-generated preview fields are routed', () => {
+  it('routes both preview stores off the main doc', async () => {
+    const { PER_YEAR_FIELDS } = await import('../seasonSubcollection')
+    // Multi-KB of generated prose, one entry per season. Same unbounded
+    // per-year shape that has pushed a real dynasty past the 1 MiB cap, so
+    // each must be registered the moment it ships.
+    expect(PER_YEAR_FIELDS).toContain('playoffPreviewByYear')
+    expect(PER_YEAR_FIELDS).toContain('weekOnePreviewByYear')
+  })
+})

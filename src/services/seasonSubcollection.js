@@ -85,6 +85,7 @@ export const PER_YEAR_FIELDS = [
   'playersLeavingByYear',
   'playerStatsByYear',
   'playoffPreviewByYear',
+  'weekOnePreviewByYear',
   'portalTransferClassByYear',
   'positionChangesByYear',
   'preseasonRankingsByYear',
