@@ -1536,7 +1536,7 @@ function hasRecommitForYear(player, year) {
 /**
  * Movement-record departure check — the single source of truth for "this
  * player left and never came back", shared by the Signing Day carryover
- * (offseason week 5→6) and advanceToNewSeason (week 7).
+ * (offseason week 5→6) and advanceToNewSeason (week 8).
  *
  * Extracted VERBATIM from the Signing Day carryover's isPlayerLeaving
  * closure (minus its playersLeaving-list checks, which stay at the call
@@ -5280,7 +5280,7 @@ export function getPlayersNeedingClassConfirmation(dynasty) {
 // never do. So this walker never stops mid-offseason at all — it carries a
 // PC dynasty straight through every offseason week to match whatever the
 // save reports. Never crosses the year itself — this function refuses to
-// run at all across a year mismatch (below) and offseason week 7 has no
+// run at all across a year mismatch (below) and offseason week 8 has no
 // further transition rule defined, so it can't run away past the last week
 // this walker models; the actual year rollover (advanceToNewSeason) is
 // separate, heavier machinery triggered elsewhere.
@@ -7955,7 +7955,9 @@ export function DynastyProvider({ children }) {
 
       // Apply migrations to the loaded data
       const dynastyWithData = { ...dynasty, players, games, weekRecapsByYear, recruitingDatabasePlayers, teamFuture, teams: teamsWithRecruitingClasses, ...mergedSeasonal }
-      const [migratedDynasty] = applyMigrations([dynastyWithData])
+      const recruitingWeekShiftsHere = []
+      const [migratedDynasty] = applyMigrations([dynastyWithData], recruitingWeekShiftsHere)
+      persistRecruitingWeekShifts(recruitingWeekShiftsHere)
 
       // Write the loaded data back into whichever list owns it.
       if (ownerDynasty) {
@@ -7984,8 +7986,15 @@ export function DynastyProvider({ children }) {
     }
   }
 
-  // Helper to apply migrations to dynasties (games + stats + roster)
-  const applyMigrations = (dynastyList) => {
+  // Helper to apply migrations to dynasties (games + stats + roster).
+  // applyMigrations itself stays a PURE in-memory transform — no I/O — so
+  // every migration in here is safe to re-run every load EXCEPT ones whose
+  // transform lacks a fixed point (see the recruitingWeekShifts comment
+  // below). recruitingWeekShifts is an out-param: pass an array and this
+  // pushes { id, updates } for every dynasty that needs those updates
+  // persisted so the migration truly runs once — callers are responsible
+  // for actually firing updateDynasty with them.
+  const applyMigrations = (dynastyList, recruitingWeekShifts = []) => {
     return dynastyList.map(dynasty => {
       let migrated = dynasty
 
@@ -8377,6 +8386,66 @@ export function DynastyProvider({ children }) {
         migrated._offseasonRevertFlipExperimentV1 = true
       }
 
+      // Expand recruiting from 3 tracker-weeks to the real game's 4: old wk2-4
+      // (Recruiting Weeks 1-3) are unchanged, but old wk5 (Signing Day) no
+      // longer immediately follows wk4 — a new wk5 (Recruiting Week 4 of 4)
+      // is inserted first, pushing Signing Day/Training/Transfers each back
+      // one slot: old wk5→new wk6, old wk6→new wk7, old wk7→new wk8. A
+      // dynasty parked at old wk≤4 needs no change (those weeks kept their
+      // meaning); one parked at wk≥5 was already PAST the inserted week, so
+      // it shifts forward to land on the same real-world task it was on.
+      //
+      // EXCEPT PC auto-sync dynasties: their currentWeek isn't a manually-
+      // incremented counter, it's the save's own raw offseason week number
+      // passed straight through (mapSeasonInfo in cfb27SaveImport.js applies
+      // no transform for offseason). The save's counter already reflects the
+      // real game's 4-recruiting-week structure — the bug was purely this
+      // app's DISPLAY/task-gating layer misreading an already-correct number
+      // (confirmed: a user's save reporting "recruiting week 4 of 4" in-game
+      // synced to a raw currentWeek that this app's old 7-week model showed
+      // as "National Signing Day" — i.e. raw 5, which the new 8-week model
+      // reads correctly as Recruiting Week 4). Shifting it here would push a
+      // PC dynasty a real week ahead of its own save.
+      // NOTE: unlike _offseasonWeekCollapseV1's w>=8?7:w (a fixed point —
+      // reapplying it to an already-migrated value is a no-op), w>=5?w+1:w
+      // has NO fixed point between 5 and 8: reapplying it to a value that's
+      // already been shifted (or that legitimately advanced past 5 under the
+      // new model) shifts it AGAIN. applyMigrations is a pure in-memory
+      // transform with no persistence of its own, so without a durably-stored
+      // flag this would re-fire every load — and since advanceWeek DOES
+      // persist currentWeek, a shift-then-advance-then-reload cycle stacks:
+      // stored wk5 → shown as wk6 → user advances → persisted wk7 → next load
+      // shifts the (already-correct) 7 to 8, silently skipping Training
+      // Results. recruitingWeekShifts (populated here, consumed by every
+      // applyMigrations call site) is what lets the caller persist the flag
+      // (plus currentWeek, ONLY when it actually moved — a PC dynasty is
+      // exempt from the shift above, and writing back its unchanged week on
+      // every load would be a pointless write to a hot field that could race
+      // an in-flight sync) in one write the first time this fires per
+      // dynasty, so it truly never re-evaluates once recorded server-side —
+      // not just in this session.
+      if (!migrated._recruitingWeekExpandV1) {
+        let weekShifted = false
+        if (migrated.currentPhase === 'offseason' && typeof migrated.currentWeek === 'number' && !isPcAutoDynasty(migrated)) {
+          const w = migrated.currentWeek
+          const newW = w >= 5 ? w + 1 : w
+          if (newW !== w) {
+            migrated = { ...migrated, currentWeek: newW }
+            weekShifted = true
+          }
+        }
+        migrated._recruitingWeekExpandV1 = true
+        if (migrated.id) {
+          recruitingWeekShifts.push({
+            id: migrated.id,
+            updates: {
+              _recruitingWeekExpandV1: true,
+              ...(weekShifted ? { currentWeek: migrated.currentWeek } : {}),
+            },
+          })
+        }
+      }
+
       // Heal a corrupted offseason year-flip state. The year flip
       // (advanceWeek wk4→5) sets classProgressionDoneForYear AND currentYear
       // to the SAME new year, atomically — so once the flip has run the
@@ -8679,6 +8748,20 @@ export function DynastyProvider({ children }) {
     })
   }
 
+  // Persist the { id, updates } entries applyMigrations collected via its
+  // recruitingWeekShifts out-param. Fire-and-forget, matching the other
+  // migration-persistence calls in this file (e.g. migrateTeamFutureToSubcollection
+  // above) — the in-memory dynasty is already correct for this render either
+  // way; this just makes sure the NEXT load doesn't re-evaluate the shift
+  // against a value that's since moved on.
+  const persistRecruitingWeekShifts = (shifts) => {
+    for (const { id, updates } of shifts) {
+      updateDynasty(id, updates).catch(err => {
+        console.warn(`[recruitingWeekExpand migration] failed to persist for ${id}:`, err?.code || err?.message || err)
+      })
+    }
+  }
+
   // Load dynasties - ALWAYS loads from both local and cloud (if signed in)
   // Each dynasty has a storageType field ('local' or 'cloud') to track where it lives
   useEffect(() => {
@@ -8715,7 +8798,10 @@ export function DynastyProvider({ children }) {
         read.then((late) => {
           if (Array.isArray(late) && late.length > 0) {
             localDynastiesRef = late
-            setDynasties((prev) => (prev.length === 0 ? applyMigrations(late) : prev))
+            const recruitingWeekShiftsHere = []
+            const lateMigrated = applyMigrations(late, recruitingWeekShiftsHere)
+            setDynasties((prev) => (prev.length === 0 ? lateMigrated : prev))
+            persistRecruitingWeekShifts(recruitingWeekShiftsHere)
           }
         }).catch(() => {})
         return []
@@ -8744,7 +8830,8 @@ export function DynastyProvider({ children }) {
       const loadOnlyLocal = async () => {
         const localDynasties = await loadLocalDynasties()
         if (localDynasties.length > 0) {
-          let migratedDynasties = applyMigrations(localDynasties)
+          const recruitingWeekShiftsHere = []
+          let migratedDynasties = applyMigrations(localDynasties, recruitingWeekShiftsHere)
           // Under dev-auth, claim any unowned local dynasty for the
           // mock user so per-user views (CoachCareer, recruiting
           // commitments, etc.) render with real data instead of an
@@ -8755,6 +8842,7 @@ export function DynastyProvider({ children }) {
             ))
           }
           setDynasties(migratedDynasties)
+          persistRecruitingWeekShifts(recruitingWeekShiftsHere)
         } else {
           setDynasties([])
         }
@@ -8799,8 +8887,10 @@ export function DynastyProvider({ children }) {
     // the snapshot lands.
     loadLocalDynasties().then(localDynasties => {
       if (localDynasties.length > 0 && dynasties.length === 0) {
-        const migratedLocal = applyMigrations(localDynasties)
+        const recruitingWeekShiftsHere = []
+        const migratedLocal = applyMigrations(localDynasties, recruitingWeekShiftsHere)
         setDynasties(migratedLocal)
+        persistRecruitingWeekShifts(recruitingWeekShiftsHere)
       }
       setLoading(false)
     })
@@ -9260,7 +9350,9 @@ export function DynastyProvider({ children }) {
       const allDynasties = [...uniqueLocalDynasties, ...cloudToUse]
 
       // Apply all migrations
-      const migratedDynasties = applyMigrations(allDynasties)
+      const recruitingWeekShiftsHere = []
+      const migratedDynasties = applyMigrations(allDynasties, recruitingWeekShiftsHere)
+      persistRecruitingWeekShifts(recruitingWeekShiftsHere)
 
       // A snapshot can arrive carrying data from just before a write actually
       // settled — reconcileWithRecentWrites protects against that echo
@@ -15660,10 +15752,11 @@ export function DynastyProvider({ children }) {
         // Clear newJobData
         additionalUpdates.newJobData = null
       }
-    } else if (dynasty.currentPhase === 'offseason' && dynasty.currentWeek === 4 && nextWeek === 5) {
-      console.log('[advanceWeek] *** ENTERING WEEK 4→5 TRANSITION (SIGNING DAY / YEAR FLIP) ***')
+    } else if (dynasty.currentPhase === 'offseason' && dynasty.currentWeek === 5 && nextWeek === 6) {
+      console.log('[advanceWeek] *** ENTERING WEEK 5→6 TRANSITION (SIGNING DAY / YEAR FLIP) ***')
 
-      // YEAR FLIP - Happens when entering Signing Day (week 5)
+      // YEAR FLIP - Happens when entering Signing Day (week 6). Recruiting
+      // now runs 4 full weeks (2-5) before Signing Day gets its own week.
       // The year changes here so that team pages for the new year become available
       // CRITICAL: Use Number() to ensure proper arithmetic (currentYear could be string from Firestore)
       nextYear = Number(dynasty.currentYear) + 1
@@ -16094,12 +16187,12 @@ export function DynastyProvider({ children }) {
           }
         }
       }
-    } else if (dynasty.currentPhase === 'offseason' && dynasty.currentWeek === 6 && nextWeek === 7) {
-      // Week 6→7 transition (after Signing Day tasks complete)
+    } else if (dynasty.currentPhase === 'offseason' && dynasty.currentWeek === 7 && nextWeek === 8) {
+      // Week 7→8 transition (after Signing Day tasks complete)
       // With the new system, departures and transfers are handled directly in:
       // - handlePlayersLeavingSave (adds movements, doesn't add next year to teamsByYear)
       // - handleTransferDestinationsSave (updates teamsByYear, adds movements)
-      // NOTE: Recruits stay as isRecruit=true until Week 7→8 so users can enter Recruit Overalls
+      // NOTE: Recruits stay as isRecruit=true until Week 8→Preseason so users can enter Recruit Overalls
       const previousSeasonYear = dynasty.currentYear - 1 // Year that just ended
       const currentSeasonYear = dynasty.currentYear // The new season (already flipped)
       const players = dynasty.players || []
@@ -16140,12 +16233,12 @@ export function DynastyProvider({ children }) {
       if (updatedPlayers.some((p, i) => p !== players[i])) {
         additionalUpdates.players = updatedPlayers
       }
-    } else if (dynasty.currentPhase === 'offseason' && dynasty.currentWeek === 7 && nextWeek > 7) {
-      // Week 7 (Conferences/Transfers — the last offseason week) → Preseason.
-      // Collapsed 7-week model: this single transition does BOTH
-      //   (a) recruit→player conversion (the old wk7→8 step), and
-      //   (b) the move to preseason + cleanup (the old wk8→preseason step).
-      // advanceToNewSeason runs just before this, in Layout's wk7 intercept.
+    } else if (dynasty.currentPhase === 'offseason' && dynasty.currentWeek === 8 && nextWeek > 8) {
+      // Week 8 (Conferences/Transfers — the last offseason week) → Preseason.
+      // This single transition does BOTH
+      //   (a) recruit→player conversion, and
+      //   (b) the move to preseason + cleanup.
+      // advanceToNewSeason runs just before this, in Layout's wk8 intercept.
       // (a) NOW convert recruits to active players (after Recruit Overalls entry)
       const previousSeasonYear = dynasty.currentYear - 1 // Year that just ended (recruitYear)
       const currentSeasonYear = dynasty.currentYear // The new season (already flipped)
@@ -16196,11 +16289,9 @@ export function DynastyProvider({ children }) {
       nextWeek = 0
       // nextYear stays the same (already set when entering week 6)
 
-      // NOTE: do NOT null prevAdvanceToNewSeasonSnapshot here. In the old
-      // 8-week model the snapshot was restorable at the intermediate wk8→wk7
-      // revert; that stop no longer exists in the collapsed model, so the
-      // snapshot must survive into preseason for the preseason→wk7 revert to
-      // roll back advanceToNewSeason's writes.
+      // NOTE: do NOT null prevAdvanceToNewSeasonSnapshot here — it must
+      // survive into preseason for the preseason→wk8 revert to roll back
+      // advanceToNewSeason's writes.
 
       // Clear CC firing data for the new season
       additionalUpdates.conferenceChampionshipData = null
@@ -16835,15 +16926,14 @@ export function DynastyProvider({ children }) {
 
     // Determine the previous phase/week based on current state
     if (currentPhase === 'preseason') {
-      // Preseason Week 0 → Previous Year's Offseason Week 7 (last offseason week
-      // in the collapsed 7-week model — was week 8).
+      // Preseason Week 0 → Previous Year's Offseason Week 8 (last offseason week).
       if (currentYear <= startYear) {
         // Can't go back before the dynasty started
         // Cannot revert: at start of dynasty
         return
       }
       prevPhase = 'offseason'
-      prevWeek = 7
+      prevWeek = 8
       prevYear = currentYear - 1
 
       // CRITICAL: Restore recruits to isRecruit: true
@@ -16880,10 +16970,9 @@ export function DynastyProvider({ children }) {
         additionalUpdates.players = updatedPlayers
       }
 
-      // Also undo advanceToNewSeason's writes. It runs at Layout's wk7 intercept
-      // just before the wk7→preseason advance, capturing prevAdvanceToNewSeasonSnapshot.
-      // In the old 8-week model this rollback happened at the intermediate wk8→wk7
-      // revert; the collapsed model has no such stop, so we restore it here.
+      // Also undo advanceToNewSeason's writes. It runs at Layout's wk8 intercept
+      // just before the wk8→preseason advance, capturing prevAdvanceToNewSeasonSnapshot.
+      // There's no intermediate stop between wk8 and preseason, so we restore it here.
       const snapshot = dynasty.prevAdvanceToNewSeasonSnapshot
       if (snapshot) {
         additionalUpdates.isFirstYearOnCurrentTeam = snapshot.isFirstYearOnCurrentTeam
@@ -17673,17 +17762,17 @@ export function DynastyProvider({ children }) {
           // Clear previousJobData since we've restored it
           additionalUpdates.previousJobData = null
         }
-      } else if (dynasty.currentWeek >= 2 && dynasty.currentWeek <= 4 && prevWeek === dynasty.currentWeek - 1) {
+      } else if (dynasty.currentWeek >= 2 && dynasty.currentWeek <= 5 && prevWeek === dynasty.currentWeek - 1) {
         // Reverting within recruiting weeks (2-5)
         // Clear recruiting commitments that were added in current week
         // Note: We don't delete recruits here, just clear sheet IDs as the actual
         // recruit management is handled through the recruiting modal
         additionalUpdates.recruitingSheetId = null
-      } else if (dynasty.currentWeek === 6 && prevWeek === 5) {
-        // Reverting FROM Training Results (week 6) TO National Signing Day (week 5).
-        // With the flip at wk4→5, BOTH weeks are POST-flip — this does NOT cross
+      } else if (dynasty.currentWeek === 7 && prevWeek === 6) {
+        // Reverting FROM Training Results (week 7) TO National Signing Day (week 6).
+        // With the flip at wk5→6, BOTH weeks are POST-flip — this does NOT cross
         // the year flip. So we only restore the Training Results overalls the
-        // modal wrote at wk6 (year-keyed by the post-flip year).
+        // modal wrote at wk7 (year-keyed by the post-flip year).
         const trainingYear = currentYear
         let basePlayers = dynasty.players || []
         const trainingResults = dynasty.trainingResultsByYear?.[trainingYear]
@@ -17736,17 +17825,17 @@ export function DynastyProvider({ children }) {
           }
         }
         // NOTE: do NOT clear recruitOverallsByYear here. Recruit Overalls is a
-        // Signing-Day (wk5) task keyed under the ending year S, not Training-
-        // Results (wk6) data. Reverting wk6→wk5 lands the user back ON Signing
+        // Signing-Day (wk6) task keyed under the ending year S, not Training-
+        // Results (wk7) data. Reverting wk7→wk6 lands the user back ON Signing
         // Day, so that data must survive.
 
         // Persist the training-overall restoration (no class-progression change here).
         if (basePlayers.some((p, i) => p !== (dynasty.players || [])[i])) {
           additionalUpdates.players = basePlayers
         }
-      } else if (dynasty.currentWeek === 5 && prevWeek === 4) {
-        // Reverting FROM National Signing Day (week 5, POST-flip) TO Recruiting
-        // Week 3 (week 4, PRE-flip). This crosses the year flip → undo the flip
+      } else if (dynasty.currentWeek === 6 && prevWeek === 5) {
+        // Reverting FROM National Signing Day (week 6, POST-flip) TO Recruiting
+        // Week 4 (week 5, PRE-flip). This crosses the year flip → undo the flip
         // + class progression. currentYear is the NEW year (post-flip).
         prevYear = currentYear - 1
         const newSeasonYear = currentYear // The year we're leaving
@@ -17992,9 +18081,9 @@ export function DynastyProvider({ children }) {
         // NOTE: We intentionally do NOT clear recruitingClassRankByTeamYear or
         // draftResultsByTeamYear here. In the flip-on-Signing-Day model these are
         // keyed under the ENDING season year S (= previousSeasonYear after this
-        // un-flip): Class Rank is a Signing-Day (wk5) task whose data year is
+        // un-flip): Class Rank is a Signing-Day (wk6) task whose data year is
         // currentYear-1, and Draft Results are entered earlier in the offseason
-        // under the same year. Un-flipping wk5→wk4 rolls the year back to S but
+        // under the same year. Un-flipping wk6→wk5 rolls the year back to S but
         // leaves that S-keyed data in place, so re-advancing into Signing Day
         // surfaces the user's entries again. Clearing it would silently wipe
         // them.
@@ -21661,6 +21750,15 @@ export function DynastyProvider({ children }) {
   // editors[] but not the owner). Merged into the main dynasties list
   // below so existing consumers keep working without changes.
   const [sharedDynasties, setSharedDynasties] = useState([])
+  // Mirrors sharedDynasties for the snapshot handler below, which needs to
+  // read "prev" synchronously to hoist applyMigrations out of the setState
+  // updater (React doesn't guarantee the updater runs synchronously, so
+  // anything read right after a setState(fn) call — like the migration
+  // shifts collected inside it — can't be trusted to be populated yet).
+  const sharedDynastiesRef = useRef([])
+  useEffect(() => {
+    sharedDynastiesRef.current = sharedDynasties
+  }, [sharedDynasties])
 
   // Re-pull a shared dynasty's subcollections and push fresh data into both
   // the shared-list entry and currentDynasty. This is the live-sync path for
@@ -21742,16 +21840,23 @@ export function DynastyProvider({ children }) {
         .map(d => ({ ...d, storageType: 'cloud' }))
       // Preserve already-hydrated subcollection fields so a metadata-only
       // snapshot doesn't blank a loaded shared dynasty's roster/games.
-      setSharedDynasties(prev => {
-        const prevById = new Map(prev.map(d => [String(d.id), d]))
-        return applyMigrations(tagged.map(d => {
-          const old = prevById.get(String(d.id))
-          if (old && (old.players || old.games)) {
-            return { ...d, players: old.players, games: old.games, weekRecapsByYear: old.weekRecapsByYear }
-          }
-          return d
-        }))
-      })
+      // applyMigrations is hoisted OUT of the setState call (reading "prev"
+      // via sharedDynastiesRef instead of the updater form) so it runs
+      // exactly once, synchronously, before persistRecruitingWeekShifts reads
+      // its result — React does not guarantee a setState(fn) updater runs
+      // synchronously, so collecting shifts inside one and reading them on
+      // the very next line silently saw an empty array.
+      const prevById = new Map(sharedDynastiesRef.current.map(d => [String(d.id), d]))
+      const recruitingWeekShiftsHere = []
+      const migratedShared = applyMigrations(tagged.map(d => {
+        const old = prevById.get(String(d.id))
+        if (old && (old.players || old.games)) {
+          return { ...d, players: old.players, games: old.games, weekRecapsByYear: old.weekRecapsByYear }
+        }
+        return d
+      }), recruitingWeekShiftsHere)
+      setSharedDynasties(migratedShared)
+      persistRecruitingWeekShifts(recruitingWeekShiftsHere)
       // Live-sync the currently-open shared dynasty when another user writes.
       const openId = currentDynastyIdRef.current
       const openFresh = tagged.find(d => String(d.id) === String(openId))
