@@ -300,6 +300,24 @@ export function detectGameType(game) {
  *                                          If false (default), use current team for current year.
  * @returns {Object|null} User's perspective on the game
  */
+// Tid equality that tolerates the number-vs-string split in stored data.
+// A game record can carry tids as strings (legacy rows, sheet imports) while
+// the tid it's compared against arrives as a number, and `===` between the
+// two silently reports "not a match". getTeamGamePerspective already
+// Number-coerces for exactly this reason — its comment calls the home-side
+// version "the 'every game shows Home' bug across the app" — but
+// getUserGamePerspective was never given the same treatment, so a
+// string-tid user game read as "not the user's game" at all and a
+// string-tid home game rendered as away.
+//
+// null/undefined on either side is never a match: Number(null) is 0, so a
+// bare Number() compare would make a CFP shell's empty opponent slot look
+// like tid 0.
+function sameTid(a, b) {
+  if (a == null || b == null) return false
+  return Number(a) === Number(b)
+}
+
 export function getUserGamePerspective(game, dynasty, options = {}) {
   if (!game || !dynasty) return null
 
@@ -346,18 +364,18 @@ export function getUserGamePerspective(game, dynasty, options = {}) {
     // For historical mode with explicit game.userTid, use that as source of truth
     // This handles cases where coachTeamByYear is wrong but game data is correct
     let effectiveUserTid = userTid
-    if (useHistorical && game.userTid && (game.team1Tid === game.userTid || game.team2Tid === game.userTid)) {
+    if (useHistorical && game.userTid && (sameTid(game.team1Tid, game.userTid) || sameTid(game.team2Tid, game.userTid))) {
       // Game has explicit userTid that's one of the teams - use it
       effectiveUserTid = game.userTid
     }
 
     // Check if user's team played in this game (by tid)
     // Handle case where one tid might be null (CFP shells waiting for opponent)
-    const isUserGame = game.team1Tid === effectiveUserTid || game.team2Tid === effectiveUserTid
+    const isUserGame = sameTid(game.team1Tid, effectiveUserTid) || sameTid(game.team2Tid, effectiveUserTid)
 
     if (!isUserGame) return null  // User's team didn't play
 
-    const isUserTeam1 = game.team1Tid === effectiveUserTid
+    const isUserTeam1 = sameTid(game.team1Tid, effectiveUserTid)
     const userScore = isUserTeam1 ? game.team1Score : game.team2Score
     const opponentScore = isUserTeam1 ? game.team2Score : game.team1Score
 
@@ -371,9 +389,9 @@ export function getUserGamePerspective(game, dynasty, options = {}) {
       opponentRank: isUserTeam1 ? game.team2Rank : game.team1Rank,
       userOverall: isUserTeam1 ? game.team1Overall : game.team2Overall,
       opponentOverall: isUserTeam1 ? game.team2Overall : game.team1Overall,
-      isHome: game.homeTeamTid === effectiveUserTid,
-      isAway: game.homeTeamTid !== null && game.homeTeamTid !== effectiveUserTid,
-      isNeutral: game.homeTeamTid === null
+      isHome: game.homeTeamTid != null && sameTid(game.homeTeamTid, effectiveUserTid),
+      isAway: game.homeTeamTid != null && !sameTid(game.homeTeamTid, effectiveUserTid),
+      isNeutral: game.homeTeamTid == null
     }
   }
 
@@ -750,6 +768,16 @@ export function propagateCFPWinner(games, savedGame) {
   // Determine winner - need valid scores
   if (savedGame.team1Score === null || savedGame.team2Score === null) {
     console.log(`[propagateCFPWinner] ${cfpSlot} has no scores yet, skipping propagation`)
+    return games
+  }
+
+  // A tie is not a result — and the shell a CFP game is created with starts
+  // 0-0, which passes the null check above. Without this, `0 > 0` is false
+  // and the ELSE branch handed the bracket slot to team2: opening "Enter
+  // Your CFP Semifinal" before typing a score advanced the user's opponent
+  // to the championship. Real CFP games can't tie, so bailing is safe.
+  if (savedGame.team1Score === savedGame.team2Score) {
+    console.log(`[propagateCFPWinner] ${cfpSlot} is tied (${savedGame.team1Score}-${savedGame.team2Score}), no winner yet`)
     return games
   }
 
@@ -2066,7 +2094,7 @@ export function migrateRanksToRankByWeek(dynasty, options = {}) {
     // labels). The old shared "100" slot collided CCG with bowls and
     // surfaced as a bogus "Week 100" in the Top 25 week picker.
     if (g.isConferenceChampionship) return 16
-    if (g.isBowlGame) return g.bowlWeek === 'week2' ? 18 : 17
+    if (g.isBowlGame) return g.bowlWeek === 'week3' ? 19 : g.bowlWeek === 'week2' ? 18 : 17
     const w = Number(g.week)
     return Number.isFinite(w) ? w : null
   }
@@ -2249,7 +2277,7 @@ export function rebuildRankByWeekFromCurrentState(dynasty) {
     // labels). The old shared "100" slot collided CCG with bowls and
     // surfaced as a bogus "Week 100" in the Top 25 week picker.
     if (g.isConferenceChampionship) return 16
-    if (g.isBowlGame) return g.bowlWeek === 'week2' ? 18 : 17
+    if (g.isBowlGame) return g.bowlWeek === 'week3' ? 19 : g.bowlWeek === 'week2' ? 18 : 17
     const w = Number(g.week)
     return Number.isFinite(w) ? w : null
   }
@@ -2330,7 +2358,7 @@ export function applyGameRanksToTeams(dynasty, game) {
     // Canonical rankByWeek slots: Conf Champ = 16, Bowl Week 1 = 17,
     // Bowl Week 2 = 18 (see weekKeyOf above).
     if (game.isConferenceChampionship) return 16
-    if (game.isBowlGame) return game.bowlWeek === 'week2' ? 18 : 17
+    if (game.isBowlGame) return game.bowlWeek === 'week3' ? 19 : game.bowlWeek === 'week2' ? 18 : 17
     const w = Number(game.week)
     return Number.isFinite(w) ? w : null
   })()
@@ -20934,8 +20962,15 @@ export function DynastyProvider({ children }) {
           if (!byWeek || typeof byWeek !== 'object') continue
           for (const [weekStr, posts] of Object.entries(byWeek)) {
             if (!Array.isArray(posts) || posts.length === 0) continue
-            const yearN = Number(yearStr); const weekN = Number(weekStr)
-            if (!Number.isFinite(yearN) || !Number.isFinite(weekN)) continue
+            const yearN = Number(yearStr)
+            if (!Number.isFinite(yearN)) continue
+            // Week is NOT coerced to a number here. Postseason social weeks
+            // are string sentinels ('Bowl', 'CCG', 'Bowl 1'), and
+            // socialFeedDocId keys on String(week) precisely so they round
+            // trip. Number('Bowl') is NaN, so the old numeric guard silently
+            // dropped every postseason post on import — export wrote them
+            // faithfully and import threw them away.
+            const weekN = Number.isFinite(Number(weekStr)) ? Number(weekStr) : weekStr
             try { await saveSocialFeedToSubcollection(result.id, yearN, weekN, posts); feedWeeks++ }
             catch (err) { feedFailures++; console.warn('[import] social feed save failed:', yearN, weekN, err?.message) }
           }

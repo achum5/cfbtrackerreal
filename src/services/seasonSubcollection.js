@@ -81,10 +81,10 @@ export const PER_YEAR_FIELDS = [
   'leagueDraftResultsByYear',
   'finalPollsByYear',
   'fringeCaseClassByYear',
-  'lockedCoachingStaffByYear',
   'overallBeforeTrainingByYear',
   'playersLeavingByYear',
   'playerStatsByYear',
+  'playoffPreviewByYear',
   'portalTransferClassByYear',
   'positionChangesByYear',
   'preseasonRankingsByYear',
@@ -114,6 +114,15 @@ export const PER_TEAM_YEAR_FIELDS = [
   'draftResultsByTeamYear',
   'encourageTransfersByTeamYear',
   'fringeCaseClassByTeamYear',
+  // Team-first shape ({ [teamKey]: { [year]: staff } }) despite the ByYear
+  // name — it predates the ByTeamYear convention. It belongs here, not in
+  // PER_YEAR_FIELDS, where the per-year splitter ran Number(teamKey) over
+  // its top level and threw the whole write away as NaN; the legacy-field
+  // migration then deleteField()'d the main-doc copy after producing no
+  // patch for it, destroying the history outright. The suffix strip below
+  // leaves this name unchanged, which is fine — write and read derive the
+  // season-doc field name from this same map, so they stay in agreement.
+  'lockedCoachingStaffByYear',
   'playersLeavingByTeamYear',
   'portalTransferClassByTeamYear',
   'preseasonSetupByTeamYear',
