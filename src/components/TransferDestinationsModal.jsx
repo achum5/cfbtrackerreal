@@ -85,11 +85,18 @@ export default function TransferDestinationsModal({ isOpen, onClose, onSave, cur
   // destinations for the year so the modal opens ready to edit. The parser
   // reads row[0]=Player, row[1]=New Team and requires BOTH non-blank, so we
   // emit only entries with a name and a destination — round-trip safe.
-  // Mirror handleTransferDestinationsSave's year: it flips to the prior season
-  // once we're at/after Signing Day (offseason week >= 6).
+  // The `currentYear` prop is ALREADY the data year. Dashboard passes
+  // offseasonDataYear, which has itself applied the post-Signing-Day flip
+  // adjustment (currentYear - 1 once offseason week >= 6) — the same
+  // adjustment handleTransferDestinationsSave makes when it decides which
+  // year to save under. Re-applying it here read a year EARLIER than
+  // anything was ever written to, so this season's saved rows never
+  // appeared and the grid pre-filled with last season's transfers; importing
+  // that stale prefill then wrote fabricated movements under the wrong year.
+  // Every other use of the prop in this component already treats it as the
+  // data year.
   const initialText = useMemo(() => {
-    const isAfterYearFlip = currentDynasty?.currentPhase === 'offseason' && currentDynasty?.currentWeek >= 6
-    const dataYear = isAfterYearFlip ? Number(currentYear) - 1 : Number(currentYear)
+    const dataYear = Number(currentYear)
     const tid = currentDynasty?.currentTid
     const teamAbbr = getTeamNameLabel(currentDynasty?.teams, tid) || currentDynasty?.teamName
     const fromTid = tid != null

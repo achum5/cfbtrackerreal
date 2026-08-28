@@ -218,9 +218,14 @@ FINAL CHECK before you send
   // the transfer's incoming class + roster jersey (the same values the Google
   // sheet pre-fills). Round-trip safe: re-importing unchanged reproduces the
   // saved selections.
+  // The `currentYear` prop is ALREADY the data year — Dashboard passes
+  // offseasonDataYear, which has applied the post-Signing-Day flip
+  // adjustment, and handlePortalTransferClassSave saves under that same
+  // year. Adjusting a second time here read portalTransferClassByYear one
+  // season too early, so saved class selections never round-tripped and a
+  // re-import silently reverted the user's corrections.
   const initialText = useMemo(() => {
-    const isAfterYearFlip = currentDynasty?.currentPhase === 'offseason' && currentDynasty?.currentWeek >= 6
-    const dataYear = isAfterYearFlip ? Number(currentYear) - 1 : Number(currentYear)
+    const dataYear = Number(currentYear)
     const saved = currentDynasty?.portalTransferClassByYear?.[dataYear] || []
     const savedByName = new Map()
     for (const s of saved) {

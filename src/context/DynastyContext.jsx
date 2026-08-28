@@ -15955,6 +15955,24 @@ export function DynastyProvider({ children }) {
         return null
       }
 
+      // The tid a player was actually on last season, member team or not.
+      // isPlayerLeaving/hasUnresolvedDeparture decide "did they leave and
+      // never come back" RELATIVE to a home team: a transfer_out whose toTid
+      // is that home team is an arrival, and a later teamsByYear entry on
+      // that home team is proof they returned. Both tests need the player's
+      // OWN team to mean anything — evaluating a CPU-team player against the
+      // user's tid makes their transfer to another school look permanently
+      // unresolved. Falls back to null (caller then uses the default) when
+      // the season's slot is missing or unresolvable.
+      const rosterTidOf = (player) => {
+        const raw = player.teamsByYear?.[previousSeasonYear]
+          ?? player.teamsByYear?.[String(previousSeasonYear)]
+        if (raw == null) return null
+        if (typeof raw === 'number') return raw
+        const resolved = getTidFromAbbr(raw, dynasty)
+        return resolved == null ? null : resolved
+      }
+
       // Teambuilder imports have been observed leaving isRecruit:true stuck on
       // players who have multiple seasons of teamsByYear entries — Jay's STONY
       // dynasty had 20 players with isRecruit:true who'd been on the roster
@@ -16047,7 +16065,16 @@ export function DynastyProvider({ children }) {
           // that wasn't followed by an arrival/recommit, so it correctly
           // catches transfers regardless of which team's roster the player
           // was on.
-          if (isPlayerLeaving(player)) {
+          // Pass the player's OWN team. Without it this defaulted to the
+          // user's tid, and every escape hatch in hasUnresolvedDeparture is
+          // keyed to the home team — so a player who transferred from the
+          // user's team to CPU team B (departure toTid=B, teamsByYear[S]=B,
+          // and typically no arrival record, which is what the implicit-
+          // arrival net exists for) still read as "gone" a year later and was
+          // dropped from B's roster, vanishing from the league entirely one
+          // season after the move. The member-team path below already passes
+          // its own tid for exactly this reason.
+          if (isPlayerLeaving(player, rosterTidOf(player) ?? teamTid)) {
             return player
           }
 
@@ -17020,16 +17047,35 @@ export function DynastyProvider({ children }) {
       }
       prevPhase = 'offseason'
       prevWeek = 8
-      prevYear = currentYear - 1
+      // The year does NOT move here. It flips once, entering Signing Day
+      // (offseason wk5→6), so offseason weeks 6-8 and the following preseason
+      // all share the SAME year — the wk8→preseason advance says so
+      // explicitly ("nextYear stays the same"). This used to decrement, a
+      // leftover from a model where the flip lived at the season boundary,
+      // and it put the dynasty a year behind the week it was showing.
+      //
+      // The damage was not cosmetic: advancing again from that state made the
+      // wk8→preseason branch compute previousSeasonYear = Y-1, so no recruit
+      // matched their recruitYear and none converted, advanceToNewSeason
+      // re-stamped rosters under the year just played, and the user landed in
+      // the preseason of the season they had already finished — with that
+      // season's games still on the schedule. Reverting further instead ran
+      // the wk7→6 and wk6→5 branches against the wrong year, restoring
+      // nothing and decrementing a second time.
+      prevYear = currentYear
 
       // CRITICAL: Restore recruits to isRecruit: true
-      // At Week 7→Preseason, recruits were converted. We need to undo that:
+      // At Week 8→Preseason, recruits were converted. We need to undo that:
       //   - Flip isRecruit back to true
       //   - Remove teamsByYear[currentYear] / classByYear[currentYear] that
       //     the conversion wrote. currentYear here is the upcoming season
       //     (post year-flip); those entries don't belong on recruit records.
       const players = dynasty.players || []
-      const recruitingYear = prevYear
+      // Derived from currentYear directly, NOT from prevYear. A recruit is
+      // tagged with the year they were recruited DURING — the season that
+      // just ended, one before the post-flip current year — which is exactly
+      // what the advance used as previousSeasonYear when it converted them.
+      const recruitingYear = currentYear - 1
       const upcomingSeasonYear = currentYear
       const updatedPlayers = players.map(player => {
         const matchesRecruitYear =
