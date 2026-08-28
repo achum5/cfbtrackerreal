@@ -50,3 +50,23 @@ describe('rivalry ownership', () => {
     expect(othersOf(all, 90, CURRENT).map(r => r.id)).toContain('d')
   })
 })
+
+describe('newly added rivalries are stamped with the viewing team', () => {
+  // Without an explicit tid, a new entry falls back to dynasty.currentTid —
+  // so adding a rivalry while viewing ANOTHER team's page would attribute it
+  // to the user's own team and make it vanish from the page that created it.
+  const addManual = (rivalTid, myTid) => ({ id: 'new', tid: myTid, rivalTid: Number(rivalTid) })
+
+  it('attributes the entry to the viewed team, not the dynasty team', () => {
+    const created = addManual(91, 90)
+    expect(ownerOf(created, CURRENT)).toBe(90)
+    expect(ownerOf(created, CURRENT)).not.toBe(CURRENT)
+  })
+
+  it('the new entry shows on the page that created it', () => {
+    const created = addManual(91, 90)
+    const next = [...all, created]
+    expect(mineOf(next, 90, CURRENT).map(r => r.id)).toContain('new')
+    expect(mineOf(next, 54, CURRENT).map(r => r.id)).not.toContain('new')
+  })
+})

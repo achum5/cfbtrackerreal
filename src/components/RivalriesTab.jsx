@@ -1484,15 +1484,35 @@ export default function RivalriesTab({ dynasty, tid, selectedYear, dynastyId, sa
   // no `tid` at all is legacy data written back when "my team" could only
   // ever mean the dynasty's own current team, so it's attributed there for
   // backward compatibility instead of showing on every team indiscriminately.
+  const isMineAndValid = useMemo(() => (r) => {
+    if (!Number.isFinite(Number(r.rivalTid))) return false
+    const ownerTid = r.tid != null ? Number(r.tid) : Number(dynasty.currentTid)
+    return ownerTid === myTid
+  }, [myTid, dynasty.currentTid])
+
   const rivalries = useMemo(
-    () => rawRivalries.filter(r => {
-      if (!Number.isFinite(Number(r.rivalTid))) return false
-      const ownerTid = r.tid != null ? Number(r.tid) : Number(dynasty.currentTid)
-      return ownerTid === myTid
-    }),
-    [rawRivalries, myTid, dynasty.currentTid]
+    () => rawRivalries.filter(isMineAndValid),
+    [rawRivalries, isMineAndValid]
   )
   const formedTids   = useMemo(() => new Set(rivalries.map(r => Number(r.rivalTid))), [rivalries])
+
+  // saveRivalries REPLACES dynasty.rivalries wholesale — `rivalries` above is
+  // scoped to just this team for display, so every interactive mutation must
+  // rebuild the FULL array (this team's edited list + every other team's
+  // untouched entries) before calling saveRivalries, or it deletes every
+  // other team's rivalries league-wide. This is the exact complement of the
+  // `rivalries` filter (not just "owned by another team") so a malformed row
+  // without a resolvable rivalTid — excluded from `rivalries` but NOT owned
+  // by anyone else — still survives the round-trip untouched instead of
+  // being silently pruned.
+  const otherRivalries = useMemo(
+    () => rawRivalries.filter(r => !isMineAndValid(r)),
+    [rawRivalries, isMineAndValid]
+  )
+
+  function saveMine(nextMine) {
+    saveRivalries(dynastyId, [...otherRivalries, ...nextMine])
+  }
 
   // ── One-time migration off ManageRivalries.jsx's old dynasty-wide shape ────
   // A legacy entry has `teamTids` but no `rivalTid`. Only the simple, common
@@ -1598,26 +1618,6 @@ export default function RivalriesTab({ dynasty, tid, selectedYear, dynastyId, sa
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
-  // saveRivalries REPLACES dynasty.rivalries wholesale, and `rivalries` above
-  // is now scoped to just this team's entries — so handing a mutation's result
-  // straight to it would delete every OTHER team's rivalries. That was
-  // harmless while the list was unscoped (it held everyone's), but became a
-  // data-loss bug the moment ownership filtering landed: editing one rivalry
-  // on any team page would wipe the rest of the league's. Every mutation now
-  // rebuilds the full array as "everyone else's entries + this team's new
-  // list". Ownership is resolved with the same legacy fallback the display
-  // filter uses, so an untagged legacy entry belongs to exactly one side and
-  // can never be both preserved here and rewritten there.
-  const otherRivalries = useMemo(
-    () => rawRivalries.filter(r => {
-      if (!Number.isFinite(Number(r.rivalTid))) return true // keep malformed rows untouched
-      const ownerTid = r.tid != null ? Number(r.tid) : Number(dynasty.currentTid)
-      return ownerTid !== myTid
-    }),
-    [rawRivalries, myTid, dynasty.currentTid]
-  )
-  const saveMine = (mine) => saveRivalries(dynastyId, [...otherRivalries, ...mine])
-
   function handleSaveEdit(updated) {
     saveMine(rivalries.map(r => r.id === updated.id ? updated : r))
     // Don't close — auto-save calls this; the modal stays open until the user clicks Done
@@ -1643,6 +1643,7 @@ export default function RivalriesTab({ dynasty, tid, selectedYear, dynastyId, sa
       ...rivalries,
       {
         id: genId(),
+        tid: myTid,
         rivalTid: Number(rivalTid),
         formedYear: currentYear,
         active: true,
