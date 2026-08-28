@@ -7581,57 +7581,27 @@ export default function Dashboard() {
               // place in the simplified PC list (all already-synced data
               // is covered by the other View rows above/below).
               if (isCfb27Auto) {
+                // National Signing Day itself is the ONLY PC task left here —
+                // Transfer Portal / Recruiting Class Rank / Incoming Freshmen
+                // Overalls were removed as redundant (already covered by the
+                // regular Recruiting/roster views, per the user's request).
+                //
+                // Year: NOT the outer offseasonDataYear (currentYear - 1) —
+                // that offset is for the console/manual-entry flow, where a
+                // recruiting class is tagged with the year of the season it
+                // was recruited DURING. The save's own year already flips to
+                // the UPCOMING season entering this week (see the week 5->6
+                // transition in DynastyContext.jsx), and PC-synced recruiting
+                // data is tagged under THAT year — the class actually being
+                // signed here, not the one already finished. Using
+                // offseasonDataYear pointed at a year with no real data.
                 o26Todos.push(pcViewTodo({
                   key: 'national-signing-day-pc',
                   done: true,
                   title: 'National Signing Day',
                   subtitle: 'Synced from your save',
-                  url: `${pathPrefix}/recruiting/${userTidForCommits}/${offseasonDataYear}?tab=commitments`,
+                  url: `${pathPrefix}/recruiting/${userTidForCommits}/${currentDynasty.currentYear}?tab=commitments`,
                 }))
-                o26Todos.push(pcViewTodo({
-                  key: 'transfer-portal-pc',
-                  done: true,
-                  title: 'Transfer Portal',
-                  subtitle: 'Synced from your save',
-                  url: `${pathPrefix}/recruiting/${userTidForCommits}/${offseasonDataYear}?tab=targets`,
-                }))
-                {
-                  const classRank = lookupByTeamYear(
-                    currentDynasty.recruitingClassRankByTeamYear,
-                    currentDynasty,
-                    getCurrentTeamTid(currentDynasty),
-                    offseasonDataYear
-                  )
-                  const hasClassRank = !!classRank
-                  o26Todos.push(pcViewTodo({
-                    key: 'class-rank-pc',
-                    done: hasClassRank,
-                    title: 'Recruiting Class Rank',
-                    subtitle: hasClassRank ? `Ranked #${classRank} nationally` : 'Synced from your save',
-                    url: `${pathPrefix}/recruiting/${userTidForCommits}/${offseasonDataYear}?tab=commitments&topClasses=1`,
-                  }))
-                }
-                {
-                  const recruitTeamTidPc = getUserTeamTid(currentDynasty)
-                  const recruitingClassPlayersPc = (currentDynasty?.players || []).filter(p => {
-                    if (!p.isRecruit || p.isPortal || p.previousTeam) return false
-                    if (p.recruitYear !== offseasonDataYear) return false
-                    if (!p.team) return true
-                    const v = p.team
-                    if (typeof v === 'number' || /^\d+$/.test(String(v))) return Number(v) === Number(recruitTeamTidPc)
-                    const tid = getTidFromAbbr(v, currentDynasty)
-                    return tid != null && Number(tid) === Number(recruitTeamTidPc)
-                  })
-                  o26Todos.push(pcViewTodo({
-                    key: 'recruit-overalls-pc',
-                    done: true,
-                    title: 'Incoming Freshmen Overalls',
-                    subtitle: recruitingClassPlayersPc.length > 0 ? `${recruitingClassPlayersPc.length} incoming freshmen` : 'Synced from your save',
-                    url: recruitTeamTidPc != null
-                      ? `${pathPrefix}/team/${recruitTeamTidPc}/${offseasonDataYear}?tab=roster&sort=class&dir=desc`
-                      : null,
-                  }))
-                }
               }
 
               if (!isCfb27Auto) {
@@ -7947,6 +7917,18 @@ export default function Dashboard() {
               // answer — not shown at all for PC-mode dynasties, matching
               // the simplified spec, which has no equivalent row here.
               const w8Todos = []
+              if (isCfb27Auto) {
+                const reviewRosterTid = getUserTeamTid(currentDynasty)
+                w8Todos.push(pcViewTodo({
+                  key: 'review-roster-pc',
+                  done: true,
+                  title: 'Review Roster',
+                  subtitle: 'Synced from your save',
+                  url: reviewRosterTid != null
+                    ? `${pathPrefix}/team/${reviewRosterTid}/${currentDynasty.currentYear}?tab=roster`
+                    : null,
+                }))
+              }
               if (!isCfb27Auto) {
                 const userTid = getUserTeamTid(currentDynasty)
                 const upcomingSeasonYear = currentDynasty.currentYear

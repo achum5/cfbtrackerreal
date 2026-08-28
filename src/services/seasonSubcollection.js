@@ -82,6 +82,7 @@ export const PER_YEAR_FIELDS = [
   'finalPollsByYear',
   'fringeCaseClassByYear',
   'lockedCoachingStaffByYear',
+  'overallBeforeTrainingByYear',
   'playersLeavingByYear',
   'playerStatsByYear',
   'portalTransferClassByYear',

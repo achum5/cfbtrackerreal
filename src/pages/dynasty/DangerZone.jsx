@@ -72,7 +72,7 @@ const IDAHO_TEAM = {
 }
 
 export default function DangerZone() {
-  const { currentDynasty, dynasties, analyzeDocumentSize, optimizeDocumentSize, migrateToSubcollections, migrateConferencesToPerTeam, updateDynasty, updateTeambuilderTeam, exportDynasty, isViewOnly, syncAllPlayersStats, saveWeekRecap, deleteWeekRecap, addGame, recoverRecruitData, recoverRosterData } = useDynasty()
+  const { currentDynasty, dynasties, analyzeDocumentSize, optimizeDocumentSize, migrateToSubcollections, migrateConferencesToPerTeam, updateDynasty, updateTeambuilderTeam, exportDynasty, isViewOnly, syncAllPlayersStats, saveWeekRecap, deleteWeekRecap, addGame, recoverRecruitData, recoverRosterData, restoreDynastyFromBackup, restoreDynastyFromBackupReplace } = useDynasty()
   const { user } = useAuth()
   const { toast } = useToast()
   const { confirm } = useConfirm()
@@ -206,6 +206,10 @@ export default function DangerZone() {
   const [removeResurrectedStatus, setRemoveResurrectedStatus] = useState(null)
   const [localBackups, setLocalBackups] = useState(null) // null = not loaded yet
   const [backupStatus, setBackupStatus] = useState(null)
+  const [restoreFileStatus, setRestoreFileStatus] = useState(null)
+  const restoreFileInputRef = useRef(null)
+  const [restoreReplaceStatus, setRestoreReplaceStatus] = useState(null)
+  const restoreReplaceInputRef = useRef(null)
   const [recoverRecruitSourceId, setRecoverRecruitSourceId] = useState('')
   const [recoverRecruitStatus, setRecoverRecruitStatus] = useState(null)
   const [clearRosterStatus, setClearRosterStatus] = useState(null)
@@ -973,6 +977,84 @@ export default function DangerZone() {
     }
   }
 
+  // ─── Restore from Backup File ────────────────────────────────────────
+  // The companion to "Download Backup" above: takes that same JSON file
+  // back and merges it INTO this live dynasty (unlike Import Dynasty
+  // elsewhere in the app, which always creates a separate, new dynasty).
+  // Additive only, same as Recover Data above — fills in anything this
+  // dynasty is missing (players, games, and their attached recaps/socials/
+  // score graphics, plus season honors), never touches anything already here.
+  const handleRestoreFileChange = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-selecting the same file next time
+    if (!file) return
+    const ok = await confirm({
+      title: 'Restore from backup?',
+      message: `This reads "${file.name}" and fills in any players, games, or other data this dynasty is currently missing. It only ADDS data — nothing already here is deleted or overwritten. Continue?`,
+      confirmLabel: 'Restore',
+      variant: 'primary',
+    })
+    if (!ok) return
+    setRestoreFileStatus('running')
+    try {
+      const result = await restoreDynastyFromBackup(currentDynasty.id, file)
+      if (!result?.success) {
+        setRestoreFileStatus({ success: false, message: result?.error || 'Restore failed.' })
+        return
+      }
+      if (result.message) {
+        setRestoreFileStatus({ success: true, message: result.message })
+        return
+      }
+      const parts = []
+      if (result.playersAdded) parts.push(`${result.playersAdded} player(s)`)
+      if (result.gamesAdded) parts.push(`${result.gamesAdded} game(s)`)
+      if (result.extraFieldsFilled) parts.push(`${result.extraFieldsFilled} other record(s) (recaps/socials/honors)`)
+      setRestoreFileStatus({
+        success: true,
+        message: `Restored: ${parts.join(', ')}. Reload the page to see everything.`,
+      })
+    } catch (err) {
+      console.error('[DangerZone] restore from backup failed:', err)
+      setRestoreFileStatus({ success: false, message: 'Restore failed: ' + (err?.message || 'unknown error') })
+    }
+  }
+
+  // ─── Replace with Backup ───────────────────────────────────────────────
+  // The TRUE restore, as opposed to the fill-gaps-only version above: this
+  // REPLACES players, games, and every other season field with exactly
+  // what's in the backup file, deleting anything live that isn't in it. Use
+  // this when something is actually WRONG (not just missing) — a bad sync
+  // that overwrote real data — since the fill-gaps version can never fix a
+  // value that's already incorrect.
+  const handleRestoreReplaceFileChange = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const ok = await confirm({
+      title: 'Replace everything with this backup?',
+      message: `This REPLACES this dynasty's players, games, and every other season field with exactly what's in "${file.name}" — anything created or changed since that backup was taken (including this dynasty's ownership/sharing settings, which are left untouched) will be LOST. This cannot be undone. Only do this to undo something that got messed up.`,
+      confirmLabel: 'Replace Everything',
+      variant: 'danger',
+    })
+    if (!ok) return
+    setRestoreReplaceStatus('running')
+    try {
+      const result = await restoreDynastyFromBackupReplace(currentDynasty.id, file)
+      if (!result?.success) {
+        setRestoreReplaceStatus({ success: false, message: result?.error || 'Restore failed.' })
+        return
+      }
+      setRestoreReplaceStatus({
+        success: true,
+        message: `Replaced with backup: ${result.playersTotal} player(s), ${result.gamesTotal} game(s). Reload the page to see everything.`,
+      })
+    } catch (err) {
+      console.error('[DangerZone] restore-replace from backup failed:', err)
+      setRestoreReplaceStatus({ success: false, message: 'Restore failed: ' + (err?.message || 'unknown error') })
+    }
+  }
+
   // Wipe the user team's CURRENT-year roster so a fresh roster can be imported.
   // Roster import always MERGES (it never deletes players missing from the
   // sheet), so re-importing a corrected roster leaves the old names behind.
@@ -1018,13 +1100,15 @@ export default function DangerZone() {
   // save file got uploaded (a different dynasty's own save, not a newer
   // version of this same one) and contaminated players/games/records/season
   // state with a completely different simulated universe's data. A normal
-  // re-sync with the correct file can't undo this on its own: (1) sync is a
-  // merge/upsert, it never deletes stale records the new file doesn't
-  // mention, and (2) computeCfb27SyncSeasonAdvance explicitly refuses to
-  // rewind currentWeek/currentPhase backward if the correct save's real
-  // season point is EARLIER than what's already stored (e.g. stuck at Bowl
-  // Week 1 when the real save is still Preseason) — so week/phase must be
-  // reset here too, or even a correct re-sync can never move it back.
+  // re-sync with the correct file can't fully undo this on its own: sync is
+  // a merge/upsert, so it never deletes stale players/games/records the
+  // correct file doesn't mention (current week/phase/year DO now
+  // self-correct on the next correct-file sync — see the PC sync
+  // durability redesign, 2026-08-28 — but the contaminated roster/games/
+  // season data from the wrong file stays until this runs). See
+  // restoreDynastyFromBackupReplace (the "Replace with Backup" button
+  // above) for undoing damage from something OTHER than a wrong-dynasty
+  // upload, using a real backup instead of a blank slate.
   // Deliberately leaves alone: team identity (abbr/name/colors/conference),
   // rivalries (gap-fill only, safe either way, and holds the user's own
   // trophy customization), teamFuture (Scheme Builder depth-chart/package
@@ -2743,14 +2827,69 @@ export default function DangerZone() {
           <p className="text-xs text-txt-secondary m-0">
             <strong style={{ color: 'var(--accent-warning)' }}>Back up first.</strong> Download a backup before making changes.
           </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <input
+              ref={restoreFileInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={handleRestoreFileChange}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => restoreFileInputRef.current?.click()}
+              disabled={restoreFileStatus === 'running'}
+            >
+              {restoreFileStatus === 'running' ? 'Restoring…' : 'Restore from Backup'}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => exportDynasty && exportDynasty(dynastyId)}
+            >
+              Download Backup
+            </Button>
+          </div>
+        </div>
+        {restoreFileStatus && restoreFileStatus !== 'running' && (
+          <p className="text-xs mt-3 mb-0" style={{ color: restoreFileStatus.success ? 'var(--accent-success)' : 'var(--accent-danger, #f87171)' }}>
+            {restoreFileStatus.message}
+          </p>
+        )}
+        {isPc && (<>
+        <div className="flex items-center justify-between gap-3 flex-wrap mt-3 pt-3" style={{ borderTop: '1px solid var(--surface-4)' }}>
+          <p className="text-xs text-txt-secondary m-0">
+            <span
+              className="label-xs px-1.5 py-0.5 rounded mr-2"
+              style={{ color: 'var(--accent-info, #60a5fa)', border: '1px solid currentColor', letterSpacing: '1px' }}
+            >
+              PC ONLY
+            </span>
+            <strong style={{ color: 'var(--accent-danger, #f87171)' }}>Something already wrong?</strong> Replace everything with a backup instead of filling gaps.
+          </p>
+          <input
+            ref={restoreReplaceInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={handleRestoreReplaceFileChange}
+          />
           <Button
-            variant="primary"
+            variant="outline"
             size="sm"
-            onClick={() => exportDynasty && exportDynasty(dynastyId)}
+            onClick={() => restoreReplaceInputRef.current?.click()}
+            disabled={restoreReplaceStatus === 'running'}
           >
-            Download Backup
+            {restoreReplaceStatus === 'running' ? 'Replacing…' : 'Replace with Backup'}
           </Button>
         </div>
+        {restoreReplaceStatus && restoreReplaceStatus !== 'running' && (
+          <p className="text-xs mt-3 mb-0" style={{ color: restoreReplaceStatus.success ? 'var(--accent-success)' : 'var(--accent-danger, #f87171)' }}>
+            {restoreReplaceStatus.message}
+          </p>
+        )}
+        </>)}
       </Card>
 
       {/* Game Edition — switch which edition this dynasty is tracked as.
