@@ -8335,16 +8335,31 @@ export function DynastyProvider({ children }) {
 
       // Collapse the offseason from the old 8-week layout to the new 7-week one.
       //   old wk8 (Conferences/Transfers) → new wk7 (same tasks)
-      //   old wk7 (Training)              → new wk6 (Training Results)
-      //   old wk6 (Signing Day Results, post-flip) → stays wk6 (Training Results;
-      //            the year flip already happened, so land on the next post-flip step)
-      //   old wk≤5 → unchanged (recruiting / Signing Day are pre-flip)
+      //   old wk≤7 → unchanged
       // The year flip stays at wk5→6 in BOTH models, so no year change is needed.
-      // Gated by a persisted flag so it runs exactly once per dynasty.
+      //
+      // The `w === 7 ? 6` clause this used to carry (old wk7 Training → new
+      // wk6) WEDGED every console dynasty that reached the last offseason
+      // week. _offseasonWeekCollapseV1 is set on the in-memory object only —
+      // applyMigrations is a pure transform and no write path persists it —
+      // so this re-evaluates on EVERY load against whatever is in storage.
+      // Meanwhile wk7 (Transfers) is a legitimate, reachable week that
+      // advanceWeek persists (wk6→7). So: advance to 7 → reload → knocked
+      // back to 6 → advance to 7 → reload → 6, forever. The user could never
+      // reach preseason or roll the season over.
+      //
+      // A stored 7 is ambiguous (old-model Training, or current-model
+      // Transfers), but only the latter can be reached by anyone active since
+      // this migration shipped 2026-07-17 — and they are the ones actively
+      // wedged — so 7 is now left alone. `w >= 8` stays: the current model
+      // has no week 8, so a stored 8 is unambiguously old-model. That also
+      // makes the transform a fixed point (8→7, 7→7), so re-running it on an
+      // already-migrated value is a genuine no-op and the unpersisted flag
+      // stops mattering.
       if (!migrated._offseasonWeekCollapseV1) {
         if (migrated.currentPhase === 'offseason' && typeof migrated.currentWeek === 'number') {
           const w = migrated.currentWeek
-          const newW = w >= 8 ? 7 : w === 7 ? 6 : w
+          const newW = w >= 8 ? 7 : w
           if (newW !== w) migrated = { ...migrated, currentWeek: newW }
         }
         migrated._offseasonWeekCollapseV1 = true
