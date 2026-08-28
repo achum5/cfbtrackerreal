@@ -6573,9 +6573,23 @@ export default function Dashboard() {
               // hidden when the user has turned Blueprint off in preferences.
               if (isDynastyBlueprintEnabled(currentDynasty) && w5Tid != null) {
                 const nextYear = Number(w5Year) + 1
-                const nextBudget = getSeasonBudget(currentDynasty, nextYear, w5Tid)
+                // Next season's budget / facility / roster NIL belong to the
+                // team the user will actually COACH next season. With a new
+                // job accepted (myNewJobData — already per-user scoped, so a
+                // member's answer never redirects the owner's tasks), that is
+                // the incoming team, not the one being left: entering "2027
+                // Roster NIL" into the OLD team's blueprint wrote data the
+                // user will never see again once the flip swaps their team
+                // (beta report: took the Rutgers job, tasks still pointed at
+                // Troy). The job's teamTid is stored at pick time; the abbr
+                // fallback covers legacy answers saved before it existed.
+                const pendingJobTid = myNewJobData?.takingNewJob
+                  ? (myNewJobData.teamTid ?? getTidFromTeamName(myNewJobData.team, currentDynasty.teams) ?? null)
+                  : null
+                const blueprintTid = pendingJobTid ?? w5Tid
+                const nextBudget = getSeasonBudget(currentDynasty, nextYear, blueprintTid)
                 const nbDone = nextBudget != null
-                const nextBlueprint = `${pathPrefix}/team/${w5Tid}/${nextYear}?tab=blueprint`
+                const nextBlueprint = `${pathPrefix}/team/${blueprintTid}/${nextYear}?tab=blueprint`
                 w5Todos.push({
                   key: 'next-season-budget',
                   done: nbDone,
@@ -6592,8 +6606,8 @@ export default function Dashboard() {
                 // recorded for nextYear (keeping the same tier still counts — you
                 // re-select it, which stores it).
                 const facTiers = getEditionConfig(currentDynasty)?.dynastyPoints?.facilities?.tiers ?? []
-                const nextFac = getFacilities(currentDynasty, nextYear, w5Tid)
-                const curTierKey = getCarriedFacilityTier(currentDynasty, Number(w5Year), w5Tid)
+                const nextFac = getFacilities(currentDynasty, nextYear, blueprintTid)
+                const curTierKey = getCarriedFacilityTier(currentDynasty, Number(w5Year), blueprintTid)
                 const facDone = !!nextFac.tier
                 const nextTierLabel = facTiers.find((t) => t.key === nextFac.tier)?.label
                 const curIdx = facTiers.findIndex((t) => t.key === curTierKey)
@@ -6601,7 +6615,7 @@ export default function Dashboard() {
                 const direction = facDone && curIdx >= 0 && nextIdx >= 0
                   ? (nextIdx > curIdx ? 'Upgrade' : nextIdx < curIdx ? 'Downgrade' : 'No change')
                   : null
-                const nextFacBlueprint = `${pathPrefix}/team/${w5Tid}/${nextYear}?tab=blueprint`
+                const nextFacBlueprint = `${pathPrefix}/team/${blueprintTid}/${nextYear}?tab=blueprint`
                 w5Todos.push({
                   key: 'next-season-facility',
                   done: facDone,
@@ -6619,7 +6633,7 @@ export default function Dashboard() {
                 // expected; you increase to retain / decrease to risk losing them).
                 // "Done" = at least one next-year roster player has a NIL recorded.
                 const nextRoster = (currentDynasty.players || []).filter(
-                  (p) => isPlayerOnRoster(p, w5Tid, nextYear, currentDynasty)
+                  (p) => isPlayerOnRoster(p, blueprintTid, nextYear, currentDynasty)
                 )
                 const rnSet = nextRoster.filter((p) => getPlayerNil(p, nextYear) != null)
                 const rnTotal = sumPlayerNil(nextRoster, nextYear)
