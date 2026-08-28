@@ -7367,6 +7367,17 @@ export function DynastyProvider({ children }) {
   const migrationSaveInProgressRef = useRef(false)
   // Track which cloud dynasties have had their subcollections loaded (lazy loading optimization)
   const loadedDynastyIdsRef = useRef(new Set())
+  // Once per session per dynasty, the games load bypasses the read-cost gate
+  // and forces the background SERVER read even when the sync stamp matches
+  // the rev. The gate's premise is "every change bumps the rev" — but a
+  // server-side games deletion that did NOT bump it (an out-of-band cleanup)
+  // leaves every device's cached query view holding the deleted row forever:
+  // stamps keep matching, reads stay cache-only, and nothing ever reconciles.
+  // Live case: a phantom duplicate game deleted on the server kept inflating
+  // records on every one of the user's devices while a server-first export
+  // showed clean data. One forced games read per session (~1 query) bounds
+  // the cost while guaranteeing eventual convergence with the server.
+  const gamesServerReconciledRef = useRef(new Set())
   // Track which dynasties have ALREADY attempted the legacy-to-subcollection
   // migrations (recaps + seasonal fields) THIS SESSION. Without this guard,
   // both migrations re-fire on every Firestore snapshot whenever the legacy
@@ -7846,7 +7857,12 @@ export function DynastyProvider({ children }) {
           ...(trackingPcLoad ? { onPageProgress: (p) => updatePcLoadProgress(dynastyId, 'players', p.loaded, p.total) } : {}),
         }),
         getGamesSubcollection(dynastyId, {
-          ...gatedFreshOptions(dynastyId, 'games', loadRev, onFreshGames),
+          // First load this session: force the background server read even if
+          // the stamp matches, so a server-side deletion that never bumped
+          // the rev still reconciles — see gamesServerReconciledRef.
+          ...(gamesServerReconciledRef.current.has(String(dynastyId))
+            ? gatedFreshOptions(dynastyId, 'games', loadRev, onFreshGames)
+            : { onFresh: (fresh, meta) => { gamesServerReconciledRef.current.add(String(dynastyId)); onFreshGames(fresh, meta) } }),
           ...(trackingPcLoad ? { onPageProgress: (p) => updatePcLoadProgress(dynastyId, 'games', p.loaded, p.total) } : {}),
         }),
         getWeekRecapsSubcollection(dynastyId, gatedFreshOptions(dynastyId, 'weekRecaps', loadRev, onFreshRecaps)),
