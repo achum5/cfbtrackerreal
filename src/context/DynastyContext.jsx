@@ -179,8 +179,20 @@ function gatedFreshOptions(dynastyId, collectionName, rev, onFresh) {
     // it matters: without it every gated read looks unstamped and falls back
     // to the weaker elapsed-time guard.
     onFresh: (fresh, meta) => {
-      if (rev > 0) setSyncStamp(dynastyId, collectionName, rev)
-      onFresh(fresh, meta)
+      // Stamp only AFTER the consumer accepts the payload. The consumer
+      // callbacks drop a fresh result on purpose (listener-skip window
+      // during a local save, or a read that started before our own write)
+      // by returning false — stamping before asking made a dropped result
+      // mark the collection "synced at this rev" anyway, so every later
+      // listener fire AND every app reopen at that rev went cache-only with
+      // no fresh callback at all. That is the cross-device stale state a
+      // beta report hit: a game recap saved on the computer bumped the rev,
+      // the phone's background read completed but its apply was dropped,
+      // and the phone then served its stale cache forever — while socials,
+      // fetched directly by the game page, looked fine. A drop now leaves
+      // the stamp unset, so the next snapshot or the next boot re-reads.
+      const applied = onFresh(fresh, meta)
+      if (rev > 0 && applied !== false) setSyncStamp(dynastyId, collectionName, rev)
     },
   }
 }
@@ -7652,7 +7664,7 @@ export function DynastyProvider({ children }) {
         // waiting on this to know the server round-trip actually
         // completed (see isPcDynastyDataConfirmed / pcConfirmedPartsRef).
         markPcDynastyPartConfirmed(dynastyId, 'games')
-        if (skipListenerUpdatesCountRef.current > 0) return // active save in flight; don't clobber
+        if (skipListenerUpdatesCountRef.current > 0) return false // active save in flight; don't clobber
         // Stale-snapshot guard. Firestore's eventual consistency sometimes
         // delivers a subcollection snapshot that predates a local save AFTER
         // that save's listener-skip count has decremented to 0. Without this,
@@ -7661,7 +7673,7 @@ export function DynastyProvider({ children }) {
         // but the individual team page still shows them" (the recap reads
         // currentDynasty.games which got clobbered; the team page uses a
         // different lookup).
-        if (isStaleFreshRead(dynastyId, meta, lastGamesUpdateTimestampRef, lastGamesUpdateDynastyIdRef)) return
+        if (isStaleFreshRead(dynastyId, meta, lastGamesUpdateTimestampRef, lastGamesUpdateDynastyIdRef)) return false
         setDynasties(prev => prev.map(d =>
           String(d.id) === String(dynastyId) ? { ...d, games: fresh } : d
         ))
@@ -7672,10 +7684,10 @@ export function DynastyProvider({ children }) {
       }
       const onFreshPlayers = (fresh, meta) => {
         markPcDynastyPartConfirmed(dynastyId, 'players')
-        if (skipListenerUpdatesCountRef.current > 0) return
+        if (skipListenerUpdatesCountRef.current > 0) return false
         // Same stale-read rule as games — this is the one that made a
         // just-added recruit vanish on a large dynasty.
-        if (isStaleFreshRead(dynastyId, meta, lastPlayersUpdateTimestampRef, lastPlayersUpdateDynastyIdRef)) return
+        if (isStaleFreshRead(dynastyId, meta, lastPlayersUpdateTimestampRef, lastPlayersUpdateDynastyIdRef)) return false
         setDynasties(prev => prev.map(d =>
           String(d.id) === String(dynastyId) ? { ...d, players: fresh } : d
         ))
@@ -7685,7 +7697,7 @@ export function DynastyProvider({ children }) {
         })
       }
       const onFreshRecaps = (fresh) => {
-        if (skipListenerUpdatesCountRef.current > 0) return
+        if (skipListenerUpdatesCountRef.current > 0) return false
         setDynasties(prev => prev.map(d =>
           String(d.id) === String(dynastyId) ? { ...d, weekRecapsByYear: fresh } : d
         ))
@@ -7697,7 +7709,7 @@ export function DynastyProvider({ children }) {
       // Seasons rehydrate to MULTIPLE legacy field names — surface them
       // by spreading the whole map back onto the dynasty object.
       const onFreshSeasons = (fresh) => {
-        if (skipListenerUpdatesCountRef.current > 0) return
+        if (skipListenerUpdatesCountRef.current > 0) return false
         setDynasties(prev => prev.map(d =>
           String(d.id) === String(dynastyId) ? foldTeamsByYearFieldsFromFlat({ ...d, ...fresh }) : d
         ))
@@ -7707,8 +7719,8 @@ export function DynastyProvider({ children }) {
         })
       }
       const onFreshRecruitingDatabase = (fresh, meta) => {
-        if (skipListenerUpdatesCountRef.current > 0) return
-        if (isStaleFreshRead(dynastyId, meta, lastRecruitingDbUpdateTimestampRef, lastRecruitingDbUpdateDynastyIdRef)) return
+        if (skipListenerUpdatesCountRef.current > 0) return false
+        if (isStaleFreshRead(dynastyId, meta, lastRecruitingDbUpdateTimestampRef, lastRecruitingDbUpdateDynastyIdRef)) return false
         setDynasties(prev => prev.map(d =>
           String(d.id) === String(dynastyId) ? { ...d, recruitingDatabasePlayers: fresh } : d
         ))
@@ -7718,7 +7730,7 @@ export function DynastyProvider({ children }) {
         })
       }
       const onFreshTeamFuture = (fresh) => {
-        if (skipListenerUpdatesCountRef.current > 0) return
+        if (skipListenerUpdatesCountRef.current > 0) return false
         setDynasties(prev => prev.map(d =>
           String(d.id) === String(dynastyId) ? { ...d, teamFuture: fresh } : d
         ))
@@ -7728,7 +7740,7 @@ export function DynastyProvider({ children }) {
         })
       }
       const onFreshRecruitingClasses = (fresh) => {
-        if (skipListenerUpdatesCountRef.current > 0) return
+        if (skipListenerUpdatesCountRef.current > 0) return false
         setDynasties(prev => prev.map(d =>
           String(d.id) === String(dynastyId) ? { ...d, teams: foldRecruitingClassesIntoTeams(d.teams, fresh) } : d
         ))
@@ -9010,14 +9022,14 @@ export function DynastyProvider({ children }) {
               // waiting on this to know the server round-trip actually
               // completed (see isPcDynastyDataConfirmed).
               markPcDynastyPartConfirmed(dynId, 'games')
-              if (skipListenerUpdatesCountRef.current > 0) return
+              if (skipListenerUpdatesCountRef.current > 0) return false
               // Don't let a background server-read (kicked off before a local save)
               // overwrite games that were just committed locally. The cache-first
               // read dispatches a getDocsFromServer fetch BEFORE the save batch
               // runs; if that read wins the race it returns pre-save data, which
               // would revert the UI to blank and make subsequent addGame calls
               // create duplicates.
-              if (isStaleFreshRead(dynId, meta, lastGamesUpdateTimestampRef, lastGamesUpdateDynastyIdRef)) return
+              if (isStaleFreshRead(dynId, meta, lastGamesUpdateTimestampRef, lastGamesUpdateDynastyIdRef)) return false
               setDynasties(prev => prev.map(d =>
                 String(d.id) === String(dynId) ? { ...d, games: fresh } : d
               ))
@@ -9028,11 +9040,11 @@ export function DynastyProvider({ children }) {
             }
             const onFreshPlayers = (fresh, meta) => {
               markPcDynastyPartConfirmed(dynId, 'players')
-              if (skipListenerUpdatesCountRef.current > 0) return
+              if (skipListenerUpdatesCountRef.current > 0) return false
               // Previously UNGUARDED: any background players read that landed
               // after a local save silently overwrote it, which is what made a
               // just-added recruit disappear moments later.
-              if (isStaleFreshRead(dynId, meta, lastPlayersUpdateTimestampRef, lastPlayersUpdateDynastyIdRef)) return
+              if (isStaleFreshRead(dynId, meta, lastPlayersUpdateTimestampRef, lastPlayersUpdateDynastyIdRef)) return false
               setDynasties(prev => prev.map(d =>
                 String(d.id) === String(dynId) ? { ...d, players: fresh } : d
               ))
@@ -9042,7 +9054,7 @@ export function DynastyProvider({ children }) {
               })
             }
             const onFreshRecaps = (fresh) => {
-              if (skipListenerUpdatesCountRef.current > 0) return
+              if (skipListenerUpdatesCountRef.current > 0) return false
               setDynasties(prev => prev.map(d =>
                 String(d.id) === String(dynId) ? { ...d, weekRecapsByYear: fresh } : d
               ))
@@ -9052,7 +9064,7 @@ export function DynastyProvider({ children }) {
               })
             }
             const onFreshSeasons = (fresh) => {
-              if (skipListenerUpdatesCountRef.current > 0) return
+              if (skipListenerUpdatesCountRef.current > 0) return false
               setDynasties(prev => prev.map(d =>
                 String(d.id) === String(dynId) ? foldTeamsByYearFieldsFromFlat({ ...d, ...fresh }) : d
               ))
@@ -9062,8 +9074,8 @@ export function DynastyProvider({ children }) {
               })
             }
             const onFreshRecruitingDatabase = (fresh, meta) => {
-              if (skipListenerUpdatesCountRef.current > 0) return
-              if (isStaleFreshRead(dynId, meta, lastRecruitingDbUpdateTimestampRef, lastRecruitingDbUpdateDynastyIdRef)) return
+              if (skipListenerUpdatesCountRef.current > 0) return false
+              if (isStaleFreshRead(dynId, meta, lastRecruitingDbUpdateTimestampRef, lastRecruitingDbUpdateDynastyIdRef)) return false
               setDynasties(prev => prev.map(d =>
                 String(d.id) === String(dynId) ? { ...d, recruitingDatabasePlayers: fresh } : d
               ))
@@ -9073,7 +9085,7 @@ export function DynastyProvider({ children }) {
               })
             }
             const onFreshTeamFuture = (fresh) => {
-              if (skipListenerUpdatesCountRef.current > 0) return
+              if (skipListenerUpdatesCountRef.current > 0) return false
               setDynasties(prev => prev.map(d =>
                 String(d.id) === String(dynId) ? { ...d, teamFuture: fresh } : d
               ))
@@ -9083,7 +9095,7 @@ export function DynastyProvider({ children }) {
               })
             }
             const onFreshRecruitingClasses = (fresh) => {
-              if (skipListenerUpdatesCountRef.current > 0) return
+              if (skipListenerUpdatesCountRef.current > 0) return false
               setDynasties(prev => prev.map(d =>
                 String(d.id) === String(dynId) ? { ...d, teams: foldRecruitingClassesIntoTeams(d.teams, fresh) } : d
               ))
