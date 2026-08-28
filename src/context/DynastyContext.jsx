@@ -7184,6 +7184,15 @@ export function DynastyProvider({ children }) {
   // CRITICAL: Track when we last updated games locally to prevent listener from overwriting
   const lastGamesUpdateTimestampRef = useRef(0)
   const lastGamesUpdateDynastyIdRef = useRef(null)
+  // Same protection for the Recruiting Database subcollection. Its board
+  // lives outside the main doc, so the generic recentMainDocFieldWritesRef
+  // guard never sees it — and its onFresh server read is exactly the read
+  // that razes a just-imported board (server reads exclude queued local
+  // writes, so mid-import they return the PRE-import list). Beta report:
+  // "takes sometimes 15 tries to get new recruits to stay — after I
+  // import, they'll be in 5 seconds and disappear."
+  const lastRecruitingDbUpdateTimestampRef = useRef(0)
+  const lastRecruitingDbUpdateDynastyIdRef = useRef(null)
   // GENERIC guard: track recently-written main-doc field names per dynasty so a
   // stale Firestore snapshot delivered after the listener-skip window can't
   // revert a field the user just saved. players/games/teams have their own refs
@@ -7680,8 +7689,9 @@ export function DynastyProvider({ children }) {
           return foldTeamsByYearFieldsFromFlat({ ...prev, ...fresh })
         })
       }
-      const onFreshRecruitingDatabase = (fresh) => {
+      const onFreshRecruitingDatabase = (fresh, meta) => {
         if (skipListenerUpdatesCountRef.current > 0) return
+        if (isStaleFreshRead(dynastyId, meta, lastRecruitingDbUpdateTimestampRef, lastRecruitingDbUpdateDynastyIdRef)) return
         setDynasties(prev => prev.map(d =>
           String(d.id) === String(dynastyId) ? { ...d, recruitingDatabasePlayers: fresh } : d
         ))
@@ -8929,8 +8939,9 @@ export function DynastyProvider({ children }) {
                 return foldTeamsByYearFieldsFromFlat({ ...prev, ...fresh })
               })
             }
-            const onFreshRecruitingDatabase = (fresh) => {
+            const onFreshRecruitingDatabase = (fresh, meta) => {
               if (skipListenerUpdatesCountRef.current > 0) return
+              if (isStaleFreshRead(dynId, meta, lastRecruitingDbUpdateTimestampRef, lastRecruitingDbUpdateDynastyIdRef)) return
               setDynasties(prev => prev.map(d =>
                 String(d.id) === String(dynId) ? { ...d, recruitingDatabasePlayers: fresh } : d
               ))
@@ -19400,10 +19411,21 @@ export function DynastyProvider({ children }) {
       return
     }
 
+    // Stamp the write BEFORE it starts and suppress the next few listener
+    // fires — same two-layer protection every other cloud save has. The
+    // ordering stamp makes isStaleFreshRead discard any background server
+    // read that started before this save (such a read can't contain it);
+    // the re-stamp after the await extends cover across a long multi-batch
+    // import, including one that outlives settleOrProceed's cap below.
+    lastRecruitingDbUpdateTimestampRef.current = Date.now()
+    lastRecruitingDbUpdateDynastyIdRef.current = dynastyId
+    bumpSkipCount(3)
+
     // Capped like the other cloud saves: a slow/marginal connection must not
     // spin the Recruiting Database's Saving… UI forever (the delta is durable
     // locally and syncs in the background). Fast rejections still surface.
     await settleOrProceed(saveRecruitingDatabaseSubcollection(dynastyId, players), 10000, `updateRecruitingDatabasePlayers(${dynastyId})`)
+    lastRecruitingDbUpdateTimestampRef.current = Date.now()
 
     // Optimistic local update, same shape as updatePlayer's single-doc
     // cloud path — the subcollection write itself doesn't touch React

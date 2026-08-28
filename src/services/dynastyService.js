@@ -1242,10 +1242,15 @@ export async function getRecruitingDatabaseSubcollection(dynastyId, options = {}
     if (!cachedSnap.empty) {
       const cached = cachedSnap.docs.map(d => d.data())
       // Only pay for the server read when a caller wants the fresh result.
+      // requestedAt rides along so the callback can discard a read that
+      // STARTED before the caller's own latest local write (see
+      // isStaleFreshRead) — a server read excludes queued-but-unacked
+      // local writes, so mid-import it returns the PRE-import board.
       if (onFresh) {
-        const deadlineAt = Date.now() + 15000
+        const requestedAt = Date.now()
+        const deadlineAt = requestedAt + 15000
         getSubcollectionPaged(ref, { deadlineAt }).then(fresh => {
-          try { onFresh(fresh) } catch (e) { console.error('onFresh callback threw:', e) }
+          try { onFresh(fresh, { requestedAt }) } catch (e) { console.error('onFresh callback threw:', e) }
         }).catch(() => {})
       }
       return cached
