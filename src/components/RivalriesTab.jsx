@@ -1470,9 +1470,27 @@ export default function RivalriesTab({ dynasty, tid, selectedYear, dynastyId, sa
   // legacy 2-team entries involving THIS team are converted just below
   // instead of only being hidden, so nothing a user already set up (a
   // custom trophy name/image) silently vanishes.
+  //
+  // Ownership: `dynasty.rivalries[]` is a single FLAT array, not nested
+  // per-team, and every entry only ever stored the OTHER side (`rivalTid`)
+  // — the assumption baked in from when this only ever ran on
+  // ManageRivalries, scoped to the dynasty's own current team, was that
+  // "my side" is implicitly whoever's viewing it. Once this same component
+  // got reused as the Team Dashboard's generic "Rivalries" tab (rendered
+  // for ANY team, not just the user's own), that assumption broke: every
+  // team's page showed the SAME flat list, e.g. a non-user team's page
+  // displaying the user's own program's real rivals. Entries now carry an
+  // explicit `tid` (who this entry belongs to) going forward; an entry with
+  // no `tid` at all is legacy data written back when "my team" could only
+  // ever mean the dynasty's own current team, so it's attributed there for
+  // backward compatibility instead of showing on every team indiscriminately.
   const rivalries = useMemo(
-    () => rawRivalries.filter(r => Number.isFinite(Number(r.rivalTid))),
-    [rawRivalries]
+    () => rawRivalries.filter(r => {
+      if (!Number.isFinite(Number(r.rivalTid))) return false
+      const ownerTid = r.tid != null ? Number(r.tid) : Number(dynasty.currentTid)
+      return ownerTid === myTid
+    }),
+    [rawRivalries, myTid, dynasty.currentTid]
   )
   const formedTids   = useMemo(() => new Set(rivalries.map(r => Number(r.rivalTid))), [rivalries])
 
@@ -1495,6 +1513,7 @@ export default function RivalriesTab({ dynasty, tid, selectedYear, dynastyId, sa
     const migratedIds = new Set(migratable.map(r => r.id))
     const converted = migratable.map(r => ({
       id: r.id || genId(),
+      tid: myTid,
       rivalTid: Number(r.teamTids.find(t => Number(t) !== myTid)),
       formedYear: null,
       active: true,
@@ -1520,7 +1539,14 @@ export default function RivalriesTab({ dynasty, tid, selectedYear, dynastyId, sa
     if (knownRivals.length === 0) return
 
     const currentRivalries = dynasty.rivalries || []
-    const currentTids = new Set(currentRivalries.map(r => Number(r.rivalTid)))
+    // Scoped to entries already owned by THIS team (same fallback as the
+    // main `rivalries` filter above) so a coincidental rivalTid collision
+    // with some other team's own entries can't wrongly suppress a real seed.
+    const currentTids = new Set(
+      currentRivalries
+        .filter(r => (r.tid != null ? Number(r.tid) : Number(dynasty.currentTid)) === myTid)
+        .map(r => Number(r.rivalTid))
+    )
 
     const toAdd = knownRivals
       .map(({ rivalAbbr, name, trophyName }) => {
@@ -1534,6 +1560,7 @@ export default function RivalriesTab({ dynasty, tid, selectedYear, dynastyId, sa
 
     const seeded = toAdd.map(({ rivalTid, name, trophyName }) => ({
       id: genId(),
+      tid: myTid,
       rivalTid,
       formedYear: null,
       active: true,
@@ -1571,13 +1598,33 @@ export default function RivalriesTab({ dynasty, tid, selectedYear, dynastyId, sa
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
+  // saveRivalries REPLACES dynasty.rivalries wholesale, and `rivalries` above
+  // is now scoped to just this team's entries — so handing a mutation's result
+  // straight to it would delete every OTHER team's rivalries. That was
+  // harmless while the list was unscoped (it held everyone's), but became a
+  // data-loss bug the moment ownership filtering landed: editing one rivalry
+  // on any team page would wipe the rest of the league's. Every mutation now
+  // rebuilds the full array as "everyone else's entries + this team's new
+  // list". Ownership is resolved with the same legacy fallback the display
+  // filter uses, so an untagged legacy entry belongs to exactly one side and
+  // can never be both preserved here and rewritten there.
+  const otherRivalries = useMemo(
+    () => rawRivalries.filter(r => {
+      if (!Number.isFinite(Number(r.rivalTid))) return true // keep malformed rows untouched
+      const ownerTid = r.tid != null ? Number(r.tid) : Number(dynasty.currentTid)
+      return ownerTid !== myTid
+    }),
+    [rawRivalries, myTid, dynasty.currentTid]
+  )
+  const saveMine = (mine) => saveRivalries(dynastyId, [...otherRivalries, ...mine])
+
   function handleSaveEdit(updated) {
-    saveRivalries(dynastyId, rivalries.map(r => r.id === updated.id ? updated : r))
+    saveMine(rivalries.map(r => r.id === updated.id ? updated : r))
     // Don't close — auto-save calls this; the modal stays open until the user clicks Done
   }
 
   function handleDelete(rivalId) {
-    saveRivalries(dynastyId, rivalries.filter(r => r.id !== rivalId))
+    saveMine(rivalries.filter(r => r.id !== rivalId))
     setEditingId(null)
   }
 
@@ -1588,11 +1635,11 @@ export default function RivalriesTab({ dynasty, tid, selectedYear, dynastyId, sa
     if (next < 0 || next >= rivalries.length) return
     const reordered = [...rivalries]
     ;[reordered[idx], reordered[next]] = [reordered[next], reordered[idx]]
-    saveRivalries(dynastyId, reordered)
+    saveMine(reordered)
   }
 
   function handleAddManual(rivalTid) {
-    saveRivalries(dynastyId, [
+    saveMine([
       ...rivalries,
       {
         id: genId(),
