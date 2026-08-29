@@ -1874,8 +1874,24 @@ export function findUserCoachPortraitBootstrap(dynasty, parsed, userTid, rawTeam
     if (Number(tid) === Number(userTid)) { rawUserTid = rawTid; break }
   }
   if (rawUserTid == null) return bail('userTid not found in rawTeamIdMap', userTid)
-  const candidate = parsed.coachingStaff[rawUserTid]?.[positionKey]
-  if (!candidate?.name) return bail('no candidate.name at coachingStaff[rawUserTid][positionKey]', { rawUserTid, positionKey, candidate })
+  const staffEntry = parsed.coachingStaff[rawUserTid]
+  const candidate = staffEntry?.[positionKey]
+  if (!candidate?.name) {
+    return bail('no candidate.name at coachingStaff[rawUserTid][positionKey]', {
+      rawUserTid,
+      positionKey,
+      candidate,
+      // Decisive check: does team 68 (or whatever rawUserTid is) exist as a
+      // key in coachingStaff AT ALL, with SOME positions, just not this one
+      // (a real "no head coach recorded" state) — or is the whole entry
+      // missing (a raw-id mismatch, or the Coach table's sharding dropping
+      // this team's rows entirely, per buildUserCoachInfo's own comment
+      // about a real save missing 1 of 498 coaches)?
+      staffEntryExists: staffEntry !== undefined,
+      staffEntryPositions: staffEntry ? Object.keys(staffEntry) : null,
+      totalTeamsInCoachingStaff: Object.keys(parsed.coachingStaff || {}).length,
+    })
+  }
   console.warn('[coachPortraitBootstrap] resolved:', candidate)
   return {
     name: candidate.name,
