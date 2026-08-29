@@ -11593,6 +11593,11 @@ export function DynastyProvider({ children }) {
         }
       }
       const subcollectionPromises = []
+      // Captured BEFORE the routing below deletes these keys off
+      // mainDocUpdates — the post-await re-stamp needs to know what was
+      // actually written.
+      const wrotePlayersSubcollection = !!(mainDocUpdates.players && Array.isArray(mainDocUpdates.players) && !skipPlayersSubcollection)
+      const wroteGamesSubcollection = !!(mainDocUpdates.games && Array.isArray(mainDocUpdates.games) && !skipGamesSubcollection)
 
       // Stamp every top-level field we're writing so the listener won't let a
       // stale snapshot revert it for the next 10s (players/games have their own
@@ -11620,6 +11625,17 @@ export function DynastyProvider({ children }) {
         // CRITICAL: Track this player update to prevent listener from overwriting with stale data
         lastPlayersUpdateTimestampRef.current = Date.now()
         lastPlayersUpdateDynastyIdRef.current = dynastyId
+        // The stamp alone only rejects background reads that STARTED before
+        // it. A large roster import writes batches for several seconds, and
+        // its own lastModified bump fires the listener mid-write — that
+        // read starts AFTER the stamp, passes the ordering guard, and can
+        // still return pre-import players from the server ("pastes
+        // correctly, then after 5 seconds it goes right back"). The skip
+        // window suppresses those next few listener-driven applies; the
+        // re-stamp after the awaited write (below) extends ordering cover
+        // across the whole write, same two-layer treatment the recruiting
+        // database save got for its identical revert.
+        bumpSkipCount(3)
         // Normalize every player through the v2 sync layer so the top-level
         // player.year / .team / .overall / .devTrait fields are always a
         // consistent mirror of the canonical per-year maps. Drops legacy
@@ -12167,6 +12183,17 @@ export function DynastyProvider({ children }) {
       // period we proceed to the optimistic local-state update below instead of
       // leaving every "Saving…"/"Importing…" spinner stuck until a refresh.
       await settleOrProceed(Promise.all(writePromises), 10000, `updateDynasty(${dynastyId})`)
+
+      // Writes are durable (or, past the cap, still committing in the
+      // background) — extend the players/games ordering stamps to NOW so a
+      // background read that started at any point DURING the write window is
+      // rejected as stale, not just one that started before it began.
+      if (wrotePlayersSubcollection) {
+        lastPlayersUpdateTimestampRef.current = Date.now()
+      }
+      if (wroteGamesSubcollection) {
+        lastGamesUpdateTimestampRef.current = Date.now()
+      }
 
       // WORKAROUND: Also update local state immediately after Firestore update
       // This ensures the UI reflects the changes without waiting for the listener
