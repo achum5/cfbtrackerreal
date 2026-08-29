@@ -19,7 +19,7 @@ import path from 'path'
 // `new Date().toISOString().slice(0, 10)` below, so the date itself
 // flips automatically at UTC midnight — only the counter needs the
 // manual reset.
-const MANUAL_BUILD = '0025'
+const MANUAL_BUILD = '0026'
 
 function buildAppVersion() {
   const today = new Date().toISOString().slice(0, 10)
@@ -45,6 +45,15 @@ export default defineConfig({
     // problems we want surfaced in user devtools when debugging.
     // The cumulative impact is meaningful: hot paths log per render
     // / per save, and in dev we ship hundreds of these per session.
+    //
+    // CONSEQUENCE WORTH KNOWING: a console.log added to diagnose a LIVE
+    // user report will not exist in the deployed bundle — it compiles
+    // away, so it looks like the deploy failed rather than like the log
+    // was removed. This has already cost one debugging round trip. Any
+    // diagnostic that has to be visible in production must be
+    // console.warn or console.error, which also routes it into the
+    // on-page debug log panel (src/utils/debugLog.js captures exactly
+    // those two), letting a user hit Copy instead of opening devtools.
     pure: ['console.log', 'console.info', 'console.debug'],
   },
   server: {
