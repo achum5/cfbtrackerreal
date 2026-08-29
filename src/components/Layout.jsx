@@ -13,7 +13,7 @@ import CFB27SyncModal from './CFB27SyncModal'
 import { needsV2Migration, isCleanButUnstamped } from '../data/migrateDynastyV2'
 import { useToast, useConfirm } from './ui'
 import { preloadCommonDynastyPages } from '../routes/lazyPages'
-import { isPcAutoDynasty } from '../editions'
+import { isPcAutoDynasty, hasPcDynastySynced } from '../editions'
 
 // Build-time version stamp injected by vite.config.js. Format is
 // "YYYY.MM.DD-<short-sha>" so every commit produces a distinct value —
@@ -80,6 +80,21 @@ function PcLoadProgress({ dynastyId, getPcLoadProgress }) {
   )
 }
 
+// Blocks the entire dynasty area for a PC dynasty until its first Sync from
+// Save completes — see needsInitialSync's own comment for why.
+function InitialSyncRequired() {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 py-16 px-4 text-center">
+      <p className="text-sm font-medium text-txt-primary max-w-md">
+        Your dynasty needs an initial sync with the game's save file to start your Dynasty Tracker
+      </p>
+      <p className="text-sm text-txt-secondary max-w-md">
+        Please use the "Sync from Save" button at the top of the page to begin.
+      </p>
+    </div>
+  )
+}
+
 export default function Layout({ children }) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -89,6 +104,16 @@ export default function Layout({ children }) {
   // week advancement — the header's Advance Week control is replaced with a
   // direct shortcut to that same modal Dashboard.jsx's action tile opens.
   const isCfb27Auto = isPcAutoDynasty(currentDynasty)
+  // Before the very first sync, the header button reads "Sync from Save"
+  // instead of "Advance Week" — a fresh PC dynasty has no schedule/rankings/
+  // awards yet (creation only hand-seeds a roster subset), so "advance"
+  // reads wrong for what's actually a first-time import.
+  // Same rosterKnown reasoning as needsInitialSync below — without it the
+  // header would read "Sync from Save" on an established dynasty whose
+  // roster simply hasn't finished loading.
+  const isFirstCfb27Sync = isCfb27Auto
+    && Array.isArray(currentDynasty?.players) && currentDynasty.players.length > 0
+    && !hasPcDynastySynced(currentDynasty)
   // Guards the header's week/phase label specifically — separate from (and
   // much cheaper/faster than) pcDataPending below, which waits on the
   // entire roster+schedule. Firestore's local cache can hand back a week/
@@ -133,6 +158,28 @@ export default function Layout({ children }) {
     return () => clearTimeout(timer)
   }, [pcDataWaiting, currentDynasty?.id])
   const pcDataPending = pcDataWaiting && !pcDataWatchdogExpired
+  // A PC dynasty with no sync yet has none of its real data — no schedule,
+  // rankings, coaching staff, or season awards, just whatever creation
+  // hand-seeded. Rather than let every page render on top of that
+  // incomplete state, block the whole dynasty area behind one explicit
+  // message until the first Sync from Save completes. Gated on
+  // !pcDataPending so this can't flash before the roster (hasPcDynastySynced's
+  // signal) has been confirmed loaded.
+  //
+  // rosterKnown is load-bearing, not belt-and-braces. hasPcDynastySynced's
+  // fallback signal (any player carrying cfb27AssetName) lives in the players
+  // SUBCOLLECTION, so an unloaded roster reads as an empty array — i.e.
+  // "never synced" — and !pcDataPending is not sufficient cover for that:
+  // pcDataPending goes FALSE the moment the 20s watchdog expires, precisely
+  // in the slow/wedged/offline cases the watchdog exists for. Without this,
+  // a user on a bad connection with years of synced history would be locked
+  // out of their own dynasty by a screen telling them to run their first
+  // sync. A genuinely fresh PC dynasty is still caught: creation hand-seeds
+  // a roster subset, so its players ARE loaded and simply carry no
+  // cfb27AssetName. So the lock fires only on positive evidence (a roster we
+  // actually have, with no sync fingerprint) and never on absence of data.
+  const rosterKnown = Array.isArray(currentDynasty?.players) && currentDynasty.players.length > 0
+  const needsInitialSync = isCfb27Auto && !pcDataPending && rosterKnown && !hasPcDynastySynced(currentDynasty)
   const [showV2Migration, setShowV2Migration] = useState(false)
   const [v2MigrationDismissed, setV2MigrationDismissed] = useState(false)
   const { user, signOut, isAdmin } = useAuth()
@@ -1013,20 +1060,21 @@ export default function Layout({ children }) {
                       manual button below, but it opens the CFB27 sync modal
                       instead — for PC, uploading an updated save IS how the
                       week advances, so this is the PC equivalent, not a
-                      separate action. */}
+                      separate action. Reads "Sync from Save" until the very
+                      first upload completes (see isFirstCfb27Sync above). */}
                   {isCfb27Auto && !isViewOnly && (
                     <button
                       type="button"
                       onClick={() => setShowCfb27SyncModal(true)}
                       className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-semibold hover:opacity-70 transition-opacity"
                       style={{ color: headerText, border: '1px solid currentColor' }}
-                      title="Advance Week"
-                      aria-label="Advance Week"
+                      title={isFirstCfb27Sync ? 'Sync from Save' : 'Advance Week'}
+                      aria-label={isFirstCfb27Sync ? 'Sync from Save' : 'Advance Week'}
                     >
                       <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
-                      <span className="hidden sm:inline">Advance Week</span>
+                      <span className="hidden sm:inline">{isFirstCfb27Sync ? 'Sync from Save' : 'Advance Week'}</span>
                     </button>
                   )}
 
@@ -1190,6 +1238,8 @@ export default function Layout({ children }) {
           <div key={location.pathname} className="max-w-[1440px] mx-auto w-full page-enter">
             {pcDataPending ? (
               <PcLoadProgress dynastyId={currentDynasty?.id} getPcLoadProgress={getPcLoadProgress} />
+            ) : needsInitialSync ? (
+              <InitialSyncRequired />
             ) : (
               children
             )}
