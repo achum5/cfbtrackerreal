@@ -2774,19 +2774,25 @@ export default function Game() {
                 )}
 
                 {/* CENTER: Recap — display only. Edit via the game editor.
-                    Long recaps scroll within the panel so they don't blow
-                    out the page height — but ONLY in the lg+ side-by-side
-                    layout where each column has its own bounded space.
-                    Below lg the page is stacked vertically and the page
-                    itself scrolls; having an inner scrollbar there
-                    produced a confusing double-scroll where the user had
-                    to scroll the page to find the recap, then scroll
-                    INSIDE the recap to read the rest. Let the recap flow
-                    naturally below lg. */}
+                    Long recaps scroll within the panel at EVERY breakpoint
+                    so they don't blow out the page height.
+                    This used to be lg+ only, on the reasoning that an inner
+                    scrollbar below lg creates a double-scroll (scroll the
+                    page to find the recap, then scroll inside it). In
+                    practice the unbounded version was worse: on a phone a
+                    long recap ran hundreds of lines down the page, burying
+                    the ratings/awards/box-score blocks underneath it with
+                    no indication anything followed. A bounded panel is the
+                    lesser evil. Scroll CHAINING is deliberately left on
+                    (no overscroll-contain), so reaching the end of the
+                    recap continues scrolling the page instead of trapping
+                    the gesture — that's what makes the double-scroll
+                    tolerable. Mobile gets a shorter cap than lg+ since the
+                    viewport is shorter. */}
                 {game.aiRecap && (
                 <section className="order-1 lg:order-2 min-w-0 w-full max-w-prose lg:mx-auto">
                   <SectionHead>Game Recap</SectionHead>
-                  <div className="lg:overflow-y-auto lg:pr-2 lg:-mr-2 lg:max-h-[min(70vh,720px)]">
+                  <div className="overflow-y-auto pr-2 -mr-2 max-h-[min(55vh,460px)] lg:max-h-[min(70vh,720px)]">
                     <RecapCenter />
                   </div>
                 </section>
