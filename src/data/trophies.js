@@ -1098,6 +1098,15 @@ export const TROPHIES = [
     availableIn: DRP, image: 'https://i.imgur.com/TbcfHq2.png',
   },
 
+  {
+    id: 'flagship-cup', name: 'Flagship Cup', category: 'rivalry',
+    gameName: "Flagship Cup",
+    teams: ['Buffalo', 'Massachusetts'],
+    history: "The Flagship Cup is contested by Buffalo and Massachusetts, each the flagship public university of its state system — UB anchors the State University of New York, and UMass Amherst heads the University of Massachusetts system. The two were regular MAC East opponents during UMass's run as a football member of the conference from 2012 to 2015.",
+    howToEarn: 'Win the rivalry game as either Buffalo or Massachusetts in Play Now, Dynasty, or Road to Glory.',
+    availableIn: DRP, image: 'https://i.imgur.com/3MxGWVv.png',
+  },
+
   // ── Add any further trophies here. ──
 ]
 
