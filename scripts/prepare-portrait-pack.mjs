@@ -43,6 +43,14 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const REPO = path.resolve(__dirname, '..')
 
+// The manifests live in the repo, but this script is genuinely useful from a
+// machine that only has the pack and a copy of this file (a Steam Deck with no
+// clone, say). When src/data isn't there, fall back to writing the manifests
+// beside the output and say so, rather than failing at the very end after
+// placing tens of thousands of files.
+const hasRepo = await fs.access(path.join(REPO, 'src/data/cfb27UniquePortraitIds.json'))
+  .then(() => true).catch(() => false)
+
 const argv = process.argv.slice(2)
 const flag = (name) => argv.includes(name)
 const opt = (name, dflt) => {
@@ -142,7 +150,8 @@ const main = async () => {
 
   // Compare against the manifests currently in the repo, so the run reports
   // what this pack actually ADDS rather than just how big it is.
-  const manifestPath = (f) => path.join(REPO, 'src/data', f)
+  const manifestDir = hasRepo ? path.join(REPO, 'src/data') : outRoot
+  const manifestPath = (f) => path.join(manifestDir, f)
   const readJson = async (f) => {
     try { return JSON.parse(await fs.readFile(manifestPath(f), 'utf8')) } catch { return [] }
   }
@@ -194,7 +203,7 @@ const main = async () => {
     const mergedGeneric = [...new Set([...prevGeneric, ...generics.keys()])].sort()
     await fs.writeFile(manifestPath('cfb27UniquePortraitIds.json'), JSON.stringify(mergedUnique))
     await fs.writeFile(manifestPath('cfb27GenericPortraitKeys.json'), JSON.stringify(mergedGeneric))
-    console.log(`\nManifests updated:`)
+    console.log(`\nManifests updated (${manifestDir}):`)
     console.log(`  cfb27UniquePortraitIds.json  ${prevUnique.size.toLocaleString()} -> ${mergedUnique.length.toLocaleString()}`)
     console.log(`  cfb27GenericPortraitKeys.json ${prevGeneric.size.toLocaleString()} -> ${mergedGeneric.length.toLocaleString()}`)
   }
@@ -214,8 +223,11 @@ Next:
 
        curl -I https://<your-portrait-host>/cfb27-portraits/unique/${newUnique[0] ?? [...uniques.keys()][0]}.webp
 
-  3. Commit the two manifest JSONs. They are the gate — a portrait sitting on
-     the CDN but missing from the manifest never renders.
+  3. ${hasRepo
+    ? 'Commit the two manifest JSONs from src/data/.'
+    : `Send the two manifest JSONs written to ${manifestDir} back to the repo\n     (they are ~250 KB total) so they can be committed.`}
+     They are the gate — a portrait sitting on the CDN but missing from the
+     manifest never renders.
 `)
 }
 
