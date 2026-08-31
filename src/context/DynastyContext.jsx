@@ -1082,6 +1082,112 @@ export function healCfpSlotDuplicates(dynasty) {
 }
 
 /**
+ * Heal players stranded by the pre-2026-08-27 transfer-destinations bug.
+ *
+ * Before that fix, a transfer-destination row whose team text failed tid
+ * resolution fell through handleTransferDestinationsSave and wrote
+ * teamsByYear[nextYear] = null (with movementByYear[year].toTid = null).
+ * isPlayerOnRoster reads a null slot as not-on-any-roster, so the player
+ * vanished from EVERY roster view — old team and new — the moment the import
+ * saved, and nothing ever repaired the data. The save-time fix only stops NEW
+ * strands; every player stranded by an earlier import stays invisible.
+ *
+ * The user's intent survives, though: the raw sheet rows are persisted in
+ * transferDestinationsByTeamYear[teamKey][year] as { playerName, newTeam,
+ * newTeamTid? }. Team resolution has since grown a full-name/alias fallback
+ * (getTidFromTeamLabel inside getTidFromAbbr), so text that failed back then
+ * usually resolves today. This pass re-applies exactly those stored rows:
+ *
+ *   - Only players with a LITERAL null teamsByYear value are candidates —
+ *     nothing else ever wrote null there, so the scope is precisely the
+ *     damage. Absent keys, real tids, and every other player are untouched.
+ *   - The destination must come from a stored row for the departure year
+ *     whose name matches this player (exact, then punctuation/spacing-blind),
+ *     and all matching rows must agree on ONE resolvable tid. Ambiguity or
+ *     continued resolution failure leaves the player as-is (re-checked on
+ *     next load — the pass is a pure fixed-point transform, safe to re-run).
+ *
+ * Pure + idempotent, applyMigrations-style: heals the in-memory copy on every
+ * load (which fixes every roster view immediately) and persists organically
+ * with the next players write.
+ */
+export function healStrandedTransferDestinations(dynasty, resolveTeam = null) {
+  const players = dynasty?.players
+  const destsByTeamYear = dynasty?.transferDestinationsByTeamYear
+  if (!Array.isArray(players) || players.length === 0) return dynasty
+  if (!destsByTeamYear || typeof destsByTeamYear !== 'object') return dynasty
+
+  // Cheap pre-scan: the vast majority of dynasties have zero null slots.
+  const hasNullSlot = players.some(p =>
+    p?.teamsByYear && Object.values(p.teamsByYear).some(v => v === null)
+  )
+  if (!hasNullSlot) return dynasty
+
+  const resolve = resolveTeam || ((v) => getTidFromAbbr(v, dynasty))
+  const looseKey = (n) => String(n || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
+  // departure year -> looseName -> Set of resolved destination tids. Rows are
+  // stored under BOTH the abbr key and the tid key for the same team (the
+  // dual-keyed rename-safe write), so the same row appearing twice is normal —
+  // a Set collapses agreement and exposes genuine conflicts.
+  const rowIndex = new Map()
+  for (const yearMap of Object.values(destsByTeamYear)) {
+    if (!yearMap || typeof yearMap !== 'object') continue
+    for (const [yearKey, rows] of Object.entries(yearMap)) {
+      const yearN = Number(yearKey)
+      if (!Number.isFinite(yearN) || !Array.isArray(rows)) continue
+      let names = rowIndex.get(yearN)
+      if (!names) { names = new Map(); rowIndex.set(yearN, names) }
+      for (const row of rows) {
+        const key = looseKey(row?.playerName)
+        if (!key) continue
+        let tids = names.get(key)
+        if (!tids) { tids = new Set(); names.set(key, tids) }
+        const tid = resolve(row.newTeamTid ?? row.newTeam)
+        if (tid != null && Number.isFinite(Number(tid))) tids.add(Number(tid))
+      }
+    }
+  }
+  if (rowIndex.size === 0) return dynasty
+
+  let healedCount = 0
+  const healedPlayers = players.map((p) => {
+    if (!p?.teamsByYear || !p.name) return p
+    let next = null
+    for (const [yKey, val] of Object.entries(p.teamsByYear)) {
+      if (val !== null) continue
+      const y = Number(yKey)
+      if (!Number.isFinite(y)) continue
+      const depYear = y - 1
+      const tids = rowIndex.get(depYear)?.get(looseKey(p.name))
+      if (!tids || tids.size !== 1) continue
+      const tid = [...tids][0]
+
+      next = next || { ...p, teamsByYear: { ...p.teamsByYear } }
+      next.teamsByYear[yKey] = tid
+      next.team = tid
+      // Complete the movement the buggy save left half-written, if present.
+      const mv = next.movementByYear?.[depYear] ?? next.movementByYear?.[String(depYear)]
+      if (mv && mv.type === 'departure' && mv.departure === 'transfer_out' && mv.toTid == null) {
+        next.movementByYear = {
+          ...(next.movementByYear || {}),
+          [String(depYear)]: { ...mv, toTid: tid },
+        }
+      }
+      healedCount++
+    }
+    return next || p
+  })
+
+  if (healedCount === 0) return dynasty
+  // console.warn survives the production console.log strip (vite.config.js)
+  // and lands in the debugLog panel — this heal is invisible in the UI, so
+  // the log is the only trace that a dynasty carried stranded players.
+  console.warn(`[applyMigrations] Healed ${healedCount} transfer-stranded roster slot(s) from stored transfer-destination rows`)
+  return { ...dynasty, players: healedPlayers }
+}
+
+/**
  * Check if a team lost a CFP game
  */
 export function isCFPGameLoser(game, tid) {
@@ -8853,6 +8959,12 @@ export function DynastyProvider({ children }) {
       // for a dynasty whose main doc still carries the legacy inline
       // data and has never gone through the new write path.
       migrated = foldTeamsByYearFieldsFromFlat(migrated)
+
+      // Re-home players stranded by the pre-2026-08-27 transfer-destinations
+      // bug (teamsByYear[nextYear] = null), using the user's own stored sheet
+      // rows now that team resolution handles full names/aliases. Pure,
+      // idempotent, and scoped to literal-null slots only — see its header.
+      migrated = healStrandedTransferDestinations(migrated)
 
       return migrated
     })
