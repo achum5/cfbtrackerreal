@@ -101,6 +101,34 @@ Redeploy, open a synced dynasty, confirm player/coach photos load. Re-run
 the "check whether this is already done" steps above — the image URL's host
 should now match `VITE_CFB27_PORTRAIT_BASE`, and it should actually load.
 
+## Updating from a new pack dump
+
+A refreshed pack (e.g. `CFB27 Player Portraits Updated - 08-31-26.zip`) ships
+FLAT, with vendor-prefixed descriptive filenames:
+
+    nilpp_Unique_RobertsBen_4212.webp
+    nilpp_Generic_WR_Black_02.webp
+
+That is not the layout the app reads — `mapPortraitUrl` resolves to
+`/cfb27-portraits/unique/4212.webp`, keyed on the trailing id alone. Restructure
+before uploading:
+
+```bash
+# Dry run first — reports counts, new ids, id collisions, unparseable names
+node scripts/prepare-portrait-pack.mjs ~/Downloads/cfb27-portraits-extracted
+
+# Then build the folder + update the manifests
+node scripts/prepare-portrait-pack.mjs ~/Downloads/cfb27-portraits-extracted --write
+```
+
+It hardlinks by default, so staging a 667 MB pack costs no extra disk. It
+UNIONS the manifests rather than replacing them — an id already on the CDN from
+an earlier upload but missing from this dump keeps resolving, instead of going
+blank for players whose portraits currently work.
+
+Then `rclone copy` as in step 3 (only new/changed files transfer) and commit
+the two manifest JSONs.
+
 ## Keeping it in sync
 
 `src/data/cfb27UniquePortraitIds.json` / `cfb27GenericPortraitKeys.json` (and
