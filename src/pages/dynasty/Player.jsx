@@ -18,6 +18,7 @@ import { StatRings, CardSectionHeader } from '../../components/CfbUI'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { isOpenTarget } from '../../utils/recruitingTargets'
+import { getGameLogCells } from '../../utils/playerGameLogColumns'
 import { getTeamLogo, getTeamLogoByTid, getMascotName as getMascotNameFromTeams, getSchoolName as getSchoolNameFromTeams, stripMascotFromName } from '../../data/teams'
 import { TEAMS, resolveTid, getCurrentTeamAbbr, getAbbrFromTeamName, getOriginalTeamAbbr, getTidFromAbbr, getColorsFromTid, getGameTeamInfo } from '../../data/teamRegistry'
 import { sideOfPosition } from '../../utils/outlookBoard'
@@ -1469,7 +1470,6 @@ function PlayerInner() {
     return expandedGameLog?.year === year && expandedGameLog?.statType === statType
   }
 
-  // Game log row component - renders a table matching the stat type columns
   // Expanded game log for one season, rendered as rows of the SAME table as
   // the season lines above it.
   //
@@ -1490,120 +1490,15 @@ function PlayerInner() {
   // The cell list per stat type MUST stay the same length as the parent header
   // list minus the three identity columns, so `opts` carries the two
   // conditional columns (G shows only for the player's primary stat, Snaps
-  // only when the dynasty has snap data). getAlignedCells asserts that below.
+  // only when the dynasty has snap data). The cell definitions themselves live
+  // in utils/playerGameLogColumns.js so they can be tested against real box
+  // score shapes — a wrong field name there renders a silent zero, which is
+  // how passing spent this long showing "10/0" and a 0.0 completion rate.
   const renderGameLogRow = (year, colSpan, statType, opts = {}) => {
     if (!isGameLogExpanded(year, statType)) return null
     const { hasGamesCol = false, hasSnapsCol = false } = opts
 
-    const rate = (n, d, digits = 1) => (d ? (n / d).toFixed(digits) : '0.0')
-    const pct = (n, d) => (d ? ((n / d) * 100).toFixed(1) : '0.0')
-
-    // Ordered to match the parent header row AFTER Year/Class/Team.
-    // `null` = a column with no per-game meaning; it still renders an empty
-    // cell so the grid stays aligned.
-    const getAlignedCells = () => {
-      const lead = []
-      if (hasGamesCol) lead.push(null)   // G — always 1 for a single game
-      lead.push(null)                    // AV — a season-level rating
-      const tail = hasSnapsCol ? [null] : []
-      switch (statType) {
-        case 'passing':
-          return [...lead,
-            { get: g => `${g.passing?.comp || 0}/${g.passing?.att || 0}` },
-            { get: g => pct(g.passing?.comp || 0, g.passing?.att || 0) },
-            { get: g => g.passing?.yards || 0, bold: true },
-            { get: g => rate(g.passing?.yards || 0, g.passing?.att || 0) },
-            { get: g => g.passing?.tD || 0, bold: true },
-            { get: g => pct(g.passing?.tD || 0, g.passing?.att || 0) },
-            { get: g => g.passing?.iNT || 0 },
-            { get: g => pct(g.passing?.iNT || 0, g.passing?.att || 0) },
-            null,                                            // TD:INT
-            { get: g => g.passing?.long || 0 },
-            null,                                            // Sck
-            ...tail]
-        case 'rushing':
-          return [...lead,
-            { get: g => g.rushing?.carries || 0 },
-            { get: g => g.rushing?.yards || 0, bold: true },
-            { get: g => rate(g.rushing?.yards || 0, g.rushing?.carries || 0) },
-            { get: g => g.rushing?.tD || 0, bold: true },
-            null,                                            // YDS/G
-            null,                                            // YAC
-            null,                                            // 20+
-            { get: g => g.rushing?.long || 0 },
-            { get: g => g.rushing?.fumbles || 0 },
-            { get: g => g.rushing?.bT || 0 },
-            ...tail]
-        case 'receiving':
-          return [...lead,
-            { get: g => g.receiving?.receptions || 0 },
-            { get: g => g.receiving?.yards || 0, bold: true },
-            { get: g => rate(g.receiving?.yards || 0, g.receiving?.receptions || 0) },
-            { get: g => g.receiving?.tD || 0, bold: true },
-            null,                                            // YDS/G
-            null,                                            // RAC
-            { get: g => g.receiving?.long || 0 },
-            { get: g => g.receiving?.drops || 0 },
-            ...tail]
-        case 'blocking':
-          return [...lead,
-            { get: g => g.blocking?.sacksAllowed || 0 },
-            ...tail]
-        case 'defense':
-          return [...lead,
-            { get: g => g.defense?.solo || 0 },
-            { get: g => g.defense?.assists || 0 },
-            { get: g => (g.defense?.solo || 0) + (g.defense?.assists || 0), bold: true },
-            { get: g => g.defense?.tFL || 0 },
-            { get: g => g.defense?.sack || 0 },
-            { get: g => g.defense?.iNT || 0 },
-            null,                                            // IntYd
-            null,                                            // TD
-            { get: g => g.defense?.deflections || 0 },
-            { get: g => g.defense?.fF || 0 },
-            null,                                            // FR
-            ...tail]
-        case 'kicking':
-          return [...lead,
-            { get: g => g.kicking?.fGM || 0 },
-            { get: g => g.kicking?.fGA || 0 },
-            { get: g => pct(g.kicking?.fGM || 0, g.kicking?.fGA || 0) },
-            { get: g => g.kicking?.fGLong || 0 },
-            { get: g => g.kicking?.xPM || 0 },
-            { get: g => g.kicking?.xPA || 0 },
-            { get: g => pct(g.kicking?.xPM || 0, g.kicking?.xPA || 0) },
-            ...tail]
-        case 'punting':
-          return [...lead,
-            { get: g => g.punting?.punts || 0 },
-            { get: g => g.punting?.yards || 0 },
-            { get: g => rate(g.punting?.yards || 0, g.punting?.punts || 0) },
-            { get: g => g.punting?.long || 0 },
-            { get: g => g.punting?.in20 || 0 },
-            { get: g => g.punting?.tB || 0 },
-            ...tail]
-        case 'kickReturn':
-          return [...lead,
-            { get: g => g.kickReturn?.kR || 0 },
-            { get: g => g.kickReturn?.yards || 0, bold: true },
-            { get: g => rate(g.kickReturn?.yards || 0, g.kickReturn?.kR || 0) },
-            { get: g => g.kickReturn?.tD || 0 },
-            { get: g => g.kickReturn?.long || 0 },
-            ...tail]
-        case 'puntReturn':
-          return [...lead,
-            { get: g => g.puntReturn?.pR || 0 },
-            { get: g => g.puntReturn?.yards || 0, bold: true },
-            { get: g => rate(g.puntReturn?.yards || 0, g.puntReturn?.pR || 0) },
-            { get: g => g.puntReturn?.tD || 0 },
-            { get: g => g.puntReturn?.long || 0 },
-            ...tail]
-        default:
-          return []
-      }
-    }
-
-    const cells = getAlignedCells()
+    const cells = getGameLogCells(statType, { hasGamesCol, hasSnapsCol })
     // A mismatch here means a season column was added without adding the
     // matching game-log cell, which silently shears the whole grid sideways.
     // console.warn survives the production console.log strip and lands in the
