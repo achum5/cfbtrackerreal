@@ -57,7 +57,7 @@ const stateFullNames = {
   DC: 'Washington, D.C.',
 }
 
-export default function RecruitCard({ recruit, player, bg, text, teamsData, teamLogo = null, isAllSeasons = false, interactive = false, playStyle = 'balanced', model = null, graphicUrl = null, onOpenGraphic = null, scoutStaffEnabled = false, weightsMap = null, pool = null }) {
+export default function RecruitCard({ recruit, player, bg, text, teamsData, teamLogo = null, isAllSeasons = false, interactive = false, playStyle = 'balanced', model = null, graphicUrl = null, onOpenGraphic = null, onRemove = null, scoutStaffEnabled = false, weightsMap = null, pool = null }) {
   const teamBgText = text
   const teamAccent = bg
   const teamsSource = teamsData || {}
@@ -159,6 +159,25 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, team
             <circle cx="8.5" cy="8.5" r="1.5" />
             <path d="M21 15l-5-5L5 21" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
+        </button>
+      )}
+
+      {/* Remove — opt-in, and only the Commitments list passes it (the Targets
+          tab renders this same card and must not offer it). Top-RIGHT so it
+          clears the commit-graphic button on the left. Labelled with text
+          rather than an X glyph: it deletes the player record, so it should
+          never be guessable-only. Same preventDefault/stopPropagation as
+          above, since the whole card is a link to the player page. */}
+      {onRemove && (
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemove() }}
+          aria-label={`Remove ${recruit?.name || 'recruit'} from commitments`}
+          title="Remove from commitments"
+          className="absolute top-1 right-1 z-10 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider transition-transform active:scale-95"
+          style={{ backgroundColor: 'rgba(0,0,0,0.35)', color: teamBgText }}
+        >
+          Remove
         </button>
       )}
 

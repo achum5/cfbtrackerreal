@@ -1794,6 +1794,12 @@ export default function Recruiting() {
                   if (currentDynasty.commitGraphics?.[linkPid]) setGraphicViewer(target)
                   else setGraphicRecruit(target)
                 } : null}
+                // Opens the confirm dialog below. Deliberately NOT gated on
+                // linkPid: a commitment entered by hand may have no player
+                // record at all, and those are exactly the ones a user needs
+                // to take back off the board. handleRemoveCommit strips the
+                // commitments buckets by name when there's no pid to delete.
+                onRemove={!isViewOnly ? () => setRemoveTarget({ recruit, pid: linkPid || null }) : null}
               />
             )
 
