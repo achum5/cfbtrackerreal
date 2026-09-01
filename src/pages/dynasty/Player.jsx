@@ -1470,167 +1470,204 @@ function PlayerInner() {
   }
 
   // Game log row component - renders a table matching the stat type columns
-  const renderGameLogRow = (year, colSpan, statType) => {
+  // Expanded game log for one season, rendered as rows of the SAME table as
+  // the season lines above it.
+  //
+  // It used to be a self-contained <table> inside a colSpan'd cell, with its
+  // own widths and its own Wk/Opponent/stat headers. Nothing in it lined up
+  // with the season row it belonged to — the parent is `table-fixed` with
+  // explicit per-column widths, so a nested table could never match it, and on
+  // a phone the two grids visibly disagreed column for column.
+  //
+  // Now each game emits real <td>s against the parent's own columns:
+  //   Year  -> week
+  //   Class -> result + score
+  //   Team  -> opponent logo
+  //   rest  -> that game's value in the matching stat column, or a blank cell
+  //            where the season column has no per-game equivalent (AV, YDS/G,
+  //            season ratios, snaps).
+  //
+  // The cell list per stat type MUST stay the same length as the parent header
+  // list minus the three identity columns, so `opts` carries the two
+  // conditional columns (G shows only for the player's primary stat, Snaps
+  // only when the dynasty has snap data). getAlignedCells asserts that below.
+  const renderGameLogRow = (year, colSpan, statType, opts = {}) => {
     if (!isGameLogExpanded(year, statType)) return null
+    const { hasGamesCol = false, hasSnapsCol = false } = opts
 
-    // Define columns for each stat type
-    // Property names match box score headers from boxScoreConstants.js (camelCase converted)
-    const getStatColumns = () => {
+    const rate = (n, d, digits = 1) => (d ? (n / d).toFixed(digits) : '0.0')
+    const pct = (n, d) => (d ? ((n / d) * 100).toFixed(1) : '0.0')
+
+    // Ordered to match the parent header row AFTER Year/Class/Team.
+    // `null` = a column with no per-game meaning; it still renders an empty
+    // cell so the grid stays aligned.
+    const getAlignedCells = () => {
+      const lead = []
+      if (hasGamesCol) lead.push(null)   // G — always 1 for a single game
+      lead.push(null)                    // AV — a season-level rating
+      const tail = hasSnapsCol ? [null] : []
       switch (statType) {
         case 'passing':
-          return [
-            { key: 'cmp', label: 'Cmp', getter: g => g.passing?.comp || 0 },
-            { key: 'att', label: 'Att', getter: g => g.passing?.att || 0 },
-            { key: 'yds', label: 'Yds', getter: g => g.passing?.yards || 0, bold: true },
-            { key: 'avg', label: 'AVG', getter: g => g.passing?.att ? (g.passing.yards / g.passing.att).toFixed(1) : '0.0' },
-            { key: 'td', label: 'TD', getter: g => g.passing?.tD || 0, bold: true },
-            { key: 'int', label: 'INT', getter: g => g.passing?.iNT || 0 },
-            { key: 'lng', label: 'Lng', getter: g => g.passing?.long || 0 },
-          ]
+          return [...lead,
+            { get: g => `${g.passing?.comp || 0}/${g.passing?.att || 0}` },
+            { get: g => pct(g.passing?.comp || 0, g.passing?.att || 0) },
+            { get: g => g.passing?.yards || 0, bold: true },
+            { get: g => rate(g.passing?.yards || 0, g.passing?.att || 0) },
+            { get: g => g.passing?.tD || 0, bold: true },
+            { get: g => pct(g.passing?.tD || 0, g.passing?.att || 0) },
+            { get: g => g.passing?.iNT || 0 },
+            { get: g => pct(g.passing?.iNT || 0, g.passing?.att || 0) },
+            null,                                            // TD:INT
+            { get: g => g.passing?.long || 0 },
+            null,                                            // Sck
+            ...tail]
         case 'rushing':
-          return [
-            { key: 'car', label: 'Car', getter: g => g.rushing?.carries || 0 },
-            { key: 'yds', label: 'Yds', getter: g => g.rushing?.yards || 0, bold: true },
-            { key: 'avg', label: 'AVG', getter: g => g.rushing?.carries ? (g.rushing.yards / g.rushing.carries).toFixed(1) : '0.0' },
-            { key: 'td', label: 'TD', getter: g => g.rushing?.tD || 0, bold: true },
-            { key: 'lng', label: 'Lng', getter: g => g.rushing?.long || 0 },
-            { key: 'fum', label: 'Fum', getter: g => g.rushing?.fumbles || 0 },
-            { key: 'bt', label: 'BTkl', getter: g => g.rushing?.bT || 0 },
-          ]
+          return [...lead,
+            { get: g => g.rushing?.carries || 0 },
+            { get: g => g.rushing?.yards || 0, bold: true },
+            { get: g => rate(g.rushing?.yards || 0, g.rushing?.carries || 0) },
+            { get: g => g.rushing?.tD || 0, bold: true },
+            null,                                            // YDS/G
+            null,                                            // YAC
+            null,                                            // 20+
+            { get: g => g.rushing?.long || 0 },
+            { get: g => g.rushing?.fumbles || 0 },
+            { get: g => g.rushing?.bT || 0 },
+            ...tail]
         case 'receiving':
-          return [
-            { key: 'rec', label: 'Rec', getter: g => g.receiving?.receptions || 0 },
-            { key: 'yds', label: 'Yds', getter: g => g.receiving?.yards || 0, bold: true },
-            { key: 'avg', label: 'AVG', getter: g => g.receiving?.receptions ? (g.receiving.yards / g.receiving.receptions).toFixed(1) : '0.0' },
-            { key: 'td', label: 'TD', getter: g => g.receiving?.tD || 0, bold: true },
-            { key: 'lng', label: 'Lng', getter: g => g.receiving?.long || 0 },
-            { key: 'drops', label: 'Drp', getter: g => g.receiving?.drops || 0 },
-          ]
-        case 'defense':
-          return [
-            { key: 'solo', label: 'Solo', getter: g => g.defense?.solo || 0 },
-            { key: 'ast', label: 'Ast', getter: g => g.defense?.assists || 0 },
-            { key: 'tot', label: 'Tot', getter: g => (g.defense?.solo || 0) + (g.defense?.assists || 0), bold: true },
-            { key: 'tfl', label: 'TFL', getter: g => g.defense?.tFL || 0 },
-            { key: 'sacks', label: 'Sck', getter: g => g.defense?.sack || 0 },
-            { key: 'int', label: 'INT', getter: g => g.defense?.iNT || 0 },
-            { key: 'pdef', label: 'PD', getter: g => g.defense?.deflections || 0 },
-            { key: 'ff', label: 'FF', getter: g => g.defense?.fF || 0 },
-          ]
-        case 'kicking':
-          return [
-            { key: 'fgm', label: 'FGM', getter: g => g.kicking?.fGM || 0 },
-            { key: 'fga', label: 'FGA', getter: g => g.kicking?.fGA || 0 },
-            { key: 'fgpct', label: 'FG%', getter: g => g.kicking?.fGA ? ((g.kicking.fGM / g.kicking.fGA) * 100).toFixed(0) : '0' },
-            { key: 'lng', label: 'Lng', getter: g => g.kicking?.fGLong || 0 },
-            { key: 'xpm', label: 'XPM', getter: g => g.kicking?.xPM || 0 },
-            { key: 'xpa', label: 'XPA', getter: g => g.kicking?.xPA || 0 },
-          ]
-        case 'punting':
-          return [
-            { key: 'punts', label: 'Punts', getter: g => g.punting?.punts || 0 },
-            { key: 'yds', label: 'Yds', getter: g => g.punting?.yards || 0 },
-            { key: 'avg', label: 'AVG', getter: g => g.punting?.punts ? (g.punting.yards / g.punting.punts).toFixed(1) : '0.0' },
-            { key: 'lng', label: 'Lng', getter: g => g.punting?.long || 0 },
-            { key: 'in20', label: 'In20', getter: g => g.punting?.in20 || 0 },
-            { key: 'tb', label: 'TB', getter: g => g.punting?.tB || 0 },
-          ]
-        case 'kickReturn':
-          return [
-            { key: 'ret', label: 'Ret', getter: g => g.kickReturn?.kR || 0 },
-            { key: 'yds', label: 'Yds', getter: g => g.kickReturn?.yards || 0, bold: true },
-            { key: 'avg', label: 'AVG', getter: g => g.kickReturn?.kR ? (g.kickReturn.yards / g.kickReturn.kR).toFixed(1) : '0.0' },
-            { key: 'td', label: 'TD', getter: g => g.kickReturn?.tD || 0 },
-            { key: 'lng', label: 'Lng', getter: g => g.kickReturn?.long || 0 },
-          ]
-        case 'puntReturn':
-          return [
-            { key: 'ret', label: 'Ret', getter: g => g.puntReturn?.pR || 0 },
-            { key: 'yds', label: 'Yds', getter: g => g.puntReturn?.yards || 0, bold: true },
-            { key: 'avg', label: 'AVG', getter: g => g.puntReturn?.pR ? (g.puntReturn.yards / g.puntReturn.pR).toFixed(1) : '0.0' },
-            { key: 'td', label: 'TD', getter: g => g.puntReturn?.tD || 0 },
-            { key: 'lng', label: 'Lng', getter: g => g.puntReturn?.long || 0 },
-          ]
+          return [...lead,
+            { get: g => g.receiving?.receptions || 0 },
+            { get: g => g.receiving?.yards || 0, bold: true },
+            { get: g => rate(g.receiving?.yards || 0, g.receiving?.receptions || 0) },
+            { get: g => g.receiving?.tD || 0, bold: true },
+            null,                                            // YDS/G
+            null,                                            // RAC
+            { get: g => g.receiving?.long || 0 },
+            { get: g => g.receiving?.drops || 0 },
+            ...tail]
         case 'blocking':
-          return [
-            { key: 'sacksAllowed', label: 'Sck Allow', getter: g => g.blocking?.sacksAllowed || 0 },
-          ]
+          return [...lead,
+            { get: g => g.blocking?.sacksAllowed || 0 },
+            ...tail]
+        case 'defense':
+          return [...lead,
+            { get: g => g.defense?.solo || 0 },
+            { get: g => g.defense?.assists || 0 },
+            { get: g => (g.defense?.solo || 0) + (g.defense?.assists || 0), bold: true },
+            { get: g => g.defense?.tFL || 0 },
+            { get: g => g.defense?.sack || 0 },
+            { get: g => g.defense?.iNT || 0 },
+            null,                                            // IntYd
+            null,                                            // TD
+            { get: g => g.defense?.deflections || 0 },
+            { get: g => g.defense?.fF || 0 },
+            null,                                            // FR
+            ...tail]
+        case 'kicking':
+          return [...lead,
+            { get: g => g.kicking?.fGM || 0 },
+            { get: g => g.kicking?.fGA || 0 },
+            { get: g => pct(g.kicking?.fGM || 0, g.kicking?.fGA || 0) },
+            { get: g => g.kicking?.fGLong || 0 },
+            { get: g => g.kicking?.xPM || 0 },
+            { get: g => g.kicking?.xPA || 0 },
+            { get: g => pct(g.kicking?.xPM || 0, g.kicking?.xPA || 0) },
+            ...tail]
+        case 'punting':
+          return [...lead,
+            { get: g => g.punting?.punts || 0 },
+            { get: g => g.punting?.yards || 0 },
+            { get: g => rate(g.punting?.yards || 0, g.punting?.punts || 0) },
+            { get: g => g.punting?.long || 0 },
+            { get: g => g.punting?.in20 || 0 },
+            { get: g => g.punting?.tB || 0 },
+            ...tail]
+        case 'kickReturn':
+          return [...lead,
+            { get: g => g.kickReturn?.kR || 0 },
+            { get: g => g.kickReturn?.yards || 0, bold: true },
+            { get: g => rate(g.kickReturn?.yards || 0, g.kickReturn?.kR || 0) },
+            { get: g => g.kickReturn?.tD || 0 },
+            { get: g => g.kickReturn?.long || 0 },
+            ...tail]
+        case 'puntReturn':
+          return [...lead,
+            { get: g => g.puntReturn?.pR || 0 },
+            { get: g => g.puntReturn?.yards || 0, bold: true },
+            { get: g => rate(g.puntReturn?.yards || 0, g.puntReturn?.pR || 0) },
+            { get: g => g.puntReturn?.tD || 0 },
+            { get: g => g.puntReturn?.long || 0 },
+            ...tail]
         default:
           return []
       }
     }
 
-    const columns = getStatColumns()
+    const cells = getAlignedCells()
+    // A mismatch here means a season column was added without adding the
+    // matching game-log cell, which silently shears the whole grid sideways.
+    // console.warn survives the production console.log strip and lands in the
+    // in-app debug panel, so a live report is diagnosable.
+    if (cells.length + 3 !== colSpan) {
+      console.warn(`[gameLog] ${statType}: ${cells.length + 3} cells vs colSpan ${colSpan} — game log columns will not line up`)
+    }
+
+    const tint = `${teamInfo.backgroundColor}15`
+    const edge = `${teamInfo.backgroundColor}30`
 
     return (
-      <tr>
-        <td colSpan={colSpan} className="p-0">
-          <div className="p-3" style={{ backgroundColor: `${teamInfo.backgroundColor}15`, borderTop: `1px solid ${teamInfo.backgroundColor}30`, borderBottom: `1px solid ${teamInfo.backgroundColor}30` }}>
-            <div className="text-xs font-semibold mb-2 tracking-wide" style={{ color: 'var(--text-primary)' }}>Game Log - {year}</div>
-            {gameLog.length === 0 ? (
-              <div className="text-xs italic" style={{ color: secondaryText, opacity: 0.6 }}>No game data available</div>
-            ) : (
-              <div className="overflow-x-auto rounded-lg bg-surface-2" style={{ border: `1px solid ${teamInfo.backgroundColor}40` }}>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-surface-3 border-b-2" style={{ borderBottomColor: teamInfo.backgroundColor }}>
-                      <th className="px-2 py-2 text-left font-semibold w-12" style={{ color: primaryText }}>Wk</th>
-                      <th className="px-2 py-2 text-center font-semibold w-8" style={{ color: primaryText }}></th>
-                      <th className="px-2 py-2 text-left font-semibold" style={{ color: primaryText }}>Opponent</th>
-                      {columns.map(col => (
-                        <th key={col.key} className="px-2 py-2 text-right font-semibold" style={{ color: primaryText }}>{col.label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {gameLog.map((game, idx) => {
-                      const oppMascot = getMascotName(game.opponent, dynasty?.teams || dynasty?.customTeams)
-                      const oppLogo = oppMascot ? getTeamLogo(oppMascot, dynasty?.teams || dynasty?.customTeams) : null
-                      const isWin = game.result === 'win' || game.result === 'W'
-                      return (
-                        <tr
-                          key={idx}
-                          className="cursor-pointer transition-opacity hover:opacity-80"
-                          style={{
-                            backgroundColor: idx % 2 === 0 ? teamColors.secondary : `${teamColors.primary}10`,
-                            borderBottom: `1px solid ${teamColors.primary}20`
-                          }}
-                          onClick={() => navigate(`${pathPrefix}/game/${game.gameId}`)}
-                        >
-                          <td className="px-2 py-2" style={{ color: secondaryText, opacity: 0.8 }}>{game.week || '-'}</td>
-                          <td className="px-2 py-2 text-center">
-                            <span
-                              className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold"
-                              style={{
-                                backgroundColor: isWin ? '#22c55e' : '#ef4444',
-                                color: '#fff'
-                              }}
-                            >
-                              {isWin ? 'W' : 'L'}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2">
-                            <div className="flex items-center gap-1.5">
-                              {oppLogo && <img src={oppLogo} alt="" className="w-4 h-4 object-contain" />}
-                              <span className="font-medium truncate max-w-[120px]" style={{ color: secondaryText }}>{oppMascot || game.opponent}</span>
-                              <span className="text-[10px]" style={{ color: secondaryText, opacity: 0.6 }}>{formatScoreHighLow(game.teamScore, game.opponentScore) || '-'}</span>
-                            </div>
-                          </td>
-                          {columns.map(col => (
-                            <td key={col.key} className="px-2 py-2 text-right tabular-nums" style={{ color: 'var(--text-primary)', fontWeight: col.bold ? 600 : 400 }}>
-                              {col.getter(game)}
-                            </td>
-                          ))}
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </td>
-      </tr>
+      <>
+        <tr style={{ backgroundColor: tint, borderTop: `1px solid ${edge}` }}>
+          <td colSpan={colSpan} className="px-1.5 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-primary)', opacity: 0.75 }}>
+            Game Log — {year}
+          </td>
+        </tr>
+        {gameLog.length === 0 ? (
+          <tr style={{ backgroundColor: tint, borderBottom: `1px solid ${edge}` }}>
+            <td colSpan={colSpan} className="px-1.5 pb-2 text-xs italic" style={{ color: secondaryText, opacity: 0.6 }}>
+              No game data available
+            </td>
+          </tr>
+        ) : gameLog.map((game, idx) => {
+          const oppMascot = getMascotName(game.opponent, dynasty?.teams || dynasty?.customTeams)
+          const oppLogo = oppMascot ? getTeamLogo(oppMascot, dynasty?.teams || dynasty?.customTeams) : null
+          const isWin = game.result === 'win' || game.result === 'W'
+          const last = idx === gameLog.length - 1
+          return (
+            <tr
+              key={`${year}-${statType}-${idx}`}
+              className="cursor-pointer transition-opacity hover:opacity-80"
+              style={{ backgroundColor: tint, borderBottom: last ? `1px solid ${edge}` : `1px solid ${teamInfo.backgroundColor}12` }}
+              onClick={() => navigate(`${pathPrefix}/game/${game.gameId}`)}
+            >
+              {/* Year column -> week */}
+              <td className="px-1.5 py-1.5 text-[11px] tabular-nums" style={{ color: secondaryText, opacity: 0.8 }}>
+                {game.week || '-'}
+              </td>
+              {/* Class column -> result + score, the natural "what happened" slot */}
+              <td className="px-1.5 py-1.5 whitespace-nowrap">
+                <span className="text-[10px] font-bold" style={{ color: isWin ? '#22c55e' : '#ef4444' }}>{isWin ? 'W' : 'L'}</span>
+                <span className="ml-1 text-[10px] tabular-nums" style={{ color: secondaryText, opacity: 0.7 }}>
+                  {formatScoreHighLow(game.teamScore, game.opponentScore) || ''}
+                </span>
+              </td>
+              {/* Team column -> opponent logo, mirroring the season row's own
+                  logo-only team cell. Name lives in the tooltip; the column is
+                  44px and a name would either overflow or force the grid wider. */}
+              <td className="px-1.5 py-1.5 text-center" title={oppMascot || game.opponent || ''}>
+                {oppLogo
+                  ? <img src={oppLogo} alt={oppMascot || game.opponent || ''} className="w-4 h-4 object-contain inline-block" />
+                  : <span className="text-[10px] truncate" style={{ color: secondaryText }}>{game.opponent || '-'}</span>}
+              </td>
+              {cells.map((c, i) => (
+                <td key={i} className="px-1.5 py-1.5 text-right tabular-nums text-[11px]" style={{ color: 'var(--text-primary)', opacity: c ? 0.9 : 0, fontWeight: c?.bold ? 600 : 400 }}>
+                  {c ? c.get(game) : ''}
+                </td>
+              ))}
+            </tr>
+          )
+        })}
+      </>
     )
   }
 
@@ -4222,7 +4259,7 @@ function PlayerInner() {
                                 <td className="px-1.5 py-2 text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{y.passing.sacks}</td>
                                 {showSnapsCol && <td className="px-1.5 py-2 text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{y.snapsPlayed.toLocaleString()}</td>}
                               </tr>
-                              {renderGameLogRow(y.year, colSpan, 'passing')}
+                              {renderGameLogRow(y.year, colSpan, 'passing', { hasGamesCol: primaryStat === 'passing', hasSnapsCol: showSnapsCol })}
                             </React.Fragment>
                           )
                         })}
@@ -4334,7 +4371,7 @@ function PlayerInner() {
                                 <td className="px-1.5 py-2 text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{y.rushing.bt}</td>
                                 {showSnapsCol && <td className="px-1.5 py-2 text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{y.snapsPlayed.toLocaleString()}</td>}
                               </tr>
-                              {renderGameLogRow(y.year, colSpan, 'rushing')}
+                              {renderGameLogRow(y.year, colSpan, 'rushing', { hasGamesCol: primaryStat === 'rushing', hasSnapsCol: showSnapsCol })}
                             </React.Fragment>
                           )
                         })}
@@ -4442,7 +4479,7 @@ function PlayerInner() {
                                 <td className="px-1.5 py-2 text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{y.receiving.drops}</td>
                                 {showSnapsCol && <td className="px-1.5 py-2 text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{y.snapsPlayed.toLocaleString()}</td>}
                               </tr>
-                              {renderGameLogRow(y.year, colSpan, 'receiving')}
+                              {renderGameLogRow(y.year, colSpan, 'receiving', { hasGamesCol: primaryStat === 'receiving', hasSnapsCol: showSnapsCol })}
                             </React.Fragment>
                           )
                         })}
@@ -4531,7 +4568,7 @@ function PlayerInner() {
                                 <td className="px-2 py-2 text-right font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{y.blocking.sacksAllowed}</td>
                                 {showSnapsCol && <td className="px-2 py-2 text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{(y.snapsPlayed || 0).toLocaleString()}</td>}
                               </tr>
-                              {renderGameLogRow(y.year, colSpan, 'blocking')}
+                              {renderGameLogRow(y.year, colSpan, 'blocking', { hasGamesCol: primaryStat === 'blocking', hasSnapsCol: showSnapsCol })}
                             </React.Fragment>
                           )
                         })}
@@ -4635,7 +4672,7 @@ function PlayerInner() {
                                 <td className="px-2 py-2 text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{y.defensive.fr}</td>
                                 {showSnapsCol && <td className="px-2 py-2 text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{y.snapsPlayed.toLocaleString()}</td>}
                               </tr>
-                              {renderGameLogRow(y.year, colSpan, 'defense')}
+                              {renderGameLogRow(y.year, colSpan, 'defense', { hasGamesCol: primaryStat === 'defense', hasSnapsCol: showSnapsCol })}
                             </React.Fragment>
                           )
                         })}
@@ -4742,7 +4779,7 @@ function PlayerInner() {
                                 <td className="px-2 py-2 text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{calcPct(y.kicking.xpm, y.kicking.xpa)}</td>
                                 {showSnapsCol && <td className="px-2 py-2 text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{y.snapsPlayed.toLocaleString()}</td>}
                               </tr>
-                              {renderGameLogRow(y.year, colSpan, 'kicking')}
+                              {renderGameLogRow(y.year, colSpan, 'kicking', { hasGamesCol: primaryStat === 'kicking', hasSnapsCol: showSnapsCol })}
                             </React.Fragment>
                           )
                         })}
@@ -4842,7 +4879,7 @@ function PlayerInner() {
                                 <td className="px-2 py-2 text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{y.punting.tb}</td>
                                 {showSnapsCol && <td className="px-2 py-2 text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{y.snapsPlayed.toLocaleString()}</td>}
                               </tr>
-                              {renderGameLogRow(y.year, colSpan, 'punting')}
+                              {renderGameLogRow(y.year, colSpan, 'punting', { hasGamesCol: primaryStat === 'punting', hasSnapsCol: showSnapsCol })}
                             </React.Fragment>
                           )
                         })}
