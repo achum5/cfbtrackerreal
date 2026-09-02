@@ -309,3 +309,35 @@ export const getPlayerLastHonorDescription = (player) => {
 
   return null
 }
+
+// Punctuation/spacing-blind key — comparison only. Looser than
+// normalizePlayerName: drops EVERYTHING non-alphanumeric so "D'Marcus" ==
+// "DMarcus", "Smith-Jones" == "Smith Jones", and a stray double space or
+// apostrophe variant can't split a roster player from the row naming him.
+const looseNameKey = (name) => String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
+/**
+ * Find the roster player a typed/pasted name refers to.
+ *
+ * Exact normalized match first (the previous behavior). If that misses, fall
+ * back to a punctuation/spacing-blind match — applied ONLY when it is
+ * unambiguous, so a loose key shared by two players never picks one at random.
+ *
+ * Returns null when nothing matches. Callers that used to silently skip a
+ * null should surface it instead: the Players Leaving save wrote a row with a
+ * null pid and no movement, which left the player looking untouched (still in
+ * the portal from an earlier stub, still "not a grad") with no indication the
+ * row had failed to apply.
+ */
+export const findRosterPlayerByName = (players, name) => {
+  if (!name || !Array.isArray(players) || players.length === 0) return null
+  const norm = normalizePlayerName(name)
+  if (norm) {
+    const exact = players.find(p => normalizePlayerName(p?.name) === norm)
+    if (exact) return exact
+  }
+  const key = looseNameKey(name)
+  if (!key) return null
+  const loose = players.filter(p => looseNameKey(p?.name) === key)
+  return loose.length === 1 ? loose[0] : null
+}

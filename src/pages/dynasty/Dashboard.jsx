@@ -82,6 +82,7 @@ import { getAllBowlGamesList, isBowlInWeek1, isBowlInWeek2 } from '../../service
 import { isSameYear } from '../../utils/compareUtils'
 import { calculateRecruitingClassScore, formatRecruitingClassScore, flattenClassCommitments } from '../../utils/recruitingScore'
 import { normalizeLeavingReason } from '../../utils/leavingReason'
+import { findRosterPlayerByName } from '../../utils/playerMatching'
 import { partitionRecruitingRows, reconcileRecruitingRows } from '../../utils/recruitingTargets'
 
 // Helper function to normalize player names for consistent lookup
@@ -1669,13 +1670,17 @@ export default function Dashboard() {
   const handlePlayersLeavingSave = async (playersLeaving) => {
     const year = currentDynasty.currentYear
 
-    // Map player names to PIDs for tracking
+    // Map player names to PIDs for tracking.
+    // Exact normalized match, then a punctuation/spacing-blind fallback that
+    // applies only when unambiguous (see findRosterPlayerByName). A row that
+    // still can't be matched is collected and reported after the save: it
+    // used to be stored with a null pid and write NO movement, so the player
+    // looked untouched — still carrying an old portal stub, never becoming a
+    // grad — and nothing on screen said the row had failed to apply.
+    const unmatchedRows = []
     const playersWithPids = playersLeaving.map(entry => {
-      // Tolerant name match (case/whitespace/curly-apostrophe folded) so a
-      // pasted "De'Von Achane" still links to the roster player — matching the
-      // sibling offseason handlers below. Exact-match previously left pid null,
-      // so the player wasn't removed from the roster.
-      const player = currentDynasty.players?.find(p => normalizePlayerName(p.name) === normalizePlayerName(entry.playerName))
+      const player = findRosterPlayerByName(currentDynasty.players, entry.playerName)
+      if (!player && entry.playerName) unmatchedRows.push(entry.playerName)
       return {
         playerName: entry.playerName,
         pid: player?.pid || null,
@@ -1839,6 +1844,14 @@ export default function Dashboard() {
     }
 
     await updateDynasty(currentDynasty.id, updates)
+
+    if (unmatchedRows.length) {
+      toast.error(
+        'Saved, but ' + unmatchedRows.length + ' row' + (unmatchedRows.length === 1 ? '' : 's') +
+        ' did not match anyone on the roster: ' + unmatchedRows.join('; ') +
+        '. Those players were NOT updated — fix the name and save again.'
+      )
+    }
   }
 
   // Handle draft results save (Offseason - Recruiting Week 1) - team-centric

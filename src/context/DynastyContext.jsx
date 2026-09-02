@@ -1213,15 +1213,46 @@ export function healMisfiledLeavingReasons(dynasty) {
   if (!dynasty) return dynasty
   let changed = 0
 
+  // Second evidence source: the Players Leaving list itself. Before 2026-08-27,
+  // re-saving that sheet clobbered graduates/draftees back to the GENERIC
+  // stub { transfer_out, toTid: null, reason: null } — no reason text
+  // survives on those, so the reason-text path below can't see them. But
+  // playersLeavingByYear[year] still says "Graduating" / "Pro Draft" for the
+  // same player, and that is the user's own recorded intent. The heal that
+  // shipped with the fix only reclassified when classByYear[year] was
+  // Sr/RS Sr, which console dynasties frequently never record — so those
+  // stubs stayed "Transfer Portal" indefinitely. Matched by pid, then by
+  // normalized name (a row saved with a null pid is exactly the case where
+  // the name is all there is).
+  const leavingIntent = new Map() // `${year}|pid` or `${year}|name:<norm>` -> canonical reason
+  const normName = (n) => String(n || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+  for (const [y, rows] of Object.entries(dynasty.playersLeavingByYear || {})) {
+    if (!Array.isArray(rows)) continue
+    for (const r of rows) {
+      const canon = normalizeLeavingReason(r?.reason)
+      if (canon !== 'Graduating' && canon !== 'Pro Draft') continue
+      if (r?.pid != null) leavingIntent.set(`${Number(y)}|${r.pid}`, canon)
+      const nk = normName(r?.playerName)
+      if (nk) leavingIntent.set(`${Number(y)}|name:${nk}`, canon)
+    }
+  }
+
   const players = Array.isArray(dynasty.players) ? dynasty.players.map((p) => {
     const mby = p?.movementByYear
     if (!mby || typeof mby !== 'object') return p
     let next = null
     for (const [y, m] of Object.entries(mby)) {
       if (!m || m.type !== 'departure' || m.departure !== 'transfer_out') continue
-      if (m.toTid != null || !m.reason) continue
-      const canon = normalizeLeavingReason(m.reason)
-      if (canon !== 'Graduating' && canon !== 'Pro Draft') continue
+      if (m.toTid != null) continue
+      let canon = m.reason ? normalizeLeavingReason(m.reason) : ''
+      if (canon !== 'Graduating' && canon !== 'Pro Draft') {
+        // No usable reason on the movement — consult the leaving list.
+        if (m.reason) continue // a real portal reason; not a stub
+        canon = leavingIntent.get(`${Number(y)}|${p.pid}`)
+          || leavingIntent.get(`${Number(y)}|name:${normName(p.name)}`)
+          || ''
+        if (canon !== 'Graduating' && canon !== 'Pro Draft') continue
+      }
       next = next || { ...p, movementByYear: { ...mby } }
       const { toTid, reason, ...rest } = m
       next.movementByYear[y] = canon === 'Graduating'

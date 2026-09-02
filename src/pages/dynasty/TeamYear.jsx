@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useLayoutEffect, useEffect } from 'react'
+import { normalizeLeavingReason } from '../../utils/leavingReason'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { createPortal } from 'react-dom'
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
@@ -1954,13 +1955,21 @@ export default function TeamYear() {
       if (isGenericPortalStub(rawMv)) {
         const playerDraftYear = Number(p.draftYear)
         const yearClass = p.classByYear?.[selectedYear] ?? p.classByYear?.[String(selectedYear)]
+        // The Players Leaving list is the user's own recorded intent for
+        // this year and outranks the class heuristic: a stub whose sheet row
+        // says Graduating IS a graduate even when classByYear never recorded
+        // a Sr season (common on console dynasties), and one whose row says
+        // Pro Draft is a draftee even with no draftYear stamped yet.
+        const sheetIntent = normalizeLeavingReason(leavingByPid.get(p.pid)?.reason)
         if (Number.isFinite(playerDraftYear) && playerDraftYear === selectedYear) {
           mv = {
             type: 'departure',
             departure: 'pro_draft',
             ...(p.draftRound != null ? { draftRound: p.draftRound } : {}),
           }
-        } else if (yearClass === 'Sr' || yearClass === 'RS Sr') {
+        } else if (sheetIntent === 'Pro Draft') {
+          mv = { type: 'departure', departure: 'pro_draft', ...(p.draftRound != null ? { draftRound: p.draftRound } : {}) }
+        } else if (sheetIntent === 'Graduating' || yearClass === 'Sr' || yearClass === 'RS Sr') {
           mv = { type: 'departure', departure: 'graduated' }
         }
       }
