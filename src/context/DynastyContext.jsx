@@ -84,6 +84,7 @@ import {
 // shapes consumers already read.
 const PER_YEAR_NAMES = new Set(PER_YEAR_FIELDS)
 const ALL_SEASONAL_FIELD_NAMES = [...PER_YEAR_FIELDS, ...PER_TEAM_YEAR_FIELDS]
+import { normalizeLeavingReason } from '../utils/leavingReason'
 import { indexedDBStorage, storageService } from '../services/storage'
 import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '../config/firebase'
@@ -1185,6 +1186,77 @@ export function healStrandedTransferDestinations(dynasty, resolveTeam = null) {
   // the log is the only trace that a dynasty carried stranded players.
   console.warn(`[applyMigrations] Healed ${healedCount} transfer-stranded roster slot(s) from stored transfer-destination rows`)
   return { ...dynasty, players: healedPlayers }
+}
+
+/**
+ * Heal players misfiled into the transfer portal by a mis-typed leaving reason.
+ *
+ * Before the parser canonicalized reasons, "Graduation" / "graduated" / "NFL
+ * Draft" etc. failed the strict === 'Graduating' / 'Pro Draft' checks and were
+ * written as transfer_out with the raw text kept in `reason`. That text is
+ * exactly the evidence needed to repair them: if a transfer_out movement's own
+ * `reason` normalizes to a permanent departure, rewrite it as that departure.
+ *
+ * Scope is deliberately narrow:
+ *   - only movementByYear entries of shape { departure: 'transfer_out', reason }
+ *     — the leaving flow is the only writer of that combination;
+ *   - only when toTid is null. A filled destination means Transfer
+ *     Destinations later recorded an actual move, which contradicts the reason
+ *     text; that conflict is left for the user rather than guessed at.
+ *   - playersLeavingByYear rows get their reason canonicalized in place so the
+ *     sheet pre-fill and the pending-departure labels agree with the movement.
+ *
+ * Pure and fixed-point: healed entries no longer match, so re-running is a
+ * no-op. Same contract as every other applyMigrations pass.
+ */
+export function healMisfiledLeavingReasons(dynasty) {
+  if (!dynasty) return dynasty
+  let changed = 0
+
+  const players = Array.isArray(dynasty.players) ? dynasty.players.map((p) => {
+    const mby = p?.movementByYear
+    if (!mby || typeof mby !== 'object') return p
+    let next = null
+    for (const [y, m] of Object.entries(mby)) {
+      if (!m || m.type !== 'departure' || m.departure !== 'transfer_out') continue
+      if (m.toTid != null || !m.reason) continue
+      const canon = normalizeLeavingReason(m.reason)
+      if (canon !== 'Graduating' && canon !== 'Pro Draft') continue
+      next = next || { ...p, movementByYear: { ...mby } }
+      const { toTid, reason, ...rest } = m
+      next.movementByYear[y] = canon === 'Graduating'
+        ? { ...rest, departure: 'graduated' }
+        : { ...rest, departure: 'pro_draft', draftRound: m.draftRound ?? null }
+      changed++
+    }
+    return next || p
+  }) : dynasty.players
+
+  let playersLeavingByYear = dynasty.playersLeavingByYear
+  if (playersLeavingByYear && typeof playersLeavingByYear === 'object') {
+    let touched = false
+    const nextPLBY = {}
+    for (const [y, rows] of Object.entries(playersLeavingByYear)) {
+      if (!Array.isArray(rows)) { nextPLBY[y] = rows; continue }
+      let rowTouched = false
+      const nextRows = rows.map((r) => {
+        if (!r || typeof r.reason !== 'string') return r
+        const canon = normalizeLeavingReason(r.reason)
+        if (canon === r.reason) return r
+        rowTouched = true
+        return { ...r, reason: canon }
+      })
+      nextPLBY[y] = rowTouched ? nextRows : rows
+      if (rowTouched) { touched = true; changed++ }
+    }
+    if (touched) playersLeavingByYear = nextPLBY
+  }
+
+  if (changed === 0) return dynasty
+  // console.warn survives the production console.log strip and reaches the
+  // in-app debug panel — this heal is otherwise invisible.
+  console.warn(`[applyMigrations] Re-filed ${changed} mis-typed leaving reason(s) (e.g. "Graduation" -> Graduating)`)
+  return { ...dynasty, players, playersLeavingByYear }
 }
 
 /**
@@ -8965,6 +9037,10 @@ export function DynastyProvider({ children }) {
       // rows now that team resolution handles full names/aliases. Pure,
       // idempotent, and scoped to literal-null slots only — see its header.
       migrated = healStrandedTransferDestinations(migrated)
+
+      // Seniors filed into the portal because "Graduation" != 'Graduating'.
+      // Repairs from the reason text the buggy write itself preserved.
+      migrated = healMisfiledLeavingReasons(migrated)
 
       return migrated
     })

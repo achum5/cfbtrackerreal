@@ -81,6 +81,7 @@ import FringeCaseClassModal from '../../components/FringeCaseClassModal'
 import { getAllBowlGamesList, isBowlInWeek1, isBowlInWeek2 } from '../../services/sheetsService'
 import { isSameYear } from '../../utils/compareUtils'
 import { calculateRecruitingClassScore, formatRecruitingClassScore, flattenClassCommitments } from '../../utils/recruitingScore'
+import { normalizeLeavingReason } from '../../utils/leavingReason'
 import { partitionRecruitingRows, reconcileRecruitingRows } from '../../utils/recruitingTargets'
 
 // Helper function to normalize player names for consistent lookup
@@ -1678,7 +1679,10 @@ export default function Dashboard() {
       return {
         playerName: entry.playerName,
         pid: player?.pid || null,
-        reason: entry.reason
+        // The parser already canonicalizes; this is belt-and-braces for any
+        // caller that builds entries itself. Everything below compares with
+        // strict === against 'Graduating' / 'Pro Draft'.
+        reason: normalizeLeavingReason(entry.reason)
       }
     })
 

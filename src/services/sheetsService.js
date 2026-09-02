@@ -1,4 +1,5 @@
 // Note: Firebase auth import removed - we use OAuth tokens from localStorage directly
+import { normalizeLeavingReason, LEAVING_REASONS as CANONICAL_LEAVING_REASONS } from '../utils/leavingReason'
 // This allows Google Sheets to work with free tier (IndexedDB) users who have signed in with Google
 import { teamAbbreviations, getTeamAbbreviationsList, getSelectableTeamsList, getSchedulableTeamsList } from '../data/teamAbbreviations'
 import { getAbbrFromTeamName, getTidFromAbbr, getAbbrFromTid, TEAMS as DEFAULT_TEAMS, getTeamNameOptions } from '../data/teamRegistry'
@@ -11208,25 +11209,10 @@ export function parseAllConferenceLocal(rows, dynastyTeams = null) {
   return { allConference, allConferenceByConference }
 }
 
-// Transfer/Leaving reasons for Players Leaving sheet
-const LEAVING_REASONS = [
-  'Graduating',
-  'Pro Draft',
-  'Playing Style',
-  'Proximity to Home',
-  'Championship Contender',
-  'Program Tradition',
-  'Campus Lifestyle',
-  'Stadium Atmosphere',
-  'Pro Potential',
-  'Brand Exposure',
-  'Academic Prestige',
-  'Conference Prestige',
-  'Coach Stability',
-  'Coach Prestige',
-  'Athletic Facilities',
-  'Playing Time'
-]
+// Transfer/Leaving reasons for Players Leaving sheet — single source of truth
+// is utils/leavingReason.js so the sheet's validation list and the parser's
+// normalizer can never drift apart.
+const LEAVING_REASONS = CANONICAL_LEAVING_REASONS
 
 // Create Players Leaving sheet for offseason
 // Auto-fills RS Sr (exhausted eligibility) and Sr with 5+ games as "Graduating"
@@ -11530,7 +11516,11 @@ export async function readPlayersLeavingFromSheet(spreadsheetId, dynastyTeams = 
       .filter(row => row[0] && row[0].trim()) // Must have player name
       .map(row => ({
         playerName: row[0]?.trim() || '',
-        reason: row[1]?.trim() || ''
+        // Canonicalize here, at the single parse point both the Google Sheet
+        // and local-paste paths share. Downstream compares the reason with
+        // strict === against 'Graduating' / 'Pro Draft'; a typed "Graduation"
+        // used to miss both and file the senior into the transfer portal.
+        reason: normalizeLeavingReason(row[1])
       }))
       .filter(entry => entry.playerName && entry.reason) // Must have both values
 
