@@ -85,6 +85,7 @@ import {
 const PER_YEAR_NAMES = new Set(PER_YEAR_FIELDS)
 const ALL_SEASONAL_FIELD_NAMES = [...PER_YEAR_FIELDS, ...PER_TEAM_YEAR_FIELDS]
 import { normalizeLeavingReason } from '../utils/leavingReason'
+import { hasExhaustedEligibility } from '../utils/graduatingSeniors'
 import { indexedDBStorage, storageService } from '../services/storage'
 import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '../config/firebase'
@@ -16421,6 +16422,7 @@ export function DynastyProvider({ children }) {
       let carriedOver = 0
       let alreadyHadNextYear = 0
       let notCarriedOver = 0
+      const autoGraduated = [] // { pid, playerName, tid } — seniors graduated by rule, not by the list
       let recruitsSkipped = 0
       let otherTeamSkipped = 0
       let honorOnlySkipped = 0
@@ -16559,6 +16561,30 @@ export function DynastyProvider({ children }) {
           return player
         }
 
+        // ========== AUTO-GRADUATE EXHAUSTED ELIGIBILITY ==========
+        // A senior nobody listed in Players Leaving used to be carried into
+        // an extra season: CLASS_PROGRESSION sends Sr -> RS Sr, and an RS Sr
+        // has nowhere left to go, so they repeated on the roster forever
+        // ("how do I remove graduating players from my roster"). The CPU-team
+        // path above already graduates by class; this brings member teams in
+        // line using the same rule the Players Leaving pre-fill uses (RS Sr
+        // always; Sr with 5+ games — 0-4 is a legitimate redshirt and stays
+        // on the normal path). Records the departure so every reader sees a
+        // graduate, and adds them to the leaving list below.
+        // PC dynasties are excluded: their rosters are the save's, and a
+        // senior the save still carries (medical year, etc.) must not be
+        // dropped by a rule of ours.
+        if (!isPcAutoDynasty(dynasty) && hasExhaustedEligibility(player, previousSeasonYear)) {
+          notCarriedOver++
+          autoGraduated.push({ pid: player.pid, playerName: player.name, tid: playerMemberTid })
+          const existingMv = player.movementByYear?.[previousSeasonYear] ?? player.movementByYear?.[String(previousSeasonYear)]
+          if (existingMv?.type === 'departure') return player
+          return {
+            ...player,
+            movementByYear: { ...(player.movementByYear || {}), [previousSeasonYear]: { type: 'departure', departure: 'graduated' } },
+          }
+        }
+
         // ========== CARRY OVER THIS PLAYER ==========
         carriedOver++
 
@@ -16626,6 +16652,45 @@ export function DynastyProvider({ children }) {
       additionalUpdates.players = processedPlayers
       // Mark that class progression has been done for this year
       additionalUpdates.classProgressionDoneForYear = nextYear
+
+      // Record rule-graduated seniors in the Players Leaving stores for the
+      // season that just ended, so the Players Leaving page and the leaving
+      // counts agree with the graduated movement written above. Append-only:
+      // anyone the user already listed is left exactly as they entered them.
+      if (autoGraduated.length > 0) {
+        console.warn(`[advanceWeek] Auto-graduated ${autoGraduated.length} senior(s) with exhausted eligibility not listed in Players Leaving`)
+        const yr = previousSeasonYear
+        const yearRows = dynasty.playersLeavingByYear?.[yr] || dynasty.playersLeavingByYear?.[String(yr)] || []
+        const listedPids = new Set(yearRows.map(r => r?.pid).filter(v => v != null))
+        const newRows = autoGraduated
+          .filter(g => !listedPids.has(g.pid))
+          .map(g => ({ playerName: g.playerName, pid: g.pid, reason: 'Graduating' }))
+        if (newRows.length > 0) {
+          additionalUpdates.playersLeavingByYear = {
+            ...(dynasty.playersLeavingByYear || {}),
+            [yr]: [...yearRows, ...newRows],
+          }
+          // Team-centric store, dual-keyed (abbr + tid) like handlePlayersLeavingSave.
+          const byTeamYear = { ...(dynasty.playersLeavingByTeamYear || {}) }
+          const byTid = new Map()
+          for (const g of autoGraduated) {
+            if (g.tid == null) continue
+            if (!byTid.has(g.tid)) byTid.set(g.tid, [])
+            byTid.get(g.tid).push(g)
+          }
+          for (const [tidKey, grads] of byTid) {
+            const abbr = dynasty.teams?.[tidKey]?.abbr || getOriginalTeamAbbr(tidKey)
+            for (const key of [abbr, tidKey].filter(k => k != null)) {
+              const cur = byTeamYear[key]?.[yr] || []
+              const have = new Set(cur.map(r => r?.pid).filter(v => v != null))
+              const add = grads.filter(g => !have.has(g.pid)).map(g => ({ playerName: g.playerName, pid: g.pid, reason: 'Graduating' }))
+              if (add.length === 0) continue
+              byTeamYear[key] = { ...(byTeamYear[key] || {}), [yr]: [...cur, ...add] }
+            }
+          }
+          additionalUpdates.playersLeavingByTeamYear = byTeamYear
+        }
+      }
 
       // ============================================================
       // CARRY OVER CUSTOM CONFERENCES TO NEXT YEAR

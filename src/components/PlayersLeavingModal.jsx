@@ -23,6 +23,8 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+import { pickAutoGraduatingSeniors } from '../utils/graduatingSeniors'
+import { normalizePlayerName } from '../utils/playerMatching'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -51,17 +53,22 @@ export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYe
   const [highlightSave, setHighlightSave] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
 
-  const userRoster = useMemo(() => {
+  // Full player records for this year's roster — the AI prompt gets a trimmed
+  // view below; the graduating-senior pre-fill needs class + games.
+  const rosterPlayers = useMemo(() => {
     // Teambuilder-safe: filter by TID + pass dynasty for abbr fallback
     const teamTid = getCurrentTeamTid(currentDynasty)
     const teamAbbrForRoster =
       currentDynasty?.teams?.[currentDynasty?.currentTid]?.abbr ||
       currentDynasty?.teamName
     const all = currentDynasty?.players || []
-    return all
-      .filter(p => isPlayerOnRoster(p, teamTid ?? teamAbbrForRoster, currentYear, currentDynasty))
-      .map(p => ({ name: p.name, jerseyNumber: p.jerseyNumber, position: p.position }))
+    return all.filter(p => isPlayerOnRoster(p, teamTid ?? teamAbbrForRoster, currentYear, currentDynasty))
   }, [currentDynasty?.players, currentDynasty?.teams, currentDynasty?.currentTid, currentDynasty?.teamName, currentYear, currentDynasty])
+
+  const userRoster = useMemo(
+    () => rosterPlayers.map(p => ({ name: p.name, jerseyNumber: p.jerseyNumber, position: p.position })),
+    [rosterPlayers],
+  )
 
   const aiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Players Leaving`,
@@ -131,13 +138,24 @@ FINAL CHECK before you send
   // Source: playersLeavingByYear[currentYear] (what handlePlayersLeavingSave
   // persisted). Column order mirrors the local parser (Player, Transfer Reason):
   // serialize playerName + reason. Rows need both values to round-trip.
+  // Then append every senior whose eligibility is exhausted (RS Sr, or Sr with
+  // 5+ games — see utils/graduatingSeniors.js) that the saved list doesn't
+  // already name, as "Graduating". The Google Sheet flow always pre-filled
+  // these; the local paste path never did, so graduates had to be typed by
+  // hand and a missed one was carried into an extra season. The rows are
+  // editable before saving, so a genuine exception (medical year, etc.) can
+  // still be removed.
   const initialText = useMemo(() => {
-    const saved = currentDynasty?.playersLeavingByYear?.[currentYear] || []
-    return saved
+    const saved = (currentDynasty?.playersLeavingByYear?.[currentYear] || [])
       .filter(p => p.playerName && p.reason)
+    const listed = new Set(saved.map(p => normalizePlayerName(p.playerName)))
+    const autoGrads = pickAutoGraduatingSeniors(rosterPlayers, currentYear)
+      .filter(p => p.name && !listed.has(normalizePlayerName(p.name)))
+      .map(p => ({ playerName: p.name, reason: 'Graduating' }))
+    return [...saved, ...autoGrads]
       .map(p => `${p.playerName}\t${p.reason}`)
       .join('\n')
-  }, [currentDynasty?.playersLeavingByYear, currentYear])
+  }, [currentDynasty?.playersLeavingByYear, currentYear, rosterPlayers])
 
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
