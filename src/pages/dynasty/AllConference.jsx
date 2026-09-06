@@ -9,6 +9,7 @@ import { TEAMS, resolveTid, getCurrentTeamAbbr, getGameTeamInfo } from '../../da
 import { conferenceTeams, getAllConferences } from '../../data/conferenceTeams'
 import { getConferenceLogo } from '../../data/conferenceLogos'
 import AllConferenceModal from '../../components/AllConferenceModal'
+import { mergePreseasonForConference } from '../../utils/preseasonHonors'
 import { HonorPlayerTile, SchoolLeaderboard } from '../../components/HonorsUI'
 import { normalizePlayerName } from '../../utils/playerMatching'
 import { useTeamColors } from '../../hooks/useTeamColors'
@@ -276,6 +277,31 @@ export default function AllConference() {
 
   const handleAllConferenceSave = async (data) => {
     const year = displayYear
+
+    // Preseason picks are PREDICTIONS. The page reads them from a separate
+    // store (allConferencePreseason, see the view memo above) and never
+    // attributes them as earned honors — the same split AllAmericans.jsx
+    // makes. This handler used to ignore which view the user was in and
+    // always wrote `allConference` (+ processHonorPlayers), so every
+    // preseason entry landed under Final and stamped a real honor on each
+    // player. Reported as "pre-season conference all american automatically
+    // puts it in the final column."
+    if (isPreseasonView) {
+      const existingByYear = currentDynasty.allAmericansByYear || {}
+      const existingYearData = existingByYear[year] || {}
+      const merged = mergePreseasonForConference(
+        existingYearData.allConferencePreseason,
+        data.allConference || [],
+        (entry) => entryConference(entry, year) === displayConference,
+      )
+      await updateDynasty(currentDynasty.id, {
+        allAmericansByYear: {
+          ...existingByYear,
+          [year]: { ...existingYearData, allConferencePreseason: merged },
+        },
+      })
+      return
+    }
 
     if (data.allConference && data.allConference.length > 0) {
       const acEntries = data.allConference.map(entry => ({

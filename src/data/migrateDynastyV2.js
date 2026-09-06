@@ -4,7 +4,7 @@
 // Matches scripts/migrate-dynasty-v2.mjs exactly. Use this from DangerZone
 // or from the auto-prompt modal.
 
-import { legacyMovementToCanonical } from './rosterModel'
+import { legacyMovementToCanonical, syncDerivedFieldsFromV2 } from './rosterModel'
 
 const toNum = (y) => {
   const n = Number(y)
@@ -44,6 +44,15 @@ function normalizeYearKeyedObject(obj, valueCoercer) {
 //     with the canonical per-year map for the dynasty's current year
 export function needsV2Migration(dynasty) {
   if (!dynasty) return false
+  // A stamped dynasty has been migrated (or was born clean and silently
+  // stamped). The per-player heuristics below describe LEGACY debt, but two
+  // of them also match perfectly normal v2 states — a `team` mirror pointing
+  // at next season's school after Signing Day trips "drift", and every
+  // awards import creates honor-only records that trip "ghost" — so running
+  // them on an already-migrated dynasty re-prompted the same user on every
+  // login no matter how many times they clicked Migrate. The prompt is a
+  // one-time cleanup; once stamped, it's done.
+  if (dynasty._schemaVersion === 2) return false
   const players = dynasty.players || []
   const currentYear = Number(dynasty.currentYear)
   const hasCurrentYear = Number.isFinite(currentYear)
@@ -242,7 +251,12 @@ export function migrateDynastyToV2(dynasty) {
     }
     delete out.movements
     report.playersMigrated++
-    return out
+    // Re-derive the top-level mirrors (year / team / overall / devTrait) from
+    // the canonical per-year maps and strip the remaining legacy fields, the
+    // same way every ordinary write does. Without this the migrated record
+    // kept whatever stale mirrors it came in with, so the output could fail
+    // needsV2Migration's drift check the moment it was written back.
+    return syncDerivedFieldsFromV2(out, dynasty?.currentYear)
   }
 
   const migratedPlayers = (dynasty.players || [])

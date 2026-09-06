@@ -460,6 +460,9 @@ export default function Layout({ children }) {
       { _schemaVersion, _normalizedAt, players },
       { forceOverwrite: true }
     )
+    // The write is done; nothing in this session should re-prompt, even if a
+    // listener echo delivers a pre-write snapshot before the stamp lands.
+    setV2MigrationDismissed(true)
   }
 
   // Use tid-based team colors lookup - this is THE source of truth
