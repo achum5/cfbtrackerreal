@@ -85,6 +85,7 @@ import {
 const PER_YEAR_NAMES = new Set(PER_YEAR_FIELDS)
 const ALL_SEASONAL_FIELD_NAMES = [...PER_YEAR_FIELDS, ...PER_TEAM_YEAR_FIELDS]
 import { normalizeLeavingReason } from '../utils/leavingReason'
+import { runMigrations } from '../migrations'
 import { hasExhaustedEligibility } from '../utils/graduatingSeniors'
 import { indexedDBStorage, storageService } from '../services/storage'
 import { doc, updateDoc } from 'firebase/firestore'
@@ -7576,6 +7577,9 @@ export function DynastyProvider({ children }) {
   // Flag to indicate if a migration save is currently in progress (to serialize saves)
   const migrationSaveInProgressRef = useRef(false)
   // Track which cloud dynasties have had their subcollections loaded (lazy loading optimization)
+  // Dynasty ids whose schemaVersion write has been scheduled this session
+  // (see the versioned-migrations block at the end of applyMigrations).
+  const schemaWriteScheduledRef = useRef(new Set())
   const loadedDynastyIdsRef = useRef(new Set())
   // Once per session per dynasty, the games load bypasses the read-cost gate
   // and forces the background SERVER read even when the sync stamp matches
@@ -9074,6 +9078,27 @@ export function DynastyProvider({ children }) {
       // Repairs from the reason text the buggy write itself preserved.
       migrated = healMisfiledLeavingReasons(migrated)
 
+      // ─── Versioned, PERSISTED migrations (src/migrations) ─────────────
+      // Everything above is a read-time transform re-run on every load.
+      // Steps in src/migrations run once: runMigrations applies only the
+      // steps above the dynasty's stored schemaVersion and hands back the
+      // fields to persist, which ride the same out-param the load sites
+      // already fire through updateDynasty. Guarded once per dynasty per
+      // session so a failed write can't become a per-snapshot write storm;
+      // the steps themselves are idempotent, so a second device racing the
+      // version write re-applies harmlessly.
+      {
+        const { dynasty: versioned, updates, applied } = runMigrations(migrated)
+        if (applied.length > 0) {
+          migrated = versioned
+          if (migrated.id && !schemaWriteScheduledRef.current.has(migrated.id)) {
+            schemaWriteScheduledRef.current.add(migrated.id)
+            recruitingWeekShifts.push({ id: migrated.id, updates })
+            console.warn(`[migrations] ${migrated.id}: applied ${applied.join(', ')} -> schemaVersion ${updates.schemaVersion}`)
+          }
+        }
+      }
+
       return migrated
     })
   }
@@ -9084,10 +9109,12 @@ export function DynastyProvider({ children }) {
   // above) — the in-memory dynasty is already correct for this render either
   // way; this just makes sure the NEXT load doesn't re-evaluate the shift
   // against a value that's since moved on.
+  // Also carries src/migrations' { id, updates } entries (schemaVersion and
+  // whatever the applied steps changed) — same fire-and-forget contract.
   const persistRecruitingWeekShifts = (shifts) => {
     for (const { id, updates } of shifts) {
       updateDynasty(id, updates).catch(err => {
-        console.warn(`[recruitingWeekExpand migration] failed to persist for ${id}:`, err?.code || err?.message || err)
+        console.warn(`[migration persist] failed for ${id}:`, err?.code || err?.message || err)
       })
     }
   }
