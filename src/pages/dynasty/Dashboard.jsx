@@ -91,6 +91,7 @@ import { buildRecruitingClassRankSave } from '../../api/recruitingClassRank'
 import { buildPositionChangesSave } from '../../api/positionChanges'
 import { buildTrainingResultsSave, buildTrainingResultsAttributesSave } from '../../api/trainingResults'
 import { buildRecruitOverallsSave, buildRecruitOverallsAttributesSave } from '../../api/recruitOveralls'
+import { nextFreePid } from '../../api/pids'
 import { partitionRecruitingRows, reconcileRecruitingRows } from '../../utils/recruitingTargets'
 
 // Helper function to normalize player names for consistent lookup
@@ -1733,8 +1734,8 @@ export default function Dashboard() {
     const enrollmentYear = year + 1
 
     const existingPlayers = currentDynasty.players || []
-    const maxExistingPID = existingPlayers.reduce((max, p) => Math.max(max, p.pid || 0), 0)
-    let nextPID = Math.max(maxExistingPID + 1, currentDynasty.nextPID || 1)
+    // Single id formula — src/api/pids.js (same math this used to inline).
+    let nextPID = nextFreePid(currentDynasty, existingPlayers)
 
     const priorLedger = currentDynasty.nationalCommitsByYear?.[year] || []
     const priorPids = new Set(priorLedger.map(c => c.pid).filter(v => v != null))
@@ -2082,8 +2083,8 @@ export default function Dashboard() {
 
     // Get existing players and recruits to find max PID
     const existingPlayers = currentDynasty.players || []
-    const maxExistingPID = existingPlayers.reduce((max, p) => Math.max(max, p.pid || 0), 0)
-    let nextPID = Math.max(maxExistingPID + 1, currentDynasty.nextPID || 1)
+    // Single id formula — src/api/pids.js (same math this used to inline).
+    let nextPID = nextFreePid(currentDynasty, existingPlayers)
 
     // BULLETPROOF: Collect ALL existing player names (not just recruits) to prevent ANY duplicates
     const existingPlayerNames = new Set()

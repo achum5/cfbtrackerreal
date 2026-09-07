@@ -15,6 +15,7 @@ import TeambuilderEditModal from '../../components/TeambuilderEditModal'
 import { SEED_TO_SLOT, getCFPGameId, DEFAULT_BOWL_CONFIG, getBowlForSlot } from '../../data/cfpConstants'
 import { findMatchingPlayer, normalizePlayerName } from '../../utils/playerMatching'
 import { migrateDynastyToV2 } from '../../data/migrateDynastyV2'
+import { buildIntegrityReport, formatIntegrityReport } from '../../utils/integrityReport'
 import { syncDerivedFieldsFromV2 } from '../../data/rosterModel'
 import { EDITIONS, getEditionKey, getEditionConfig, isPcAutoDynasty } from '../../editions'
 import { migrateLegacyCoachesToCids } from '../../data/coachModel'
@@ -229,6 +230,8 @@ export default function DangerZone() {
   // Schedule link fix state
   const [storageAnalysisStatus, setStorageAnalysisStatus] = useState(null)
   const [storageAnalysisDetail, setStorageAnalysisDetail] = useState(null)
+  const [integrityStatus, setIntegrityStatus] = useState(null)
+  const [integrityDetail, setIntegrityDetail] = useState('')
   const [commitCheckStatus, setCommitCheckStatus] = useState(null)
   const [commitCheckDetail, setCommitCheckDetail] = useState(null)
   const [commitDrifted, setCommitDrifted] = useState(null) // array of {tid, year, abbr} pending re-sync
@@ -294,6 +297,24 @@ export default function DangerZone() {
   // Bytes are JSON.stringify().length, which understates Firestore's
   // on-disk size by some per-field metadata overhead but the relative
   // ranking of fields is what we care about.
+  // Read-only integrity report (src/utils/integrityReport.js). Walks the
+  // in-memory dynasty for the data shapes that have produced real user
+  // reports — duplicate pids, null roster slots, non-year keys the seasonal
+  // router drops on save, portal stubs, mirror drift, unapplied leaving
+  // rows, duplicate games. Writes nothing; the Copy button is for support.
+  const handleIntegrityCheck = () => {
+    if (!currentDynasty) return
+    setIntegrityStatus('running')
+    try {
+      const report = buildIntegrityReport(currentDynasty)
+      setIntegrityDetail(formatIntegrityReport(report, currentDynasty.name || currentDynasty.teamName || ''))
+      setIntegrityStatus(report.summary.errors > 0 ? 'error' : 'success')
+    } catch (e) {
+      setIntegrityDetail('Integrity check failed: ' + (e?.message || e))
+      setIntegrityStatus('error')
+    }
+  }
+
   const handleAnalyzeStorage = async () => {
     setStorageAnalysisStatus('running')
     setStorageAnalysisDetail(null)
@@ -3028,6 +3049,54 @@ export default function DangerZone() {
                   }}
                 >
                   {storageAnalysisDetail}
+                </pre>
+              )}
+            </div>
+          </Card>
+          {/* Read-only integrity report — nothing here writes. */}
+          <Card className="flex flex-col h-full sm:col-span-2 md:col-span-2">
+            <div className="mb-3">
+              <h3 className="label-sm text-txt-primary m-0">Integrity Check</h3>
+              <p className="text-xs mt-1 text-txt-tertiary leading-relaxed m-0">
+                Read-only scan for the data problems behind most bug reports: duplicate player ids, players stranded on no team, year keys that get dropped on save, portal entries with no destination, fields out of sync with this season, Players Leaving rows that never applied, and duplicate games. Run it before a season flip, or paste the result into a bug report.
+              </p>
+            </div>
+            <div className="mt-auto space-y-2">
+              <div className="flex gap-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleIntegrityCheck}
+                  disabled={integrityStatus === 'running'}
+                  className="flex-1"
+                >
+                  {integrityStatus === 'running' ? 'Checking...' : 'Run Check'}
+                </Button>
+                {integrityDetail && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={async () => {
+                      try { await navigator.clipboard.writeText(integrityDetail); toast.success('Report copied') }
+                      catch { toast.error('Could not copy — select the text and copy it manually') }
+                    }}
+                  >
+                    Copy
+                  </Button>
+                )}
+              </div>
+              <StatusLine status={integrityStatus} />
+              {integrityDetail && (
+                <pre
+                  className="text-[11px] mt-2 p-3 rounded-md overflow-auto whitespace-pre font-mono"
+                  style={{
+                    backgroundColor: 'var(--surface-3)',
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--surface-4)',
+                    maxHeight: '320px',
+                  }}
+                >
+                  {integrityDetail}
                 </pre>
               )}
             </div>

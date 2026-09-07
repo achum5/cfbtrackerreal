@@ -86,6 +86,7 @@ const PER_YEAR_NAMES = new Set(PER_YEAR_FIELDS)
 const ALL_SEASONAL_FIELD_NAMES = [...PER_YEAR_FIELDS, ...PER_TEAM_YEAR_FIELDS]
 import { normalizeLeavingReason } from '../utils/leavingReason'
 import { runMigrations } from '../migrations'
+import { nextFreePid } from '../api/pids'
 import { hasExhaustedEligibility } from '../utils/graduatingSeniors'
 import { indexedDBStorage, storageService } from '../services/storage'
 import { doc, updateDoc } from 'firebase/firestore'
@@ -19022,8 +19023,8 @@ export function DynastyProvider({ children }) {
     let newNextPID
 
     // Find the highest existing PID to continue from
-    const maxExistingPID = existingPlayers.reduce((max, p) => Math.max(max, p.pid || 0), 0)
-    const startPID = Math.max(maxExistingPID + 1, dynasty.nextPID || 1)
+    // Single id formula — src/api/pids.js (same math this used to inline).
+    const startPID = nextFreePid(dynasty, existingPlayers)
 
     // Create a map of existing players by name for matching
     const existingPlayersByName = {}
@@ -21777,7 +21778,11 @@ export function DynastyProvider({ children }) {
     }
 
     const existingPlayers = [...(dynasty.players || [])]
-    let nextPID = dynasty.nextPID || (existingPlayers.length + 1)
+    // Single id formula — src/api/pids.js. This site used to do
+    // `nextPID || players.length + 1`, which re-issues an existing pid the
+    // moment a deletion or merge leaves a gap in the sequence; the shared
+    // formula's floor is max(existing)+1, so it can only mint higher.
+    let nextPID = nextFreePid(dynasty, existingPlayers)
     console.log(`[processHonorPlayers] Existing players: ${existingPlayers.length}, nextPID: ${nextPID}`)
 
     // Track which entries need confirmation

@@ -18,6 +18,7 @@ import { finePositionGroup } from '../../data/positionGroups'
 import { POSITION_FILTER_OPTIONS, matchesPositionFilter } from '../../utils/recruitFilters'
 import TeamPermissionBanner from '../../components/TeamPermissionBanner'
 import { partitionRecruitingRows, reconcileRecruitingRows, isOpenTarget, isMyTarget, resolveTargetCommitment, buildCommitmentRecord } from '../../utils/recruitingTargets'
+import { nextFreePid } from '../../api/pids'
 import { carryRecruitingNilForward } from '../../data/playerNilModel'
 import ScoutBoard from './ScoutBoard'
 // Scout Staff is an opt-in (League Preferences) replacement for the MaxPlaysCFB
@@ -462,8 +463,8 @@ export default function Recruiting() {
     if (!currentDynasty?.id) return
 
     const existingPlayers = currentDynasty.players || []
-    const maxExistingPID = existingPlayers.reduce((max, p) => Math.max(max, p.pid || 0), 0)
-    let nextPID = Math.max(maxExistingPID + 1, currentDynasty.nextPID || 1)
+    // Single id formula — src/api/pids.js (same math this used to inline).
+    let nextPID = nextFreePid(currentDynasty, existingPlayers)
 
     const teamsByYearValue = selectedTid
 

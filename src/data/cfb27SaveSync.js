@@ -72,6 +72,7 @@ import {
 import { attributeNamesFor } from '../utils/recruitAttributes'
 import { getCFPGameId, CFP_BRACKET_SLOTS } from './cfpConstants'
 import { mergeSimulatedDraftPicks } from './draftEngine'
+import { nextFreePid } from '../api/pids'
 
 function normalizedNameTeamKey(name, tid) {
   const n = (name || '').toLowerCase().trim()
@@ -2020,8 +2021,8 @@ export function buildSyncPlan(dynasty, parsed, options = {}) {
   // Assign sequential pids to every brand-new record (roster arrivals +
   // recruiting board creates) — mirrors saveRoster's startPID/nextPIDCounter
   // pattern.
-  const maxExistingPid = existingPlayers.reduce((max, p) => Math.max(max, p.pid || 0), 0)
-  let nextPid = Math.max(maxExistingPid + 1, dynasty.nextPID || 1)
+  // Single id formula — src/api/pids.js (same math this used to inline).
+  let nextPid = nextFreePid(dynasty, existingPlayers)
   const toCreatePlayers = [...playerDiff.toCreate, ...recruitDiff.toCreate].map((p) => ({
     ...p,
     pid: nextPid,
