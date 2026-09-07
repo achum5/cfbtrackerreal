@@ -86,6 +86,11 @@ import { findRosterPlayerByName } from '../../utils/playerMatching'
 import { buildPlayersLeavingSave } from '../../api/playersLeaving'
 import { buildTransferDestinationsSave } from '../../api/transferDestinations'
 import { buildPortalTransferClassSave, buildFringeCaseClassSave } from '../../api/classAssignments'
+import { buildDraftResultsSave } from '../../api/draftResults'
+import { buildRecruitingClassRankSave } from '../../api/recruitingClassRank'
+import { buildPositionChangesSave } from '../../api/positionChanges'
+import { buildTrainingResultsSave, buildTrainingResultsAttributesSave } from '../../api/trainingResults'
+import { buildRecruitOverallsSave, buildRecruitOverallsAttributesSave } from '../../api/recruitOveralls'
 import { partitionRecruitingRows, reconcileRecruitingRows } from '../../utils/recruitingTargets'
 
 // Helper function to normalize player names for consistent lookup
@@ -1686,110 +1691,8 @@ export default function Dashboard() {
 
   // Handle draft results save (Offseason - Recruiting Week 1) - team-centric
   const handleDraftResultsSave = async (draftResults) => {
-    const year = currentDynasty.currentYear
-    const teamAbbr = getCurrentTeamAbbr(currentDynasty) || currentDynasty.teamName
-    const existingByTeamYear = currentDynasty.draftResultsByTeamYear || {}
-    const tid = getTidFromAbbr(teamAbbr, currentDynasty)
-
-    // Map player names to PIDs and store draft info
-    const resultsWithPids = draftResults.map(entry => {
-      const player = currentDynasty.players?.find(p => p.name === entry.playerName)
-      return {
-        playerName: entry.playerName,
-        pid: player?.pid || null,
-        position: entry.position,
-        overall: entry.overall,
-        draftRound: entry.draftRound
-      }
-    })
-
-    // Update player records with draft information
-    const updatedPlayers = [...(currentDynasty.players || [])]
-    draftResults.forEach(entry => {
-      const playerIndex = updatedPlayers.findIndex(p =>
-        p.name?.toLowerCase().trim() === entry.playerName?.toLowerCase().trim()
-      )
-      if (playerIndex !== -1) {
-        const player = updatedPlayers[playerIndex]
-        const existingMovements = player.movements || []
-
-        // Check if draft movement already exists for this year
-        const hasDraftMovement = existingMovements.some(m =>
-          m.year === year && m.type === 'departure' && m.reason === 'Pro Draft'
-        )
-
-        // Determine the player's actual last team (not necessarily user's team)
-        const playerTeamsByYear = player.teamsByYear || {}
-        const playerYears = Object.keys(playerTeamsByYear).map(Number).sort((a, b) => b - a)
-        const playerLastTeam = playerYears.length > 0 ? playerTeamsByYear[playerYears[0]] : (player.team || tid)
-        // Convert to tid if it's an abbreviation
-        const playerLastTeamTid = typeof playerLastTeam === 'number' ? playerLastTeam : (getTidFromAbbr(playerLastTeam, currentDynasty) || tid)
-
-        // Build canonical v2 movement entry for draft. The previous
-        // shape ({ type: 'declared_for_draft' }) was a legacy type that
-        // syncDerivedFieldsFromV2 had to convert on every save —
-        // round-tripping through the converter is fragile and was
-        // implicated in transfer-history corruption after the draft.
-        // Write the canonical shape directly. playerLastTeamTid stays
-        // computed for future shape changes; the canonical pro_draft
-        // departure does not carry a fromTid.
-        void playerLastTeamTid
-        const draftMovementByYear = {
-          type: 'departure',
-          departure: 'pro_draft',
-          draftRound: entry.draftRound || null,
-        }
-
-        // Same canonical shape whether this is the first draft entry or
-        // an update — movementByYear is authoritative, v2 sync strips
-        // any legacy movements[] on write.
-        updatedPlayers[playerIndex] = {
-          ...player,
-          draftYear: year,
-          draftRound: entry.draftRound,
-          movementByYear: {
-            ...(player.movementByYear || {}),
-            [year]: draftMovementByYear,
-          },
-        }
-      }
-    })
-
-    const updates = {
-      players: updatedPlayers,
-      // dual-keyed (rename-safe)
-      draftResultsByTeamYear: {
-        ...existingByTeamYear,
-        [teamAbbr]: {
-          ...(existingByTeamYear[teamAbbr] || {}),
-          [year]: resultsWithPids
-        },
-        ...(tid ? { [tid]: { ...(existingByTeamYear[tid] || {}), [year]: resultsWithPids } } : {})
-      }
-    }
-
-    // Also write to NEW tid-based byYear structure
-    if (tid && currentDynasty.teams) {
-      const existingTeams = currentDynasty.teams
-      const existingTeamData = existingTeams[tid] || {}
-      const existingByYear = existingTeamData.byYear || {}
-      const existingYearData = existingByYear[year] || {}
-
-      updates.teams = {
-        ...existingTeams,
-        [tid]: {
-          ...existingTeamData,
-          byYear: {
-            ...existingByYear,
-            [year]: {
-              ...existingYearData,
-              draftResults: resultsWithPids
-            }
-          }
-        }
-      }
-    }
-
+    // Pure builder in src/api — the component only does I/O.
+    const { updates } = buildDraftResultsSave(currentDynasty, draftResults)
     await updateDynasty(currentDynasty.id, updates)
   }
 
@@ -1811,48 +1714,8 @@ export default function Dashboard() {
 
   // Handle recruiting class rank save (National Signing Day)
   const handleRecruitingClassRankSave = async (rank) => {
-    // The year flips ENTERING Signing Day (wk5), so from wk5 on the class being
-    // ranked belongs to the prior season (currentYear-1).
-    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
-    const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
-    const teamAbbr = getCurrentTeamAbbr(currentDynasty) || currentDynasty.teamName
-    const existingRanks = currentDynasty.recruitingClassRankByTeamYear || {}
-    const tid = getTidFromAbbr(teamAbbr, currentDynasty)
-
-    const updates = {
-      // dual-keyed (rename-safe)
-      recruitingClassRankByTeamYear: {
-        ...existingRanks,
-        [teamAbbr]: {
-          ...(existingRanks[teamAbbr] || {}),
-          [year]: rank
-        },
-        ...(tid ? { [tid]: { ...(existingRanks[tid] || {}), [year]: rank } } : {})
-      }
-    }
-
-    // Also write to NEW tid-based byYear structure
-    if (tid && currentDynasty.teams) {
-      const existingTeams = currentDynasty.teams
-      const existingTeamData = existingTeams[tid] || {}
-      const existingByYear = existingTeamData.byYear || {}
-      const existingYearData = existingByYear[year] || {}
-
-      updates.teams = {
-        ...existingTeams,
-        [tid]: {
-          ...existingTeamData,
-          byYear: {
-            ...existingByYear,
-            [year]: {
-              ...existingYearData,
-              recruitingClassRank: rank
-            }
-          }
-        }
-      }
-    }
-
+    // Pure builder in src/api — the component only does I/O.
+    const { updates } = buildRecruitingClassRankSave(currentDynasty, rank)
     await updateDynasty(currentDynasty.id, updates)
   }
 
@@ -1985,129 +1848,26 @@ export default function Dashboard() {
 
   // Handle position changes save (National Signing Day)
   const handlePositionChangesSave = async (changes) => {
-    // On Signing Day (week 6) or Training Camp (week 7), year has already flipped, so use previous year
-    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
-    const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
-    const existingChangesAll = currentDynasty.positionChangesByYear || {}
-    const teamTid = getCurrentTeamTid(currentDynasty)
-
-    const changesRecord = changes.map(c => ({
-      pid: c.playerId,
-      playerName: c.playerName,
-      oldPosition: c.oldPosition,
-      newPosition: c.newPosition,
-      team: teamTid
-    }))
-
-    const updatedPositionChanges = { ...existingChangesAll, [year]: changesRecord }
+    // What changes is decided by the pure builder in src/api; only the
+    // storage-specific write strategy lives here.
+    const { positionChangesByYear, changedPlayers, updatedPlayers } = buildPositionChangesSave(currentDynasty, changes)
 
     // Cloud: write each changed player individually (1 Firestore doc per player)
     // instead of rewriting every player in the subcollection. For local storage
     // (IndexedDB) the full write is fast enough — keep it simple there.
     const isCloud = typeof currentDynasty.id === 'string' && currentDynasty.id.length >= 20
-
     if (isCloud) {
-      const playerUpdates = changes
-        .map(c => {
-          const p = (currentDynasty.players || []).find(pl => pl.pid === c.playerId)
-          if (!p || p.position === c.newPosition) return null
-          return { ...p, position: c.newPosition, archetype: '' }
-        })
-        .filter(Boolean)
-
-      await Promise.all(playerUpdates.map(p => updatePlayer(currentDynasty.id, p)))
-      await updateDynasty(currentDynasty.id, { positionChangesByYear: updatedPositionChanges })
+      await Promise.all(changedPlayers.map(p => updatePlayer(currentDynasty.id, p)))
+      await updateDynasty(currentDynasty.id, { positionChangesByYear })
     } else {
-      const updatedPlayers = (currentDynasty.players || []).map(p => {
-        const change = changes.find(c => c.playerId === p.pid)
-        if (!change || p.position === change.newPosition) return p
-        return { ...p, position: change.newPosition, archetype: '' }
-      })
-      await updateDynasty(currentDynasty.id, {
-        players: updatedPlayers,
-        positionChangesByYear: updatedPositionChanges
-      })
+      await updateDynasty(currentDynasty.id, { players: updatedPlayers, positionChangesByYear })
     }
   }
 
   // Handle training results save (Offseason Week 6)
   const handleTrainingResultsSave = async (results) => {
-    const year = currentDynasty.currentYear
-
-    // Update player overalls in the players array
-    const updatedPlayers = [...(currentDynasty.players || [])]
-    let updatedCount = 0
-
-    const prevYear = year - 1
-    results.forEach(result => {
-      // Find player by name (case-insensitive match)
-      const playerIndex = updatedPlayers.findIndex(p =>
-        normalizePlayerName(p.name) === normalizePlayerName(result.playerName)
-      )
-      if (playerIndex === -1) return
-      if (!result.newOverall && result.pastOverall == null) return
-
-      const player = updatedPlayers[playerIndex]
-      const nextOverallByYear = { ...(player.overallByYear || {}) }
-
-      if (result.newOverall) {
-        nextOverallByYear[year] = result.newOverall
-      }
-      // Back-fill pastOverall into prev-year slot only if we don't already
-      // have a value there. Keeps legitimate prior-year data intact and
-      // fills gaps for transfer-portal arrivals whose old-team OVR was
-      // never recorded in this dynasty.
-      if (
-        result.pastOverall != null &&
-        nextOverallByYear[prevYear] == null &&
-        nextOverallByYear[String(prevYear)] == null
-      ) {
-        nextOverallByYear[prevYear] = result.pastOverall
-      }
-
-      updatedPlayers[playerIndex] = {
-        ...player,
-        ...(result.newOverall ? { overall: result.newOverall } : {}),
-        overallByYear: nextOverallByYear,
-      }
-      updatedCount++
-    })
-
-    // Store training results for history
-    const existingResults = currentDynasty.trainingResultsByYear || {}
-    const userTid = getUserTeamTid(currentDynasty)
-
-    // Build update payload with both year-only and tid-based structures
-    const updates = {
-      players: updatedPlayers,
-      trainingResultsByYear: {
-        ...existingResults,
-        [year]: results
-      }
-    }
-
-    // Also write to tid-based structure
-    if (userTid && currentDynasty.teams) {
-      const existingTeams = currentDynasty.teams
-      const existingTeamData = existingTeams[userTid] || {}
-      const existingByYear = existingTeamData.byYear || {}
-      const existingYearData = existingByYear[year] || {}
-
-      updates.teams = {
-        ...existingTeams,
-        [userTid]: {
-          ...existingTeamData,
-          byYear: {
-            ...existingByYear,
-            [year]: {
-              ...existingYearData,
-              trainingResults: results
-            }
-          }
-        }
-      }
-    }
-
+    // Pure builder in src/api — the component only does I/O.
+    const { updates } = buildTrainingResultsSave(currentDynasty, results)
     await updateDynasty(currentDynasty.id, updates)
   }
 
@@ -2115,77 +1875,16 @@ export default function Dashboard() {
   // [{ playerName, position, overall, attributes }]. Updates each matched
   // player's overall + overallByYear[year] AND merges attributesByYear[year].
   const handleTrainingResultsAttributesSave = async (entries) => {
-    const year = currentDynasty.currentYear
-    const updatedPlayers = [...(currentDynasty.players || [])]
-    ;(entries || []).forEach((entry) => {
-      const playerIndex = updatedPlayers.findIndex(p =>
-        normalizePlayerName(p.name) === normalizePlayerName(entry.playerName)
-      )
-      if (playerIndex === -1) return
-      const player = updatedPlayers[playerIndex]
-      const hasAttrs = entry.attributes && Object.keys(entry.attributes).length > 0
-      if (entry.overall == null && !hasAttrs) return
-      const next = { ...player }
-      if (entry.overall != null) {
-        next.overall = entry.overall
-        next.overallByYear = { ...(player.overallByYear || {}), [year]: entry.overall }
-      }
-      if (hasAttrs) {
-        const existingAttrs = player.attributesByYear?.[year] || player.attributesByYear?.[String(year)] || {}
-        next.attributesByYear = { ...(player.attributesByYear || {}), [year]: { ...existingAttrs, ...entry.attributes } }
-      }
-      updatedPlayers[playerIndex] = next
-    })
-    await updateDynasty(currentDynasty.id, { players: updatedPlayers })
+    // Pure builder in src/api — the component only does I/O.
+    const { updates } = buildTrainingResultsAttributesSave(currentDynasty, entries)
+    await updateDynasty(currentDynasty.id, updates)
   }
 
   // Handle recruiting class overalls save
   const handleRecruitOverallsSave = async (results) => {
-    // On Training Camp (week 7), the year has flipped, but recruits have recruitYear from before the flip
-    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
-    const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
-
-    // Update recruit overalls and jersey numbers in the players array
-    const updatedPlayers = [...(currentDynasty.players || [])]
-    let updatedCount = 0
-
-    // Recruits join in the year AFTER recruitment (freshman year)
-    const freshmanYear = isAfterYearFlip ? currentDynasty.currentYear : year + 1
-
-    results.forEach(result => {
-      // Find player by name (case-insensitive match) among recruits
-      const playerIndex = updatedPlayers.findIndex(p =>
-        p.isRecruit &&
-        p.recruitYear === year &&
-        normalizePlayerName(p.name) === normalizePlayerName(result.name)
-      )
-      if (playerIndex !== -1 && result.overall) {
-        const existingOverallByYear = updatedPlayers[playerIndex].overallByYear || {}
-        updatedPlayers[playerIndex] = {
-          ...updatedPlayers[playerIndex],
-          overall: result.overall,
-          // Also update overallByYear for their freshman year
-          overallByYear: {
-            ...existingOverallByYear,
-            [freshmanYear]: result.overall
-          },
-          ...(result.jerseyNumber && { jerseyNumber: result.jerseyNumber })
-        }
-        updatedCount++
-      }
-    })
-
-    // Store recruit overalls for history
-    const existingResults = currentDynasty.recruitOverallsByYear || {}
-
-    await updateDynasty(currentDynasty.id, {
-      players: updatedPlayers,
-      recruitOverallsByYear: {
-        ...existingResults,
-        [year]: results
-      }
-    })
-
+    // Pure builder in src/api — the component only does I/O.
+    const { updates } = buildRecruitOverallsSave(currentDynasty, results)
+    await updateDynasty(currentDynasty.id, updates)
   }
 
   // Full-attribute Recruit Overalls save (CFB 27): entries are
@@ -2193,31 +1892,9 @@ export default function Dashboard() {
   // name + recruitYear and updates overall + overallByYear[freshmanYear] AND
   // merges attributesByYear[freshmanYear].
   const handleRecruitOverallsAttributesSave = async (entries) => {
-    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
-    const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
-    const freshmanYear = isAfterYearFlip ? currentDynasty.currentYear : year + 1
-    const updatedPlayers = [...(currentDynasty.players || [])]
-    ;(entries || []).forEach((entry) => {
-      const playerIndex = updatedPlayers.findIndex(p =>
-        p.isRecruit && p.recruitYear === year &&
-        normalizePlayerName(p.name) === normalizePlayerName(entry.playerName)
-      )
-      if (playerIndex === -1) return
-      const player = updatedPlayers[playerIndex]
-      const hasAttrs = entry.attributes && Object.keys(entry.attributes).length > 0
-      if (entry.overall == null && !hasAttrs) return
-      const next = { ...player }
-      if (entry.overall != null) {
-        next.overall = entry.overall
-        next.overallByYear = { ...(player.overallByYear || {}), [freshmanYear]: entry.overall }
-      }
-      if (hasAttrs) {
-        const existingAttrs = player.attributesByYear?.[freshmanYear] || player.attributesByYear?.[String(freshmanYear)] || {}
-        next.attributesByYear = { ...(player.attributesByYear || {}), [freshmanYear]: { ...existingAttrs, ...entry.attributes } }
-      }
-      updatedPlayers[playerIndex] = next
-    })
-    await updateDynasty(currentDynasty.id, { players: updatedPlayers })
+    // Pure builder in src/api — the component only does I/O.
+    const { updates } = buildRecruitOverallsAttributesSave(currentDynasty, entries)
+    await updateDynasty(currentDynasty.id, updates)
   }
 
   // Handle portal transfer class assignment save
