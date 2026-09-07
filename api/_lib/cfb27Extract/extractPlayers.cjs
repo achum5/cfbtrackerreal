@@ -32,9 +32,59 @@
 
 const { create: createFranchiseFile } = require('madden-franchise');
 const schema = require('./lib/schema.cjs');
+const { inspectSaveHeader, describeSaveHeader, explainUnreadableSave } = require('./lib/saveHeader.cjs');
+const fsSync = require('fs');
 
-function openSave(file) {
-  return createFranchiseFile(file, { autoParse: true, autoUnempty: true });
+// Read just the header for pre-flight classification — the library reads
+// the whole file itself, no reason to hold a second 10 MB copy.
+function readHeader(file, bytes = 0x100) {
+  const fd = fsSync.openSync(file, 'r');
+  try {
+    const stat = fsSync.fstatSync(fd);
+    const buf = Buffer.alloc(Math.min(bytes, stat.size));
+    fsSync.readSync(fd, buf, 0, buf.length, 0);
+    return { buf, size: stat.size };
+  } finally {
+    fsSync.closeSync(fd);
+  }
+}
+
+// Open a save with an actionable failure mode.
+//
+// madden-franchise classifies the file from a handful of header bytes and,
+// for a compressed file with no year marker it recognizes, dereferences an
+// array lookup that can come back undefined — surfacing to the user as
+// "Cannot read properties of undefined (reading 'year')" (a real contact-form
+// report). Inspect the header first so the message can say what the file is
+// and what to pick; if it IS a plausible franchise save that merely lacks the
+// marker, retry once with the year/type forced and let the library resolve
+// the schema by number. See lib/saveHeader.cjs.
+async function openSave(file) {
+  const { buf, size } = readHeader(file);
+  const info = inspectSaveHeader(buf, size);
+  const tryOpen = (settings) => createFranchiseFile(file, { autoParse: true, autoUnempty: true, ...settings });
+
+  if (info.reason === 'too-small' || info.knownKind || info.reason === 'uncompressed' || info.reason === 'franchise-common' || info.reason === 'implausible-schema') {
+    console.error('[cfb27 openSave] rejected before parse:', describeSaveHeader(info));
+    throw new Error(explainUnreadableSave(info));
+  }
+
+  try {
+    return await tryOpen({});
+  } catch (err) {
+    console.error('[cfb27 openSave] library open failed:', describeSaveHeader(info), '-', err && err.message);
+    if (info.retryWithOverrides) {
+      try {
+        const save = await tryOpen({ gameYearOverride: 27, gameTypeOverride: 'college' });
+        console.warn('[cfb27 openSave] opened with forced year/type overrides:', describeSaveHeader(info));
+        return save;
+      } catch (err2) {
+        console.error('[cfb27 openSave] override retry failed:', err2 && err2.message);
+        throw new Error(explainUnreadableSave(info, err2 && err2.message));
+      }
+    }
+    throw new Error(explainUnreadableSave(info, err && err.message));
+  }
 }
 
 /** Heuristic: the player table is the one carrying the rating columns. */

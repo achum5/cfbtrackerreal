@@ -53,6 +53,25 @@ export default function CFB27SyncModal({ isOpen, onClose }) {
     // just becomes the new expected one going forward. Checked BEFORE
     // upload so a "wrong file" mistake doesn't even cost the time to
     // upload+parse it.
+    // Cheaper still: a file that isn't even named like a dynasty save. The
+    // parser now explains what a wrong file IS (zip, image, roster file…),
+    // but that costs an upload + a server round trip first. Real saves are
+    // "DYNASTY-<slot>" in Documents\EA SPORTS College Football 27\settings;
+    // anything else is almost always the wrong pick. Soft check — renamed
+    // copies exist — so it confirms rather than blocks.
+    if (!/^DYNASTY/i.test(file.name || '')) {
+      const ok = await confirm({
+        title: 'Is this a dynasty save?',
+        message: `CFB 27 dynasty saves are named DYNASTY-… (in Documents\\EA SPORTS College Football 27\\settings). "${file.name}" doesn't look like one. Upload it anyway?`,
+        confirmLabel: 'Upload anyway',
+        variant: 'danger',
+      })
+      if (!ok) {
+        e.target.value = ''
+        return
+      }
+    }
+
     const expectedName = currentDynasty?.cfb27SaveFileName
     if (expectedName && file.name !== expectedName) {
       const ok = await confirm({
