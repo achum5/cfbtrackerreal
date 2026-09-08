@@ -301,7 +301,10 @@ export function rollOverRosterAtYearFlip(dynasty, { nextYear, previousSeasonYear
     // PC dynasties are excluded: their rosters are the save's, and a
     // senior the save still carries (medical year, etc.) must not be
     // dropped by a rule of ours.
-    if (!isPcAutoDynasty(dynasty) && hasExhaustedEligibility(player, previousSeasonYear)) {
+    // The user's "Played 5+ games?" answers stand in for a missing games
+    // count here exactly as they do in the redshirt decision below, so a
+    // senior confirmed as having played graduates instead of becoming RS Sr.
+    if (!isPcAutoDynasty(dynasty) && hasExhaustedEligibility(player, previousSeasonYear, { classConfirmations })) {
       notCarriedOver++
       autoGraduated.push({ pid: player.pid, playerName: player.name, tid: playerMemberTid })
       const existingMv = player.movementByYear?.[previousSeasonYear] ?? player.movementByYear?.[String(previousSeasonYear)]
@@ -595,6 +598,15 @@ export function advanceSeasonPlayers(dynasty, { previousSeasonYear, currentSeaso
       return Number.isFinite(y) && y <= previousSeasonYear
     })
     const isGenuineRecruit = player.isRecruit && !hasPriorTeamYearForGrad
+    // NOTE: deliberately NOT the shared hasExhaustedEligibility rule. That
+    // rule (games-aware, confirmation-aware) already ran at the year flip
+    // for everyone on the roster then; a player reaching this point without
+    // a new-season slot is one the flip never saw (added or un-departed
+    // after Signing Day). Class progression was skipped for them, so this is
+    // a class-only fallback: a senior with no explicit new-season class has
+    // nowhere to go. Making it games-aware would either carry a stats-less
+    // late-added senior into another senior season, or graduate a stamped
+    // 5th-year return — both worse than what it does now.
     // Auto-graduate BOTH exhausted-eligibility shapes — matching the CPU-team
     // path, which already graduates Sr and RS Sr alike. Previously only
     // RS Sr auto-graduated here, so a plain Sr not marked in Players Leaving

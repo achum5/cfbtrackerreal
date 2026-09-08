@@ -56,6 +56,7 @@ export default function ClassAdvancementModal({ isOpen, onClose, onConfirm, play
         <p className="text-sm mb-4 text-txt-secondary">
           The following players don't have games played data recorded. Please confirm if each player played 5 or more games this season.
           Players who played fewer than 5 games (and aren't already redshirted) will receive a redshirt year.
+          Seniors who played 5 or more games have used their eligibility and will be added to Players Leaving as graduating.
         </p>
 
         {/* Quick actions */}
@@ -93,15 +94,18 @@ export default function ClassAdvancementModal({ isOpen, onClose, onConfirm, play
                 const playerClass = player.classByYear?.[year] || player.classByYear?.[String(year)] || player.year
                 const isAlreadyRS = playerClass?.startsWith('RS ')
 
-                // Calculate next class
+                // Calculate next class. Mirrors the season advance: a senior
+                // who played (or any RS Sr) has used their eligibility and
+                // graduates; a senior who sat redshirts into RS Sr.
                 let nextClass
-                if (played5Plus || isAlreadyRS) {
+                if (playerClass === 'RS Sr' || (playerClass === 'Sr' && played5Plus)) {
+                  nextClass = 'Graduates'
+                } else if (played5Plus || isAlreadyRS) {
                   // Normal progression
                   const progression = {
                     'Fr': 'So', 'RS Fr': 'RS So',
                     'So': 'Jr', 'RS So': 'RS Jr',
                     'Jr': 'Sr', 'RS Jr': 'RS Sr',
-                    'Sr': 'RS Sr', 'RS Sr': 'RS Sr'
                   }
                   nextClass = progression[playerClass] || playerClass
                 } else {
