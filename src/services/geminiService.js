@@ -14,6 +14,7 @@ import { getUserGamePerspective, getLockedCoachingStaff, getCustomConferencesFor
 import { buildCFPProjection } from '../utils/cfpProjection'
 import { canonicalBoxScore, getPlayerStatsForTid, getTeamStatsForTid } from '../utils/boxScoreHelpers'
 import { collapsePatRowsIntoTDs, resolveScoringTeamTids, buildScorerTidResolver } from '../utils/scoringPlayOrder'
+import { computeDeficits, describeDeficit } from '../utils/deficitFlow'
 
 // ============================================
 // HELPER FUNCTIONS FOR DATA EXTRACTION
@@ -4591,7 +4592,8 @@ SCORING SUMMARY (in chronological order)
       return 0
     }
     let t1 = 0, t2 = 0
-    let t1MaxDeficit = 0, t2MaxDeficit = 0
+    // Running score after each scoring play — fed to computeDeficits below.
+    const scoreSnapshots = []
     let halftimeT1 = 0, halftimeT2 = 0
     let regT1 = 0, regT2 = 0
     let otT1 = 0, otT2 = 0
@@ -4624,9 +4626,7 @@ SCORING SUMMARY (in chronological order)
       if (qr >= 1 && qr <= 2) { halftimeT1 = t1; halftimeT2 = t2 }
       if (qr >= 1 && qr <= 4) { regT1 = t1; regT2 = t2 }
       if (qr > 4) { otT1 = t1 - regT1; otT2 = t2 - regT2 }
-      // Running deficit tracking (positive = they trailed by this much)
-      if (t1 < t2) t1MaxDeficit = Math.max(t1MaxDeficit, t2 - t1)
-      if (t2 < t1) t2MaxDeficit = Math.max(t2MaxDeficit, t1 - t2)
+      scoreSnapshots.push({ t1, t2 })
       // Lead change count
       const leader = t1 > t2 ? 1 : t1 < t2 ? -1 : 0
       if (leader !== 0 && leader !== lastLeader && lastLeader !== 0) leadChanges += 1
@@ -4656,17 +4656,28 @@ SCORING SUMMARY (in chronological order)
       }
     }
     flowLines.push(`Final: ${describeLead(finalT1, finalT2, name1, name2)}.`)
-    flowLines.push(`Largest deficit overcome by ${name1}: ${t1MaxDeficit === 0 ? 'never trailed' : `${t1MaxDeficit} point${t1MaxDeficit === 1 ? '' : 's'}`}.`)
-    flowLines.push(`Largest deficit overcome by ${name2}: ${t2MaxDeficit === 0 ? 'never trailed' : `${t2MaxDeficit} point${t2MaxDeficit === 1 ? '' : 's'}`}.`)
+    // Deficit FACED vs deficit OVERCOME are different numbers for any team
+    // that trailed at the final whistle. Reporting the first as the second
+    // told the model Massachusetts "overcame 8 points" in a 14-6 loss.
+    const deficits = computeDeficits(scoreSnapshots)
+    flowLines.push(describeDeficit(name1, deficits.t1Faced, deficits.t1Overcome))
+    flowLines.push(describeDeficit(name2, deficits.t2Faced, deficits.t2Overcome))
     flowLines.push(`Lead changes: ${leadChanges}.`)
     // Winner framing — whichever team's score is higher at the end won.
     const winnerName = finalT1 > finalT2 ? name1 : finalT2 > finalT1 ? name2 : null
     const loserName = winnerName === name1 ? name2 : winnerName === name2 ? name1 : null
-    const winnerMaxDeficit = winnerName === name1 ? t1MaxDeficit : t2MaxDeficit
-    if (winnerName && winnerMaxDeficit > 0) {
-      flowLines.push(`COMEBACK FACT: ${winnerName} trailed by as many as ${winnerMaxDeficit} and came back to win. ${loserName} led at one point but did NOT win — do not describe ${loserName} as rallying or coming back.`)
-    } else if (winnerName && winnerMaxDeficit === 0) {
+    const winnerOvercome = winnerName === name1 ? deficits.t1Overcome : deficits.t2Overcome
+    const loserFaced = loserName === name1 ? deficits.t1Faced : deficits.t2Faced
+    const loserOvercome = loserName === name1 ? deficits.t1Overcome : deficits.t2Overcome
+    if (winnerName && winnerOvercome > 0) {
+      flowLines.push(`COMEBACK FACT: ${winnerName} trailed by as many as ${winnerOvercome} and came back to win. ${loserName} led at one point but did NOT win — do not describe ${loserName} as rallying or coming back.`)
+    } else if (winnerName && winnerOvercome === 0) {
       flowLines.push(`FRONT-RUNNER FACT: ${winnerName} never trailed in this game. Do not describe ${winnerName} as rallying or coming back from behind.`)
+    }
+    // The loser trailed and never drew level: the most common false-comeback
+    // trap, since a late score can look like a rally in the play list.
+    if (loserName && loserFaced > 0 && loserOvercome === 0) {
+      flowLines.push(`NO-COMEBACK FACT: ${loserName} fell behind and never got back to even. Do not describe ${loserName} as rallying, storming back, or cutting into the lead in comeback terms — ${loserName} trailed from that point to the final whistle.`)
     }
 
     prompt += `\n

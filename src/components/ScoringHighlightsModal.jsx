@@ -26,6 +26,28 @@ function buildYouTubeEmbed(videoId, startSec, endSec, { controls = 0 } = {}) {
   return `https://www.youtube-nocookie.com/embed/${videoId}?${params.join('&')}`
 }
 
+// Seconds from a YouTube URL's `t` parameter, wherever it sits in the query
+// string, accepting every form YouTube itself emits: `?t=853`, `&t=853`,
+// `t=853s`, and `t=1h2m3s`.
+//
+// This used to be inlined as `(?:\?t=(\d+))?` glued to the video id, which
+// only matched when `t` was the FIRST parameter. YouTube's own Share button
+// produces `https://youtu.be/VIDEO_ID?si=TRACKING&t=853` — `t` second — so a
+// shared link with a timestamp silently lost it and the clip played from 0:00.
+export function parseYouTubeStartSeconds(url) {
+  if (!url) return null
+  const m = String(url).match(/[?&]t=([^&#]+)/)
+  if (!m) return null
+  const raw = m[1]
+  if (/^\d+$/.test(raw)) return parseInt(raw, 10)
+  const hms = raw.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+(?:\.\d+)?)s)?$/i)
+  if (!hms || (!hms[1] && !hms[2] && !hms[3])) return null
+  const secs = (parseInt(hms[1] || '0', 10) * 3600)
+    + (parseInt(hms[2] || '0', 10) * 60)
+    + Math.floor(parseFloat(hms[3] || '0'))
+  return Number.isFinite(secs) ? secs : null
+}
+
 // Parse a URL and return YouTube embed data when it's a YouTube link:
 // { kind: 'youtube', videoId, startSec, endSec }. Returns null for any
 // non-YouTube URL so callers can fall through to the generic
@@ -51,16 +73,14 @@ export function getYouTubeData(url) {
     if (data) return data
   }
 
-  const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)(?:\?t=(\d+))?/)
+  const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)
   if (shortMatch) {
-    const s = shortMatch[2] ? parseInt(shortMatch[2], 10) : null
-    return finalize(shortMatch[1], s, null)
+    return finalize(shortMatch[1], parseYouTubeStartSeconds(url), null)
   }
 
-  const longMatch = url.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)(?:.*[&?]t=(\d+))?/)
+  const longMatch = url.match(/youtube\.com\/watch\?(?:[^#]*&)?v=([a-zA-Z0-9_-]+)/)
   if (longMatch) {
-    const s = longMatch[2] ? parseInt(longMatch[2], 10) : null
-    return finalize(longMatch[1], s, null)
+    return finalize(longMatch[1], parseYouTubeStartSeconds(url), null)
   }
 
   const embedMatch = url.match(/youtube(?:-nocookie)?\.com\/embed\/([a-zA-Z0-9_-]+)/)
@@ -107,20 +127,18 @@ export function getEmbedUrl(url, { controls = 0 } = {}) {
   }
 
   // YouTube: youtu.be/VIDEO_ID?t=SECONDS or youtube.com/watch?v=VIDEO_ID&t=SECONDS
-  const youtubeShortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)(?:\?t=(\d+))?/)
+  const youtubeShortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)
   if (youtubeShortMatch) {
-    const videoId = youtubeShortMatch[1]
-    const startTime = youtubeShortMatch[2] ? parseInt(youtubeShortMatch[2], 10) : null
+    const startTime = parseYouTubeStartSeconds(url)
     const endTime = startTime != null ? startTime + YOUTUBE_AUTO_CLIP_SECONDS : null
-    return buildYouTubeEmbed(videoId, startTime, endTime, { controls })
+    return buildYouTubeEmbed(youtubeShortMatch[1], startTime, endTime, { controls })
   }
 
-  const youtubeLongMatch = url.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)(?:.*[&?]t=(\d+))?/)
+  const youtubeLongMatch = url.match(/youtube\.com\/watch\?(?:[^#]*&)?v=([a-zA-Z0-9_-]+)/)
   if (youtubeLongMatch) {
-    const videoId = youtubeLongMatch[1]
-    const startTime = youtubeLongMatch[2] ? parseInt(youtubeLongMatch[2], 10) : null
+    const startTime = parseYouTubeStartSeconds(url)
     const endTime = startTime != null ? startTime + YOUTUBE_AUTO_CLIP_SECONDS : null
-    return buildYouTubeEmbed(videoId, startTime, endTime, { controls })
+    return buildYouTubeEmbed(youtubeLongMatch[1], startTime, endTime, { controls })
   }
 
   const youtubeEmbedMatch = url.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]+)/)

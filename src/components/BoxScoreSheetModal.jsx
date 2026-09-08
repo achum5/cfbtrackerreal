@@ -529,11 +529,40 @@ E Score Type  — ONLY when the play scores. See list below. Blank otherwise.
 F PAT Result  — ONLY on TD rows when the PAT outcome is visible. Blank otherwise.
 G Quarter     — "1"/"2"/"3"/"4"/"OT"/"2OT"/etc. Required.
 H Time Left   — MM:SS with leading zeros. Required.
-I Video Link  — blank.
+I Video Link  — blank, UNLESS the user gives you a YouTube link for this
+              game and asks for timestamped links. Then see VIDEO LINKS below.
 J Down        — "1"/"2"/"3"/"4" if the line has "Nth & X" prefix. Blank for kickoffs/PATs.
 K Distance    — number or "Goal" (when the line says "& Goal"). Blank if J blank.
 L Field Pos   — copy the prefix VERBATIM: "${homeTeamAbbr} 45", "${awayTeamAbbr} 7", or "MID 50" at the 50. EA already prints midfield as "MID 50", so transcribe exactly what's shown — there is NOTHING to convert (never rewrite "${homeTeamAbbr} 50"↔"MID 50", never reason about which side the 50 is on).
 M Play Type   — see list below.
+
+═══════════════════════════════════════════════════════════
+VIDEO LINKS (col I) — only if the user asks
+═══════════════════════════════════════════════════════════
+Leave col I blank unless the user gives you a YouTube link to the game
+video AND asks for timestamps. If they do, every row you can place in the
+video gets its own link to that moment.
+
+FORMAT — the timestamp is a "t" parameter in WHOLE SECONDS:
+
+  https://youtu.be/VIDEO_ID?t=853
+
+If the link they gave already has a parameter (YouTube's Share button adds
+"?si=" tracking), keep it and append with "&", not a second "?":
+
+  https://youtu.be/VIDEO_ID?si=THEIR_VALUE&t=853
+
+Rules:
+- "t=" is the ONLY parameter that sets the start time. Do not invent others
+  ("is=", "start=", "time=" do nothing on a watch link) and do not "fix" a
+  parameter the user pasted — copy their link verbatim and append "&t=".
+- Whole seconds, no units: "t=853", not "t=14:13" or "t=853sec".
+- First parameter takes "?", every one after takes "&". Exactly one "?".
+- Use the VIDEO's elapsed time, not the game clock. The user tells you where
+  a known play sits in the video; count forward/backward from that anchor.
+- Never guess a VIDEO_ID. Use only the link the user provided.
+- If the user gives no link, or you cannot place a play in the video, leave
+  col I empty for that row. A wrong timestamp is worse than a blank one.
 
 ═══════════════════════════════════════════════════════════
 PLAY TYPE (col M) — match by the line's phrasing
