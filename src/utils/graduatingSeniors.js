@@ -8,13 +8,6 @@
 //   Sr with 5+ games       -> graduating (played the season; can't redshirt)
 //   Sr with 0-4 games      -> NOT graduating (eligible to redshirt into RS Sr)
 //   Sr with unknown games  -> NOT graduating (can't tell; leave it to the user)
-//                             ...unless the user answered the Signing Day
-//                             "Played 5+ games?" prompt for them: that answer
-//                             stands in for the games count (yes -> 5, no -> 0).
-//                             Before this the answer only steered the redshirt
-//                             decision, so a senior confirmed as having PLAYED
-//                             still went Sr -> RS Sr and spent an extra year on
-//                             the roster.
 //
 // Why this exists as its own module: the local-paste Players Leaving modal
 // never pre-filled seniors (only the Google Sheet path did), and the season
@@ -33,24 +26,12 @@ export const gamesPlayedForYear = (player, year) => {
   return g == null ? null : Number(g)
 }
 
-/**
- * Games played for the eligibility decision: the recorded count, else the
- * user's "Played 5+ games?" confirmation (pid -> boolean) when one was given.
- */
-export const gamesPlayedForEligibility = (player, year, classConfirmations) => {
-  const g = gamesPlayedForYear(player, year)
-  if (g != null) return g
-  const confirmed = classConfirmations?.[player?.pid]
-  if (confirmed === undefined) return null
-  return confirmed ? 5 : 0
-}
-
-export function hasExhaustedEligibility(player, year, { classConfirmations } = {}) {
+export function hasExhaustedEligibility(player, year) {
   if (!player) return false
   const cls = classForYear(player, year)
   if (cls === 'RS Sr') return true
   if (cls === 'Sr') {
-    const g = gamesPlayedForEligibility(player, year, classConfirmations)
+    const g = gamesPlayedForYear(player, year)
     return g != null && Number.isFinite(g) && g >= 5
   }
   return false

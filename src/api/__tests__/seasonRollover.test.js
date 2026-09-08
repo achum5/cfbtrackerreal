@@ -157,20 +157,6 @@ describe('rollOverRosterAtYearFlip (offseason wk5→6)', () => {
     expect(byPid(played.players, 20).classByYear[NEXT]).toBe('So')
   })
 
-  it('graduates a senior with no recorded games when the user confirms they played', () => {
-    const noStats = fixture({ players: [mk(21, 'Unknown Senior', 'Sr')] })
-    const played = rollOverRosterAtYearFlip(noStats, { ...flipInput, classConfirmations: { 21: true } })
-    const p = byPid(played.players, 21)
-    expect(p.movementByYear[PREV]).toEqual({ type: 'departure', departure: 'graduated' })
-    expect(p.teamsByYear[NEXT]).toBeUndefined()
-    expect(played.autoGraduated.map(g => g.pid)).toEqual([21])
-    // Confirmed NOT played: a legitimate redshirt into RS Sr, as before.
-    const sat = rollOverRosterAtYearFlip(noStats, { ...flipInput, classConfirmations: { 21: false } })
-    expect(byPid(sat.players, 21).classByYear[NEXT]).toBe('RS Sr')
-    expect(byPid(sat.players, 21).teamsByYear[NEXT]).toBe(USER)
-    expect(sat.autoGraduated).toEqual([])
-  })
-
   it('does NOT auto-graduate on a PC dynasty (the save owns the roster)', () => {
     const pc = fixture({ gameEdition: 'cfb27', platform: 'pc' })
     const r = rollOverRosterAtYearFlip(pc, flipInput)

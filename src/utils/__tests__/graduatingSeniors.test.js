@@ -28,20 +28,6 @@ describe('hasExhaustedEligibility', () => {
   it('Sr with unknown games does NOT — never guess a graduation', () => {
     expect(hasExhaustedEligibility(p('Sr', null), 2028)).toBe(false)
   })
-  it('uses the Signing Day confirmation when games are unknown', () => {
-    expect(hasExhaustedEligibility(p('Sr', null), 2028, { classConfirmations: { 1: true } })).toBe(true)
-    expect(hasExhaustedEligibility(p('Sr', null), 2028, { classConfirmations: { 1: false } })).toBe(false)
-    // No answer for this pid: still never guess.
-    expect(hasExhaustedEligibility(p('Sr', null), 2028, { classConfirmations: { 99: true } })).toBe(false)
-    expect(hasExhaustedEligibility(p('Sr', null), 2028, { classConfirmations: {} })).toBe(false)
-  })
-  it('a recorded games count wins over the confirmation', () => {
-    expect(hasExhaustedEligibility(p('Sr', 2), 2028, { classConfirmations: { 1: true } })).toBe(false)
-    expect(hasExhaustedEligibility(p('Sr', 9), 2028, { classConfirmations: { 1: false } })).toBe(true)
-  })
-  it('a confirmation never graduates an underclassman', () => {
-    expect(hasExhaustedEligibility(p('Jr', null), 2028, { classConfirmations: { 1: true } })).toBe(false)
-  })
   it('underclassmen never graduate by rule', () => {
     for (const c of ['Fr', 'RS Fr', 'So', 'RS So', 'Jr', 'RS Jr']) {
       expect(hasExhaustedEligibility(p(c, 12), 2028), c).toBe(false)
