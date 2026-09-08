@@ -15,6 +15,7 @@ import { buildCFPProjection } from '../utils/cfpProjection'
 import { canonicalBoxScore, getPlayerStatsForTid, getTeamStatsForTid } from '../utils/boxScoreHelpers'
 import { collapsePatRowsIntoTDs, resolveScoringTeamTids, buildScorerTidResolver } from '../utils/scoringPlayOrder'
 import { computeDeficits, describeDeficit } from '../utils/deficitFlow'
+import { resolveOutcome, describeResult, describeHistoryRow } from '../utils/gameOutcome'
 
 // ============================================
 // HELPER FUNCTIONS FOR DATA EXTRACTION
@@ -239,7 +240,7 @@ function getTeamRatings(dynasty, teamAbbr, year) {
  * Build a talent comparison description for two teams
  * Shows actual OVR numbers but instructs AI not to mention them directly
  */
-function buildTalentContext(team1Ratings, team2Ratings, team1Name, team2Name, team1Won) {
+function buildTalentContext(team1Ratings, team2Ratings, team1Name, team2Name, team1Won, isTie = false) {
   if (!team1Ratings?.overall && !team2Ratings?.overall) return null
 
   const lines = []
@@ -269,7 +270,11 @@ function buildTalentContext(team1Ratings, team2Ratings, team1Name, team2Name, te
     const diff = Math.abs(t1Overall - t2Overall)
     const favorite = t1Overall > t2Overall ? team1Name : team2Name
     const underdog = t1Overall > t2Overall ? team2Name : team1Name
-    const favoriteWon = (t1Overall > t2Overall && team1Won) || (t2Overall > t1Overall && !team1Won)
+    // `!team1Won` is true for a TIE as well as a team-2 win, so a drawn game
+    // against a more-talented team 1 was labelled an upset. An upset needs
+    // the favorite to actually lose.
+    const favoriteLost = isTie ? false
+      : (t1Overall > t2Overall ? !team1Won : team1Won)
 
     if (diff <= 3) {
       lines.push(`- Evenly matched game (${diff} point talent gap)`)
@@ -277,12 +282,12 @@ function buildTalentContext(team1Ratings, team2Ratings, team1Name, team2Name, te
       lines.push(`- ${favorite} was slightly more talented (+${diff} OVR)`)
     } else if (diff <= 12) {
       lines.push(`- ${favorite} was a clear favorite (+${diff} OVR advantage)`)
-      if (!favoriteWon) {
+      if (favoriteLost) {
         lines.push(`- This qualifies as an UPSET - ${underdog} overcame the talent gap`)
       }
     } else {
       lines.push(`- ${favorite} was a heavy favorite (+${diff} OVR advantage)`)
-      if (!favoriteWon) {
+      if (favoriteLost) {
         lines.push(`- This is a MAJOR UPSET - ${underdog} overcame a huge talent deficit`)
       }
     }
@@ -770,24 +775,32 @@ export function getHeadToHeadHistory(allGames, team1, team2, currentYear, maxGam
     const isMatch = isUnifiedMatch || isLegacyUserMatch || isLegacyCpuMatch
     if (!isMatch) continue
 
-    let winner, loser, winnerScore, loserScore
+    // isTie: a drawn prior meeting is NOT a win for either side. Deriving
+    // winner from `s1 > s2` alone counted every tie as a team-2 win, which
+    // then fed the series record, the "lost last meeting" flags and the
+    // streak counter.
+    let winner, loser, winnerScore, loserScore, isTie = false
     if (isUnifiedMatch) {
       // Unified format — resolve names from tids, never fall back to undefined string fields
       const s1 = Number(g.team1Score) || 0
       const s2 = Number(g.team2Score) || 0
-      const team1Won = s1 > s2
+      const o = resolveOutcome(s1, s2)
+      isTie = o.isTie
+      const team1First = o.winnerIsTeam1 !== false
       const team1Name = getTeamName(getAbbrFromTid(g.team1Tid, dynasty), dynasty?.teams) || getAbbrFromTid(g.team1Tid, dynasty)
       const team2Name = getTeamName(getAbbrFromTid(g.team2Tid, dynasty), dynasty?.teams) || getAbbrFromTid(g.team2Tid, dynasty)
-      winner = team1Won ? team1Name : team2Name
-      loser = team1Won ? team2Name : team1Name
-      winnerScore = team1Won ? s1 : s2
-      loserScore = team1Won ? s2 : s1
+      winner = team1First ? team1Name : team2Name
+      loser = team1First ? team2Name : team1Name
+      winnerScore = team1First ? s1 : s2
+      loserScore = team1First ? s2 : s1
     } else if (isLegacyCpuMatch && g.team1 && g.team2) {
-      const team1Won = g.team1Score > g.team2Score
-      winner = team1Won ? g.team1 : g.team2
-      loser = team1Won ? g.team2 : g.team1
-      winnerScore = team1Won ? g.team1Score : g.team2Score
-      loserScore = team1Won ? g.team2Score : g.team1Score
+      const o = resolveOutcome(g.team1Score, g.team2Score)
+      isTie = o.isTie
+      const team1First = o.winnerIsTeam1 !== false
+      winner = team1First ? g.team1 : g.team2
+      loser = team1First ? g.team2 : g.team1
+      winnerScore = team1First ? g.team1Score : g.team2Score
+      loserScore = team1First ? g.team2Score : g.team1Score
     } else {
       // Legacy user game format
       const userWon = g.result === 'win' || g.result === 'W'
@@ -806,6 +819,7 @@ export function getHeadToHeadHistory(allGames, team1, team2, currentYear, maxGam
       loser,
       winnerScore,
       loserScore,
+      isTie,
       gameType: g.isBowlGame ? (g.bowlName || 'Bowl Game') :
                 g.isConferenceChampionship ? 'Conference Championship' :
                 g.isCFPChampionship ? 'National Championship' :
@@ -1293,21 +1307,23 @@ export function summarizeHeadToHead(headToHeadList, team1Name, team2Name) {
   // History is sorted most-recent-first by getHeadToHeadHistory.
   const sorted = headToHeadList
 
-  const team1Wins = sorted.filter(h => h.winner === team1Name).length
-  const team2Wins = sorted.filter(h => h.winner === team2Name).length
+  // Ties count for neither side and break a streak.
+  const team1Wins = sorted.filter(h => !h.isTie && h.winner === team1Name).length
+  const team2Wins = sorted.filter(h => !h.isTie && h.winner === team2Name).length
+  const ties = sorted.filter(h => h.isTie).length
 
   // Last meeting = the most-recent prior matchup.
   const last = sorted[0]
-  const team1WonLast = last?.winner === team1Name
-  const team2WonLast = last?.winner === team2Name
+  const team1WonLast = !last?.isTie && last?.winner === team1Name
+  const team2WonLast = !last?.isTie && last?.winner === team2Name
 
   // Walk from the most-recent backwards; count consecutive same-winner games.
-  let streakWinner = last?.winner || null
+  let streakWinner = last && !last.isTie ? last.winner : null
   let streakLength = 0
   if (streakWinner) {
     for (const h of sorted) {
-      if (h.winner === streakWinner) streakLength += 1
-      else break
+      if (h.isTie || h.winner !== streakWinner) break
+      streakLength += 1
     }
   }
 
@@ -1316,9 +1332,11 @@ export function summarizeHeadToHead(headToHeadList, team1Name, team2Name) {
     totalMeetings: sorted.length,
     team1Wins,
     team2Wins,
+    ties,
     lastMeeting: last
       ? {
           year: last.year,
+          isTie: last.isTie,
           winner: last.winner,
           loser: last.loser,
           winnerScore: last.winnerScore,
@@ -2931,7 +2949,8 @@ export function buildGameRecapContext(dynasty, game) {
   }
 
   const scoreDiff = Math.abs(team1Score - team2Score)
-  const team1Won = team1Score > team2Score
+  const gameOutcome = resolveOutcome(team1Score, team2Score)
+  const team1Won = gameOutcome.team1Won
 
   // Calculate game order for this game (used for filtering previous games)
   const thisGameOrder = getGameOrder(game)
@@ -3074,8 +3093,12 @@ export function buildGameRecapContext(dynasty, game) {
   const team1Ranking = (typeof game.team1Rank === 'number' ? game.team1Rank : null) ?? fallbackRankFor(team1Tid)
   const team2Ranking = (typeof game.team2Rank === 'number' ? game.team2Rank : null) ?? fallbackRankFor(team2Tid)
   const isRankedMatchup = !!(team1Ranking && team2Ranking)
-  const isUpset = (team2Ranking && team2Ranking <= 10 && team1Won) ||
-                  (team1Ranking && team1Ranking <= 10 && !team1Won)
+  // A tie is not an upset. `!team1Won` was true for a tied game, so a tie
+  // against a top-10 team 1 was announced as one.
+  const isUpset = !gameOutcome.isTie && (
+    (team2Ranking && team2Ranking <= 10 && gameOutcome.team1Won) ||
+    (team1Ranking && team1Ranking <= 10 && gameOutcome.team2Won)
+  )
 
   // Get game type info
   let gameTypeDescription = 'regular season game'
@@ -3390,10 +3413,14 @@ export function buildGameRecapContext(dynasty, game) {
     team1Score,
     team2Score,
     team1Won,
-    winner: team1Won ? team1FullName : team2FullName,
-    loser: team1Won ? team2FullName : team1FullName,
-    winnerScore: team1Won ? team1Score : team2Score,
-    loserScore: team1Won ? team2Score : team1Score,
+    // A tie has no winner. Deriving one from `!team1Won` produced the
+    // prompt's headline "Team B defeated Team A 21-21" while the GAME FLOW
+    // block, which does handle ties, called the same game tied.
+    isTie: gameOutcome.isTie,
+    winner: gameOutcome.isTie ? null : (team1Won ? team1FullName : team2FullName),
+    loser: gameOutcome.isTie ? null : (team1Won ? team2FullName : team1FullName),
+    winnerScore: gameOutcome.isTie ? null : (team1Won ? team1Score : team2Score),
+    loserScore: gameOutcome.isTie ? null : (team1Won ? team2Score : team1Score),
 
     // Game basics
     week: game.week,
@@ -4394,7 +4421,7 @@ export function getRecapInstructionsForPerspective(perspective, ctx) {
  */
 function buildGameRecapPrompt(ctx, customInstructions = null, perspective = null, depth = null) {
   // Build the game result line
-  const resultLine = `${ctx.winner} defeated ${ctx.loser} ${ctx.winnerScore}-${ctx.loserScore}`
+  const resultLine = describeResult(ctx.team1FullName, ctx.team1Score, ctx.team2FullName, ctx.team2Score)
 
   // Determine home/away teams explicitly - USE FULL NAMES
   const homeTeam = ctx.location === 'home' ? ctx.team1FullName : ctx.location === 'away' ? ctx.team2FullName : null
@@ -4996,7 +5023,7 @@ COACHING STAFF
   }
 
   // Add talent/roster context based on team ratings
-  const talentContext = buildTalentContext(ctx.team1Ratings, ctx.team2Ratings, ctx.team1FullName, ctx.team2FullName, ctx.team1Won)
+  const talentContext = buildTalentContext(ctx.team1Ratings, ctx.team2Ratings, ctx.team1FullName, ctx.team2FullName, ctx.team1Won, ctx.isTie)
   if (talentContext) {
     prompt += `\n
 ===========================================
@@ -5165,7 +5192,10 @@ HEAD-TO-HEAD HISTORY (${ctx.team1FullName} vs ${ctx.team2FullName})
     ctx.headToHead.forEach(h => {
       const winnerName = getTeamName(h.winner) || h.winner
       const loserName = getTeamName(h.loser) || h.loser
-      prompt += `\n  ${h.year}: ${winnerName} def. ${loserName} ${h.winnerScore}-${h.loserScore} (${h.gameType})`
+      // h.winner/h.loser are already ordered winner-first, so a tie shows as
+      // equal scores — render it as a tie rather than "def.".
+      const row = describeHistoryRow(winnerName, h.winnerScore, loserName, h.loserScore)
+      prompt += `\n  ${h.year}: ${row} (${h.gameType})`
     })
 
     if (ctx.headToHeadSummary) {
@@ -5173,7 +5203,12 @@ HEAD-TO-HEAD HISTORY (${ctx.team1FullName} vs ${ctx.team2FullName})
       prompt += `\n\nSERIES CONTEXT — SUPPORTING COLOR ONLY. Weave at most ONE of these into a BODY paragraph when it fits. Do NOT make the series/rivalry streak the headline or the lede angle unless it is genuinely the single biggest story of THIS game (it usually is not). The headline and lede lead with THIS game's result and performance:`
       if (s.lastMeeting) {
         const lm = s.lastMeeting
-        prompt += `\n  • Last meeting (${lm.year}): ${lm.winner} beat ${lm.loser} ${lm.winnerScore}-${lm.loserScore} in the ${lm.gameType}.`
+        // "beat" is wrong for a drawn meeting; the revenge cues below are
+        // already suppressed for a tie (both LostLastMeeting flags are false).
+        const lmText = lm.isTie
+          ? `${lm.winner} and ${lm.loser} tied ${lm.winnerScore}-${lm.loserScore}`
+          : `${lm.winner} beat ${lm.loser} ${lm.winnerScore}-${lm.loserScore}`
+        prompt += `\n  • Last meeting (${lm.year}): ${lmText} in the ${lm.gameType}.`
       }
       // Revenge / avenge cues — the explicit verbs the user asked for. Only
       // emit when this is a genuine rematch where the team that lost last
