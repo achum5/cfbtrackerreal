@@ -655,7 +655,8 @@ export default function GameEdit() {
   // Players taggable in a photo: the dynasty players rostered on either
   // team THIS game. Only players with a pid are taggable, since the tag
   // links to that player's page (a CPU/FCS opponent with no dynasty entry
-  // has no page to link to). Each entry: { pid, name, teamAbbr }.
+  // has no page to link to). Each entry:
+  // { pid, name, jerseyNumber, position, teamAbbr }.
   const taggablePlayers = useMemo(() => {
     const players = currentDynasty?.players
     if (!Array.isArray(players)) return []
@@ -666,7 +667,7 @@ export default function GameEdit() {
       .filter(p => p?.pid != null && tids.some(tid => isPlayerOnRoster(p, tid, gameYear)))
       .map(p => {
         const onTid = tids.find(tid => isPlayerOnRoster(p, tid, gameYear))
-        return { pid: p.pid, name: p.name || `Player ${p.pid}`, jerseyNumber: p.jerseyNumber, teamAbbr: abbrFor(onTid) }
+        return { pid: p.pid, name: p.name || `Player ${p.pid}`, jerseyNumber: p.jerseyNumber, position: p.position, teamAbbr: abbrFor(onTid) }
       })
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [currentDynasty?.players, team1Tid, team2Tid, team1Abbr, team2Abbr, gameYear])
@@ -3389,6 +3390,9 @@ export default function GameEdit() {
                                 <span className="text-xs text-txt-tertiary tabular-nums flex-shrink-0">#{pl.jerseyNumber}</span>
                               )}
                               <span className="text-sm text-txt-primary truncate">{pl.name}</span>
+                              {pl.position && (
+                                <span className="text-[10px] text-txt-tertiary uppercase tracking-wide flex-shrink-0">{pl.position}</span>
+                              )}
                             </span>
                             <span className="flex items-center gap-2 flex-shrink-0">
                               <span className="text-[10px] text-txt-tertiary uppercase tracking-wide">{pl.teamAbbr}</span>
@@ -3521,7 +3525,7 @@ export default function GameEdit() {
                 style={{ backgroundColor: 'var(--surface-3)', border: '1px solid var(--text-primary)' }}
               >
                 <span className="text-xs text-txt-primary">
-                  Bulk-tagging <strong>{massPlayer?.jerseyNumber != null && massPlayer?.jerseyNumber !== '' ? `#${massPlayer.jerseyNumber} ` : ''}{massPlayer?.name || `Player ${massTagPid}`}</strong> — click each photo they appear in to add/remove.
+                  Bulk-tagging <strong>{massPlayer?.jerseyNumber != null && massPlayer?.jerseyNumber !== '' ? `#${massPlayer.jerseyNumber} ` : ''}{massPlayer?.name || `Player ${massTagPid}`}{massPlayer?.position ? ` (${massPlayer.position})` : ''}</strong> — click each photo they appear in to add/remove.
                 </span>
                 <button
                   type="button"
@@ -3560,6 +3564,9 @@ export default function GameEdit() {
                             <span className="text-xs text-txt-tertiary tabular-nums flex-shrink-0">#{pl.jerseyNumber}</span>
                           )}
                           <span className="text-sm text-txt-primary truncate">{pl.name}</span>
+                          {pl.position && (
+                            <span className="text-[10px] text-txt-tertiary uppercase tracking-wide flex-shrink-0">{pl.position}</span>
+                          )}
                         </span>
                         <span className="text-[10px] text-txt-tertiary uppercase tracking-wide flex-shrink-0">{pl.teamAbbr}</span>
                       </button>

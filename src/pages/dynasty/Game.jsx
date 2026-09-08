@@ -860,7 +860,7 @@ export default function Game() {
       .filter(p => p?.pid != null && tids.some(tid => isPlayerOnRoster(p, tid, yr)))
       .map(p => {
         const onTid = tids.find(tid => isPlayerOnRoster(p, tid, yr))
-        return { pid: p.pid, name: p.name || `Player ${p.pid}`, jerseyNumber: p.jerseyNumber, teamAbbr: abbrFor(onTid) }
+        return { pid: p.pid, name: p.name || `Player ${p.pid}`, jerseyNumber: p.jerseyNumber, position: p.position, teamAbbr: abbrFor(onTid) }
       })
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [currentDynasty?.players, currentDynasty?.teams, game])
@@ -4709,6 +4709,9 @@ function PhotoLightbox({ photos, index, onClose, onIndexChange, photoTags = null
                             <span className="text-xs text-txt-tertiary tabular-nums flex-shrink-0">#{pl.jerseyNumber}</span>
                           )}
                           <span className="text-sm text-txt-primary truncate">{pl.name}</span>
+                          {pl.position && (
+                            <span className="text-[10px] text-txt-tertiary uppercase tracking-wide flex-shrink-0">{pl.position}</span>
+                          )}
                         </span>
                         <span className="flex items-center gap-2 flex-shrink-0">
                           <span className="text-[10px] text-txt-tertiary uppercase tracking-wide">{pl.teamAbbr}</span>
