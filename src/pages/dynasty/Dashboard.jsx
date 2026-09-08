@@ -9955,6 +9955,16 @@ export default function Dashboard() {
           const year = currentDynasty?.currentYear
           const isDev = import.meta.env.VITE_DEV_MODE === 'true'
           const allPlayers = currentDynasty?.players || []
+          // Movement records are keyed by the season the player LAST PLAYED —
+          // the key Players Leaving, Transfer Destinations and
+          // advanceToNewSeason all use. The year already flipped at Signing
+          // Day, so that is `year - 1`. This handler used to write under
+          // `year`, which put the departure one season late on the player
+          // page and left advanceToNewSeason to add a second copy under the
+          // right key (healDuplicateEncouragedMarkers cleans those up).
+          const seasonEnded = Number(year) - 1
+          const isEncouragedMarker = (m) =>
+            m?.type === 'departure' && m?.departure === 'transfer_out' && m?.toTid == null && m?.reason === 'Encouraged Transfer'
 
           // ──────────────────────────────────────────────────────────
           // RESOLVE TRANSFERS TO PIDs — the robust fix
@@ -10033,9 +10043,10 @@ export default function Dashboard() {
             if (!previousNamesLower.has(norm(p.name))) continue
             // Confirm via movementByYear breadcrumb so we don't restore
             // someone with a coincidentally-matching name.
-            const mv = p.movementByYear?.[year] || p.movementByYear?.[String(year)]
-            const wasEncouraged = mv?.departure === 'transfer_out' && mv?.reason === 'Encouraged Transfer'
-            if (wasEncouraged) offRosterPreviouslyEncouraged.add(p.pid)
+            // Canonical key first; the pre-fix key second (older saves).
+            const mv = p.movementByYear?.[seasonEnded] || p.movementByYear?.[String(seasonEnded)]
+              || p.movementByYear?.[year] || p.movementByYear?.[String(year)]
+            if (isEncouragedMarker(mv)) offRosterPreviouslyEncouraged.add(p.pid)
           }
           for (const pid of offRosterPreviouslyEncouraged) previousPids.add(pid)
 
@@ -10055,9 +10066,12 @@ export default function Dashboard() {
                 ...(player.teamsByYear || {}),
                 [year]: userTid
               }
+              // Only remove OUR marker — never a departure the user recorded
+              // themselves. Both keys, so pre-fix saves restore cleanly too.
               const updatedMovementByYear = { ...(player.movementByYear || {}) }
-              delete updatedMovementByYear[year]
-              delete updatedMovementByYear[String(year)]
+              for (const k of [seasonEnded, String(seasonEnded), year, String(year)]) {
+                if (isEncouragedMarker(updatedMovementByYear[k])) delete updatedMovementByYear[k]
+              }
               restoredCount++
               return {
                 ...player,
@@ -10074,18 +10088,21 @@ export default function Dashboard() {
               delete updatedTeamsByYear[year]
               delete updatedTeamsByYear[String(year)]
               removedCount++
+              const updatedMovementByYear = { ...(player.movementByYear || {}) }
+              // Drop a pre-fix copy under the new-season key so the player
+              // never carries the marker twice.
+              if (isEncouragedMarker(updatedMovementByYear[year])) delete updatedMovementByYear[year]
+              if (isEncouragedMarker(updatedMovementByYear[String(year)])) delete updatedMovementByYear[String(year)]
+              updatedMovementByYear[seasonEnded] = {
+                type: 'departure',
+                departure: 'transfer_out',
+                toTid: null,
+                reason: 'Encouraged Transfer',
+              }
               return {
                 ...player,
                 teamsByYear: updatedTeamsByYear,
-                movementByYear: {
-                  ...(player.movementByYear || {}),
-                  [year]: {
-                    type: 'departure',
-                    departure: 'transfer_out',
-                    toTid: null,
-                    reason: 'Encouraged Transfer',
-                  }
-                }
+                movementByYear: updatedMovementByYear,
               }
             }
 
