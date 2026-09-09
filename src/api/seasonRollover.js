@@ -729,3 +729,175 @@ export function advanceSeasonPlayers(dynasty, { previousSeasonYear, currentSeaso
   })
   return { players: updatedPlayers }
 }
+
+/**
+ * The inverse of rollOverRosterAtYearFlip — revertWeek's offseason wk6→wk5
+ * path (crossing the year flip backwards). Extracted VERBATIM so the pair
+ * can be tested as a round trip over a fixture (flip, then revert, should
+ * land back where it started). Removes the new season's per-year entries
+ * and the departure movements the advance wrote, and restores `year`.
+ *
+ * @param {object} dynasty  currentYear is still the NEW season here
+ * @param {object} input
+ * @param {number} input.newSeasonYear       the season being left
+ * @param {number} input.previousSeasonYear  the season being returned to
+ * @param {number|null} input.teamTid
+ * @param {string} input.teamAbbr
+ * @returns {{ players: object[] }}
+ */
+export function revertRosterYearFlip(dynasty, { newSeasonYear, previousSeasonYear, teamTid, teamAbbr }) {
+  const players = dynasty.players || []
+  const deleteYearKeys = (obj, year) => {
+    if (!obj) return obj
+    const next = { ...obj }
+    delete next[year]
+    delete next[String(year)]
+    delete next[Number(year)]
+    return next
+  }
+
+  // Reverse class progression for all players
+  // Remove teamsByYear[newSeasonYear] and classByYear[newSeasonYear] entries
+  // Restore player.year to previous class
+  const REVERSE_CLASS_PROGRESSION = {
+    'So': 'Fr', 'Jr': 'So', 'Sr': 'Jr',
+    'RS So': 'RS Fr', 'RS Jr': 'RS So', 'RS Sr': 'RS Jr',
+    'RS Fr': 'Fr' // Redshirt was added, remove it
+  }
+
+  const updatedPlayers = players.map(player => {
+    if (player.isHonorOnly) return player
+    if (player.isRecruit) return player // Recruits weren't processed
+
+    // Check if this player was on the team and had class progression applied
+    // Handle both tid (number) and legacy abbr (string) in teamsByYear
+    const playerTeamForYear = player.teamsByYear?.[newSeasonYear] ?? player.teamsByYear?.[String(newSeasonYear)]
+    const hadNewYearEntry = typeof playerTeamForYear === 'number'
+      ? playerTeamForYear === teamTid
+      : playerTeamForYear === teamAbbr || playerTeamForYear?.toUpperCase() === teamAbbr?.toUpperCase()
+
+    // Also handle edge case: class was bumped but no teamsByYear entry
+    // (e.g. player was graduated by advanceToNewSeason — no new-year roster slot
+    // but may still have a classByYear[newSeasonYear] from pre-flip processing).
+    const hadClassEntryForNewYear =
+      player.classByYear?.[newSeasonYear] != null ||
+      player.classByYear?.[String(newSeasonYear)] != null
+
+    if (!hadNewYearEntry && !hadClassEntryForNewYear) {
+      // Still clear any departure movement written by advanceToNewSeason for
+      // the previous season year (graduated/encouraged_to_transfer), so
+      // replay-advance doesn't see a stale record.
+      const prevMovementEntry =
+        player.movementByYear?.[previousSeasonYear] ||
+        player.movementByYear?.[String(previousSeasonYear)]
+      const advanceWrittenTypes = new Set([
+        'graduated', 'declared_for_draft', 'encouraged_to_transfer',
+        'departure',
+      ])
+      const shouldClear = prevMovementEntry && (
+        advanceWrittenTypes.has(prevMovementEntry.type) ||
+        prevMovementEntry.departure === 'graduated' ||
+        prevMovementEntry.departure === 'pro_draft' ||
+        prevMovementEntry.reason === 'Encouraged Transfer' ||
+        prevMovementEntry.reason === 'Graduating'
+      )
+      if (!shouldClear) return player
+      const cleanedMovementByYear = { ...(player.movementByYear || {}) }
+      delete cleanedMovementByYear[previousSeasonYear]
+      delete cleanedMovementByYear[String(previousSeasonYear)]
+      const cleanedMovements = (player.movements || []).filter(m => {
+        if (Number(m.year) !== Number(previousSeasonYear)) return true
+        const t = m.type
+        const r = m.reason
+        return !(
+          t === 'graduated' || t === 'declared_for_draft' ||
+          t === 'encouraged_to_transfer' ||
+          (t === 'departure' && (r === 'Graduating' || r === 'Pro Draft'))
+        )
+      })
+      return {
+        ...player,
+        movementByYear: cleanedMovementByYear,
+        ...(cleanedMovements.length !== (player.movements || []).length
+          ? { movements: cleanedMovements }
+          : {}),
+      }
+    }
+
+    // Get the class from the previous season to determine original class.
+    // Fallback: derive from current player.year via the reverse map for
+    // edge cases where classByYear[previousSeasonYear] was never written
+    // (e.g., player added mid-season without a snapshot).
+    const previousClass =
+      player.classByYear?.[previousSeasonYear] ||
+      player.classByYear?.[String(previousSeasonYear)] ||
+      REVERSE_CLASS_PROGRESSION[player.year] ||
+      player.year
+
+    // Remove the new season entries from teamsByYear, classByYear, AND
+    // the per-year overall/devTrait maps. Advance writes all four; revert
+    // must clear all four or stat lookups for the new year stay polluted.
+    const newTeamsByYear = deleteYearKeys(player.teamsByYear, newSeasonYear)
+    const newClassByYear = deleteYearKeys(player.classByYear, newSeasonYear)
+    const newOverallByYear = player.overallByYear
+      ? deleteYearKeys(player.overallByYear, newSeasonYear)
+      : player.overallByYear
+    const newDevTraitByYear = player.devTraitByYear
+      ? deleteYearKeys(player.devTraitByYear, newSeasonYear)
+      : player.devTraitByYear
+
+    // Clear any departure movement written by advanceToNewSeason for the
+    // previous season year (graduated/pro-draft/encouraged-transfer). These
+    // were added by the year-flip side effects and must be undone on revert.
+    let nextMovementByYear = player.movementByYear
+    let nextMovements = player.movements
+    const prevMvEntry =
+      player.movementByYear?.[previousSeasonYear] ||
+      player.movementByYear?.[String(previousSeasonYear)]
+    const isAdvanceWritten =
+      prevMvEntry && (
+        prevMvEntry.type === 'graduated' ||
+        prevMvEntry.type === 'declared_for_draft' ||
+        prevMvEntry.type === 'encouraged_to_transfer' ||
+        prevMvEntry.departure === 'graduated' ||
+        prevMvEntry.departure === 'pro_draft' ||
+        prevMvEntry.reason === 'Encouraged Transfer'
+      )
+    if (isAdvanceWritten) {
+      nextMovementByYear = { ...(player.movementByYear || {}) }
+      delete nextMovementByYear[previousSeasonYear]
+      delete nextMovementByYear[String(previousSeasonYear)]
+      nextMovements = (player.movements || []).filter(m => {
+        if (Number(m.year) !== Number(previousSeasonYear)) return true
+        const t = m.type
+        const r = m.reason
+        return !(
+          t === 'graduated' || t === 'declared_for_draft' ||
+          t === 'encouraged_to_transfer' ||
+          (t === 'departure' && (r === 'Graduating' || r === 'Pro Draft'))
+        )
+      })
+    }
+
+    // Restore player.year to the previous class
+    return {
+      ...player,
+      year: previousClass || player.year,
+      teamsByYear: newTeamsByYear,
+      classByYear: newClassByYear,
+      ...(newOverallByYear !== player.overallByYear
+        ? { overallByYear: newOverallByYear }
+        : {}),
+      ...(newDevTraitByYear !== player.devTraitByYear
+        ? { devTraitByYear: newDevTraitByYear }
+        : {}),
+      ...(nextMovementByYear !== player.movementByYear
+        ? { movementByYear: nextMovementByYear }
+        : {}),
+      ...(nextMovements !== player.movements
+        ? { movements: nextMovements }
+        : {}),
+    }
+  })
+  return { players: updatedPlayers }
+}
