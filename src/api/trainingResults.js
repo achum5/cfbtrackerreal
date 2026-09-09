@@ -3,19 +3,23 @@
 // verbatim from Dashboard.jsx; pinned by __tests__/trainingResults.test.js.
 
 import { getUserTeamTid } from '../data/teamRegistry'
-import { normalizePlayerName } from '../utils/playerMatching'
+import { normalizePlayerName, findRowPlayerIndex, withRowPid } from '../utils/playerMatching'
+
+const nameEq = (a, b) => normalizePlayerName(a) === normalizePlayerName(b)
 
 export function buildTrainingResultsSave(dynasty, results) {
   const year = dynasty.currentYear
   const prevYear = year - 1
   const updatedPlayers = [...(dynasty.players || [])]
   let updatedCount = 0
+  const rows = results || []
+  const storedRows = [...rows]
 
-  for (const result of results || []) {
-    const playerIndex = updatedPlayers.findIndex(p =>
-      normalizePlayerName(p.name) === normalizePlayerName(result.playerName)
-    )
+  for (let i = 0; i < rows.length; i++) {
+    const result = rows[i]
+    const playerIndex = findRowPlayerIndex(updatedPlayers, result, { nameEq })
     if (playerIndex === -1) continue
+    storedRows[i] = withRowPid(result, updatedPlayers[playerIndex])
     if (!result.newOverall && result.pastOverall == null) continue
 
     const player = updatedPlayers[playerIndex]
@@ -43,7 +47,7 @@ export function buildTrainingResultsSave(dynasty, results) {
   const userTid = getUserTeamTid(dynasty)
   const updates = {
     players: updatedPlayers,
-    trainingResultsByYear: { ...existingResults, [year]: results },
+    trainingResultsByYear: { ...existingResults, [year]: storedRows },
   }
   if (userTid && dynasty.teams) {
     const existingTeams = dynasty.teams
@@ -54,7 +58,7 @@ export function buildTrainingResultsSave(dynasty, results) {
       ...existingTeams,
       [userTid]: {
         ...existingTeamData,
-        byYear: { ...existingByYear, [year]: { ...existingYearData, trainingResults: results } },
+        byYear: { ...existingByYear, [year]: { ...existingYearData, trainingResults: storedRows } },
       },
     }
   }
@@ -65,9 +69,7 @@ export function buildTrainingResultsAttributesSave(dynasty, entries) {
   const year = dynasty.currentYear
   const updatedPlayers = [...(dynasty.players || [])]
   for (const entry of entries || []) {
-    const playerIndex = updatedPlayers.findIndex(p =>
-      normalizePlayerName(p.name) === normalizePlayerName(entry.playerName)
-    )
+    const playerIndex = findRowPlayerIndex(updatedPlayers, entry, { nameEq })
     if (playerIndex === -1) continue
     const player = updatedPlayers[playerIndex]
     const hasAttrs = entry.attributes && Object.keys(entry.attributes).length > 0

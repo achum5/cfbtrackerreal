@@ -462,7 +462,17 @@ export function advanceSeasonPlayers(dynasty, { previousSeasonYear, currentSeaso
 
   // Get encouraged transfers data (stored under current season year - after year flip)
   const encouragedTransfers = getEncourageTransfers(dynasty, teamTid, currentSeasonYear)
-  const encouragedNames = new Set(encouragedTransfers.map(t => t.name?.toLowerCase().trim()))
+  // Id-anchored: a row that carries a pid (stamped by the Encourage Transfers
+  // save) matches that player only, so a same-named teammate is never swept
+  // up. Rows without a pid — or whose pid no longer exists on the roster —
+  // still match by name exactly as before.
+  const knownPids = new Set(players.map(p => String(p?.pid)))
+  const encouragedPids = new Set(
+    encouragedTransfers.filter(t => t?.pid != null && knownPids.has(String(t.pid))).map(t => String(t.pid))
+  )
+  const encouragedNames = new Set(
+    encouragedTransfers.filter(t => t?.pid == null || !knownPids.has(String(t.pid))).map(t => t.name?.toLowerCase().trim())
+  )
 
   // Get draft results for draft round info (stored under previous season year)
   const draftResults = getDraftResults(dynasty, teamTid, previousSeasonYear)
@@ -509,7 +519,8 @@ export function advanceSeasonPlayers(dynasty, { previousSeasonYear, currentSeaso
     // CRITICAL: Must REMOVE teamsByYear[currentSeasonYear] if it was set by saveRoster earlier
     // The encourageTransfersByTeamYear data is the source of truth for Career Timeline display
     const playerNameLower = player.name?.toLowerCase().trim()
-    if (!player.isRecruit && encouragedNames.has(playerNameLower)) {
+    const isEncouraged = encouragedPids.has(String(player.pid)) || encouragedNames.has(playerNameLower)
+    if (!player.isRecruit && isEncouraged) {
       // Already recorded (a re-run, or the Encourage Transfers save wrote
       // the canonical marker itself): nothing to do — keep the reference.
       const tby = player.teamsByYear || {}
@@ -631,9 +642,13 @@ export function advanceSeasonPlayers(dynasty, { previousSeasonYear, currentSeaso
       if (player.isPortal) {
         const portalClassSelectionsObj = getPortalTransferClass(dynasty, teamAbbr, previousSeasonYear)
         const portalClassSelections = Array.isArray(portalClassSelectionsObj) ? portalClassSelectionsObj : []
-        const classSelection = portalClassSelections.find(s =>
-          s.playerName?.toLowerCase().trim() === player.name?.toLowerCase().trim()
-        )
+        // Id-anchored (pid stamped by the Portal Transfer Class save); rows
+        // without a usable pid match by name as before.
+        const classSelection = portalClassSelections.find(s => s?.pid != null && String(s.pid) === String(player.pid))
+          || portalClassSelections.find(s =>
+            (s?.pid == null || !knownPids.has(String(s.pid))) &&
+            s.playerName?.toLowerCase().trim() === player.name?.toLowerCase().trim()
+          )
         if (classSelection?.selectedClass) {
           // Use the manually assigned class
           newYear = classSelection.selectedClass
@@ -790,9 +805,13 @@ export function revertRosterYearFlip(dynasty, { newSeasonYear, previousSeasonYea
       const prevMovementEntry =
         player.movementByYear?.[previousSeasonYear] ||
         player.movementByYear?.[String(previousSeasonYear)]
+      // Only what the advance itself writes — the same list the main
+      // branch below uses. The bare v2 type 'departure' used to be in this
+      // set, which made the revert delete a user-recorded transfer_out
+      // (a Players Leaving "Transfer" entered before Signing Day) for any
+      // player without a next-season slot.
       const advanceWrittenTypes = new Set([
         'graduated', 'declared_for_draft', 'encouraged_to_transfer',
-        'departure',
       ])
       const shouldClear = prevMovementEntry && (
         advanceWrittenTypes.has(prevMovementEntry.type) ||

@@ -268,6 +268,56 @@ describe('advanceSeasonPlayers (offseason wk8→preseason)', () => {
   })
 })
 
+describe('advanceSeasonPlayers — id-anchored rows', () => {
+  const input = { previousSeasonYear: PREV, currentSeasonYear: NEXT, teamTid: USER, teamAbbr: 'IU' }
+  const carried = (pid, name, extra = {}) => ({ pid, name, position: 'WR', year: 'Jr', team: USER,
+    teamsByYear: { [PREV]: USER, [NEXT]: USER }, classByYear: { [PREV]: 'So', [NEXT]: 'Jr' }, ...extra })
+  const withRows = (players, encourageTransfers) => ({
+    ...fixture(), currentYear: NEXT, currentWeek: 8, players,
+    teams: { ...fixture().teams, [USER]: { ...fixture().teams[USER], byYear: { [NEXT]: { encourageTransfers } } } },
+  })
+
+  it('an encouraged row with a pid hits that player only, even when a teammate shares the name', () => {
+    const d = withRows([carried(30, 'Same Name'), carried(31, 'Same Name')], [{ name: 'Same Name', position: 'WR', pid: 31 }])
+    const P = advanceSeasonPlayers(d, input).players
+    expect(byPid(P, 31).teamsByYear[NEXT]).toBeUndefined()
+    expect(byPid(P, 31).movementByYear[PREV].reason).toBe('Encouraged Transfer')
+    expect(byPid(P, 30).teamsByYear[NEXT]).toBe(USER)
+    expect(byPid(P, 30).movementByYear).toBeUndefined()
+  })
+
+  it('an encouraged row with a pid matches even if the stored name drifted', () => {
+    const d = withRows([carried(30, 'Renamed Since')], [{ name: 'Old Name', position: 'WR', pid: 30 }])
+    expect(byPid(advanceSeasonPlayers(d, input).players, 30).teamsByYear[NEXT]).toBeUndefined()
+  })
+
+  it('a row without a pid, or whose pid is no longer on the roster, still matches by name', () => {
+    const d = withRows([carried(30, 'By Name'), carried(31, 'Stale Pid')], [
+      { name: 'By Name', position: 'WR' },
+      { name: 'Stale Pid', position: 'WR', pid: 9999 },
+    ])
+    const P = advanceSeasonPlayers(d, input).players
+    expect(byPid(P, 30).teamsByYear[NEXT]).toBeUndefined()
+    expect(byPid(P, 31).teamsByYear[NEXT]).toBeUndefined()
+  })
+
+  it('a portal class selection resolves by pid first, then by name for rows without one', () => {
+    const recruit = (pid, name) => ({ pid, name, position: 'QB', year: 'So', isRecruit: true, isPortal: true, recruitYear: PREV, team: USER })
+    const d = {
+      ...fixture(), currentYear: NEXT, currentWeek: 8,
+      players: [recruit(40, 'Twin'), recruit(41, 'Twin'), recruit(42, 'Solo')],
+      portalTransferClassByYear: { [PREV]: [
+        { playerName: 'Twin', selectedClass: 'RS Jr', pid: 41 },
+        { playerName: 'solo', selectedClass: 'Sr' },
+      ] },
+    }
+    const P = advanceSeasonPlayers(d, input).players
+    expect(byPid(P, 41).classByYear[NEXT]).toBe('RS Jr')
+    expect(byPid(P, 40).classByYear[NEXT]).toBe('So')   // the pid'd row is not his; falls back to his own class
+    expect(byPid(P, 42).classByYear[NEXT]).toBe('Sr')
+  })
+})
+
 describe('two-season walk', () => {
   it('chains classes and departures correctly across consecutive offseasons', () => {
     let d = fixture()

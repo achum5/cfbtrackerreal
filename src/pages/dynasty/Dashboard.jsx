@@ -10004,11 +10004,15 @@ export default function Dashboard() {
 
           const encouragedPids = new Set()
           const unresolvedTransfers = []
+          // Stored rows carry the resolved pid so the season advance (and
+          // any later reader) is id-anchored instead of re-matching names.
+          const transferPlayersWithPids = []
           for (const t of transferPlayers) {
             const nameKey = norm(t.name)
-            if (!nameKey) continue
+            if (!nameKey) { transferPlayersWithPids.push(t); continue }
             const posKey = `${nameKey}|${norm(t.position)}`
             const pid = rosterByNamePosition.get(posKey) || rosterByName.get(nameKey) || null
+            transferPlayersWithPids.push(pid ? { ...t, pid } : t)
             if (pid) encouragedPids.add(pid)
             else unresolvedTransfers.push(t.name)
           }
@@ -10130,7 +10134,7 @@ export default function Dashboard() {
                     ...existingByYear,
                     [year]: {
                       ...existingYearData,
-                      encourageTransfers: transferPlayers
+                      encourageTransfers: transferPlayersWithPids
                     }
                   }
                 }
@@ -10139,7 +10143,7 @@ export default function Dashboard() {
             })
           } else {
             await updateDynasty(currentDynasty.id, {
-              [`teams.${userTid}.byYear.${year}.encourageTransfers`]: transferPlayers,
+              [`teams.${userTid}.byYear.${year}.encourageTransfers`]: transferPlayersWithPids,
               players: updatedPlayers
             })
           }

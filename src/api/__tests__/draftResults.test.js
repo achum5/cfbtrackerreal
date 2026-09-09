@@ -20,11 +20,18 @@ describe('buildDraftResultsSave', () => {
     expect(p.movementByYear[2027]).toEqual({ type: 'departure', departure: 'pro_draft', draftRound: '1st Round' })
     expect(updates.players.find(x => x.pid === 2)).toBe(dynasty.players[1])
   })
-  it('resolves the stored row pid by EXACT name only (original behavior)', () => {
+  it('stores the pid of the player the save actually updated (case-insensitive, same resolution)', () => {
     const { updates } = buildDraftResultsSave(dynasty, [{ playerName: 'star qb', draftRound: '2nd Round' }])
-    // The player record still updates (case-insensitive), but the stored row's pid does not resolve.
-    expect(updates.draftResultsByTeamYear.UK[2027][0].pid).toBeNull()
+    expect(updates.draftResultsByTeamYear.UK[2027][0].pid).toBe(1)
     expect(updates.players.find(x => x.pid === 1).draftRound).toBe('2nd Round')
+  })
+  it('resolves a row by its pid when the name no longer matches, and stores null when nothing matches', () => {
+    const { updates } = buildDraftResultsSave(dynasty, [
+      { playerName: 'Renamed Guy', pid: 2, draftRound: '3rd Round' },
+      { playerName: 'Nobody', draftRound: '4th Round' },
+    ])
+    expect(updates.players.find(x => x.pid === 2).draftRound).toBe('3rd Round')
+    expect(updates.draftResultsByTeamYear.UK[2027].map(r => r.pid)).toEqual([2, null])
   })
   it('writes dual-keyed stores and the team byYear slot', () => {
     const { updates } = buildDraftResultsSave(dynasty, [{ playerName: 'Star QB', draftRound: '1st Round' }])

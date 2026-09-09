@@ -32,10 +32,18 @@ describe('buildTrainingResultsSave', () => {
     expect(updates.players).toEqual(dynasty.players)
   })
   it('stores the results for the year in both stores', () => {
-    const rows = [{ playerName: 'Returner', newOverall: 74 }]
+    const rows = [{ playerName: 'Returner', newOverall: 74 }, { playerName: 'Nobody', newOverall: 50 }]
     const { updates } = buildTrainingResultsSave(dynasty, rows)
-    expect(updates.trainingResultsByYear[2028]).toBe(rows)
-    expect(updates.teams[UK].byYear[2028].trainingResults).toBe(rows)
+    // Resolved rows are stored with their pid; unresolved rows are stored untouched.
+    expect(updates.trainingResultsByYear[2028]).toEqual([{ ...rows[0], pid: 1 }, rows[1]])
+    expect(updates.teams[UK].byYear[2028].trainingResults[1]).toBe(rows[1])
+  })
+  it('resolves a row by pid when the name no longer matches', () => {
+    const { updates, updatedCount } = buildTrainingResultsSave(dynasty, [{ playerName: 'Ret.', pid: 1, newOverall: 80 }])
+    expect(updatedCount).toBe(1)
+    expect(updates.players.find(x => x.pid === 1).overall).toBe(80)
+    const attrs = buildTrainingResultsAttributesSave(dynasty, [{ playerName: 'Ret.', pid: 1, overall: 81 }])
+    expect(attrs.updates.players.find(x => x.pid === 1).overall).toBe(81)
   })
 })
 

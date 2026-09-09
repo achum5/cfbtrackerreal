@@ -13,8 +13,11 @@
 
 import { getCurrentTeamTid, getCurrentTeamAbbr, getTidFromAbbr } from '../data/teamRegistry'
 import { getPlayerClassForYear, CLASS_PROGRESSION } from '../context/DynastyContext'
+import { findRowPlayerIndex, withRowPid } from '../utils/playerMatching'
 
 const looseKey = (n) => String(n || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+const lower = (s) => s?.toLowerCase().trim()
+const nameEq = (a, b) => lower(a) === lower(b)
 
 /**
  * @param {object} dynasty
@@ -32,11 +35,13 @@ export function buildTransferDestinationsSave(dynasty, destinations) {
 
   const updatedPlayers = [...(dynasty.players || [])]
   const skippedRows = []
+  // Stored rows carry the resolved pid (id-anchored for re-saves and heals).
+  const rows = destinations || []
+  const storedRows = [...rows]
 
-  for (const dest of destinations || []) {
-    let playerIndex = updatedPlayers.findIndex(p =>
-      p.name?.toLowerCase().trim() === dest.playerName?.toLowerCase().trim()
-    )
+  for (let i = 0; i < rows.length; i++) {
+    const dest = rows[i]
+    let playerIndex = findRowPlayerIndex(updatedPlayers, dest, { nameEq })
     if (playerIndex === -1 && dest.playerName) {
       const matches = updatedPlayers
         .map((p, i) => ({ p, i }))
@@ -47,6 +52,7 @@ export function buildTransferDestinationsSave(dynasty, destinations) {
       if (dest.playerName) skippedRows.push(dest.playerName + ' (no matching player on the roster)')
       continue
     }
+    storedRows[i] = withRowPid(dest, updatedPlayers[playerIndex])
     if (!dest.newTeam) continue
 
     const player = updatedPlayers[playerIndex]
@@ -105,8 +111,8 @@ export function buildTransferDestinationsSave(dynasty, destinations) {
   const updates = {
     transferDestinationsByTeamYear: {
       ...existingByTeamYear,
-      [teamAbbr]: { ...(existingByTeamYear[teamAbbr] || {}), [year]: destinations },
-      ...(tid ? { [tid]: { ...(existingByTeamYear[tid] || {}), [year]: destinations } } : {}),
+      [teamAbbr]: { ...(existingByTeamYear[teamAbbr] || {}), [year]: storedRows },
+      ...(tid ? { [tid]: { ...(existingByTeamYear[tid] || {}), [year]: storedRows } } : {}),
     },
     players: updatedPlayers,
   }
@@ -120,7 +126,7 @@ export function buildTransferDestinationsSave(dynasty, destinations) {
       ...existingTeams,
       [tid]: {
         ...existingTeamData,
-        byYear: { ...existingByYear, [year]: { ...existingYearData, transferDestinations: destinations } },
+        byYear: { ...existingByYear, [year]: { ...existingYearData, transferDestinations: storedRows } },
       },
     }
   }

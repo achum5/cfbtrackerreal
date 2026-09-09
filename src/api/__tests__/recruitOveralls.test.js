@@ -41,3 +41,24 @@ describe('buildRecruitOverallsAttributesSave', () => {
     expect(updates.players.find(x => x.pid === 2)).toBe(dynasty.players[1])
   })
 })
+
+describe('id-anchored rows', () => {
+  it('resolves by pid when the name drifted, still only within this class year', () => {
+    const { updates, updatedCount } = buildRecruitOverallsSave(dynasty, [
+      { name: 'Signee (WR)', pid: 1, overall: 71 },
+      { name: 'Last Year Signee', pid: 2, overall: 70 }, // wrong class year: pid does not bypass the predicate
+    ])
+    expect(updatedCount).toBe(1)
+    expect(updates.players.find(x => x.pid === 1).overall).toBe(71)
+    expect(updates.players.find(x => x.pid === 2)).toBe(dynasty.players[1])
+    expect(updates.recruitOverallsByYear[2027][0].pid).toBe(1)
+    expect(updates.recruitOverallsByYear[2027][1]).toEqual({ name: 'Last Year Signee', pid: 2, overall: 70 })
+  })
+  it('stamps the resolved pid onto rows matched by name', () => {
+    const { updates } = buildRecruitOverallsSave(dynasty, [{ name: 'signee', overall: 68 }])
+    expect(updates.recruitOverallsByYear[2027]).toEqual([{ name: 'signee', overall: 68, pid: 1 }])
+    const attrs = buildRecruitOverallsAttributesSave(dynasty, [{ playerName: 'Nope', pid: 1, overall: 69 }])
+    expect(attrs.updates.players.find(x => x.pid === 1).overall).toBe(69)
+  })
+})
+

@@ -341,3 +341,41 @@ export const findRosterPlayerByName = (players, name) => {
   const loose = players.filter(p => looseNameKey(p?.name) === key)
   return loose.length === 1 ? loose[0] : null
 }
+
+/**
+ * Resolve an offseason sheet row ({ playerName | name, pid? }) to an index
+ * into `players`, id-anchored where the row carries a pid.
+ *
+ * Rows are pasted text, so they arrive with a name only; every save stamps
+ * the resolved pid onto the stored row, and later readers (the season
+ * advance, re-saves) resolve that pid first. Resolution order preserves
+ * today's name behavior exactly and only ADDS pid where names fail:
+ *
+ *   1. exactly one player matches by name (per `nameEq`)  -> that player
+ *   2. the row's pid matches a player                      -> that player
+ *      (this is also how duplicate names are disambiguated)
+ *   3. several players match by name                       -> the first
+ *   4. otherwise                                           -> -1
+ *
+ * `predicate` narrows the candidate players (e.g. this cycle's recruits)
+ * and applies to both name and pid lookups.
+ */
+export function findRowPlayerIndex(players, row, { nameEq, predicate } = {}) {
+  const list = Array.isArray(players) ? players : []
+  const ok = (p) => !!p && (!predicate || predicate(p))
+  const rowName = row?.playerName ?? row?.name
+  const nameMatches = []
+  if (rowName != null && typeof nameEq === 'function') {
+    list.forEach((p, i) => { if (ok(p) && nameEq(p.name, rowName)) nameMatches.push(i) })
+  }
+  if (nameMatches.length === 1) return nameMatches[0]
+  if (row?.pid != null) {
+    const byPid = list.findIndex(p => ok(p) && p.pid != null && String(p.pid) === String(row.pid))
+    if (byPid !== -1) return byPid
+  }
+  return nameMatches.length > 0 ? nameMatches[0] : -1
+}
+
+/** Stamp the resolved player's pid onto a stored row (same object when already right). */
+export const withRowPid = (row, player) =>
+  (!player || player.pid == null || String(row?.pid) === String(player.pid)) ? row : { ...row, pid: player.pid }

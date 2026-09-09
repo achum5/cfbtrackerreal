@@ -121,31 +121,24 @@ describe('year flip round trip (wk5→6 then wk6→5)', () => {
     expect(after.year).toBe('Jr')
   })
 
-  it('KNOWN GAP: a second revert wipes a user-recorded transfer_out for a player with no next-season entries', () => {
-    // The revert has two branches. The main one (player HAS a next-season
-    // stamp) only clears movements the advance itself writes (graduated,
-    // pro_draft, encouraged). The other (player has NO next-season stamp)
-    // uses a broader list that includes the bare v2 type 'departure', so a
-    // transfer_out with a real destination — written by the user, not the
-    // advance — is deleted too. The same branch runs on a FIRST revert for
-    // any departed player who never had a next-season slot (a Players
-    // Leaving "Transfer" entered before Signing Day), losing that record
-    // from the career timeline until the sheet is re-saved. The roster
-    // itself stays correct because the leaving list is still honored.
+  it('revert is idempotent and never deletes a user-recorded transfer_out', () => {
+    // Both revert branches now clear ONLY what the advance itself writes
+    // (graduated, pro_draft, encouraged). The "no next-season entry" branch
+    // used to include the bare v2 type 'departure', which deleted a
+    // transfer_out with a real destination on a second revert.
     const again = revertRosterYearFlip(
       { ...original, currentYear: NEXT, players: reverted },
       { newSeasonYear: NEXT, previousSeasonYear: PREV, teamTid: USER, teamAbbr: 'IU' },
     ).players
-    const others = (ps) => ps.filter(p => p.pid !== 11)
-    expect(others(again)).toEqual(others(reverted))
-    expect(byPid(reverted, 11).movementByYear[PREV]).toEqual({ type: 'departure', departure: 'transfer_out', toTid: CPU })
-    expect(byPid(again, 11).movementByYear).toEqual({})
+    expect(again).toEqual(reverted)
+    again.forEach((p, i) => expect(p).toBe(reverted[i]))
+    expect(byPid(again, 11).movementByYear[PREV]).toEqual({ type: 'departure', departure: 'transfer_out', toTid: CPU })
   })
 
-  it('a first revert already wipes a pre-flip portal entry that had no destination', () => {
-    // Same branch, first pass: Players Leaving "Transfer" written before the
-    // flip (transfer_out, toTid null), player not carried, no next-season
-    // stamps. Pinned so a fix is a deliberate change.
+  it('a first revert keeps a pre-flip portal entry that had no destination (same reference)', () => {
+    // Players Leaving "Transfer" written before the flip (transfer_out,
+    // toTid null): the player is not carried and has no next-season stamps.
+    // The record is the user's, not the advance's, so the revert leaves it.
     const portal = { pid: 20, name: 'Portal Guy', year: 'Jr', team: USER,
       teamsByYear: { [PREV]: USER }, classByYear: { [PREV]: 'Jr' },
       movementByYear: { [PREV]: { type: 'departure', departure: 'transfer_out', toTid: null } } }
@@ -153,6 +146,19 @@ describe('year flip round trip (wk5→6 then wk6→5)', () => {
     const f = rollOverRosterAtYearFlip(d, { nextYear: NEXT, previousSeasonYear: PREV, teamTid: USER, classConfirmations: {} }).players
     expect(f[0]).toBe(portal)
     const r = revertRosterYearFlip({ ...d, currentYear: NEXT, players: f }, { newSeasonYear: NEXT, previousSeasonYear: PREV, teamTid: USER, teamAbbr: 'IU' }).players
+    expect(r[0]).toBe(portal)
+  })
+
+  it('a first revert still clears what the advance wrote for a player with no next-season entries', () => {
+    // A listed leaver the advance stamped as graduated/pro_draft (no slot).
+    const grad = { pid: 21, name: 'Grad', year: 'Sr', team: USER, teamsByYear: { [PREV]: USER }, classByYear: { [PREV]: 'Sr' },
+      movementByYear: { [PREV]: { type: 'departure', departure: 'graduated' } }, movements: [{ type: 'graduated', year: PREV }] }
+    const enc = { pid: 22, name: 'Enc', year: 'Jr', team: USER, teamsByYear: { [PREV]: USER }, classByYear: { [PREV]: 'Jr' },
+      movementByYear: { [PREV]: { type: 'departure', departure: 'transfer_out', toTid: null, reason: 'Encouraged Transfer' } } }
+    const d = { ...fixture(), players: [grad, enc] }
+    const r = revertRosterYearFlip({ ...d, currentYear: NEXT }, { newSeasonYear: NEXT, previousSeasonYear: PREV, teamTid: USER, teamAbbr: 'IU' }).players
     expect(r[0].movementByYear).toEqual({})
+    expect(r[0].movements).toEqual([])
+    expect(r[1].movementByYear).toEqual({})
   })
 })

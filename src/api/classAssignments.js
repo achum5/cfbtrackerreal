@@ -4,7 +4,9 @@
 // for the rationale; behavior is pinned by __tests__/classAssignments.test.js.
 
 import { getUserTeamTid } from '../data/teamRegistry'
-import { normalizePlayerName } from '../utils/playerMatching'
+import { normalizePlayerName, findRowPlayerIndex, withRowPid } from '../utils/playerMatching'
+
+const nameEq = (a, b) => normalizePlayerName(a) === normalizePlayerName(b)
 
 const signingYears = (dynasty) => {
   const isAfterYearFlip = dynasty.currentPhase === 'offseason' && dynasty.currentWeek >= 6
@@ -40,14 +42,16 @@ export function buildPortalTransferClassSave(dynasty, classSelections) {
   const { year, joiningYear } = signingYears(dynasty)
   const updatedPlayers = [...(dynasty.players || [])]
   let updatedCount = 0
+  const isThisCyclesPortal = (p) => p.isPortal && p.recruitYear === year
+  const rows = classSelections || []
+  const storedRows = [...rows]
 
-  for (const selection of classSelections || []) {
-    const playerIndex = updatedPlayers.findIndex(p =>
-      p.isPortal &&
-      p.recruitYear === year &&
-      normalizePlayerName(p.name) === normalizePlayerName(selection.playerName)
-    )
-    if (playerIndex === -1 || !selection.selectedClass) continue
+  for (let i = 0; i < rows.length; i++) {
+    const selection = rows[i]
+    const playerIndex = findRowPlayerIndex(updatedPlayers, selection, { nameEq, predicate: isThisCyclesPortal })
+    if (playerIndex === -1) continue
+    storedRows[i] = withRowPid(selection, updatedPlayers[playerIndex])
+    if (!selection.selectedClass) continue
     const existingClassByYear = updatedPlayers[playerIndex].classByYear || {}
     const next = {
       ...updatedPlayers[playerIndex],
@@ -65,10 +69,10 @@ export function buildPortalTransferClassSave(dynasty, classSelections) {
   const existingSelections = dynasty.portalTransferClassByYear || {}
   const updates = {
     players: updatedPlayers,
-    portalTransferClassByYear: { ...existingSelections, [year]: classSelections },
+    portalTransferClassByYear: { ...existingSelections, [year]: storedRows },
     [`portalTransferClassSheetId_${year}`]: null,
   }
-  withTeamYearPatch(dynasty, updates, year, 'portalTransferClass', classSelections)
+  withTeamYearPatch(dynasty, updates, year, 'portalTransferClass', storedRows)
   return { updates, updatedCount, year }
 }
 
@@ -82,12 +86,15 @@ export function buildFringeCaseClassSave(dynasty, classSelections) {
   const { year, joiningYear } = signingYears(dynasty)
   const updatedPlayers = [...(dynasty.players || [])]
   let updatedCount = 0
+  const rows = classSelections || []
+  const storedRows = [...rows]
 
-  for (const selection of classSelections || []) {
-    const playerIndex = updatedPlayers.findIndex(p =>
-      normalizePlayerName(p.name) === normalizePlayerName(selection.playerName)
-    )
-    if (playerIndex === -1 || !selection.selectedClass) continue
+  for (let i = 0; i < rows.length; i++) {
+    const selection = rows[i]
+    const playerIndex = findRowPlayerIndex(updatedPlayers, selection, { nameEq })
+    if (playerIndex === -1) continue
+    storedRows[i] = withRowPid(selection, updatedPlayers[playerIndex])
+    if (!selection.selectedClass) continue
     const existingClassByYear = updatedPlayers[playerIndex].classByYear || {}
     updatedPlayers[playerIndex] = {
       ...updatedPlayers[playerIndex],
@@ -100,9 +107,9 @@ export function buildFringeCaseClassSave(dynasty, classSelections) {
   const existingSelections = dynasty.fringeCaseClassByYear || {}
   const updates = {
     players: updatedPlayers,
-    fringeCaseClassByYear: { ...existingSelections, [year]: classSelections },
+    fringeCaseClassByYear: { ...existingSelections, [year]: storedRows },
     fringeCaseClassSheetId: null,
   }
-  withTeamYearPatch(dynasty, updates, year, 'fringeCaseClass', classSelections)
+  withTeamYearPatch(dynasty, updates, year, 'fringeCaseClass', storedRows)
   return { updates, updatedCount, year }
 }

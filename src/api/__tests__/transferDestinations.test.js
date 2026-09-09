@@ -61,9 +61,33 @@ describe('buildTransferDestinationsSave', () => {
   it('writes the destinations to the dual-keyed store and the team byYear slot', () => {
     const rows = [{ playerName: 'Ben Roberts', newTeam: 'OSU', newTeamTid: OSU }]
     const { updates } = buildTransferDestinationsSave(dynasty, rows)
-    expect(updates.transferDestinationsByTeamYear.UK[2027]).toBe(rows)
-    expect(updates.transferDestinationsByTeamYear[UK][2027]).toBe(rows)
-    expect(updates.teams[UK].byYear[2027].transferDestinations).toBe(rows)
+    // Stored rows are id-anchored: the resolved pid is stamped on.
+    const stored = [{ ...rows[0], pid: 1 }]
+    expect(updates.transferDestinationsByTeamYear.UK[2027]).toEqual(stored)
+    expect(updates.transferDestinationsByTeamYear[UK][2027]).toEqual(stored)
+    expect(updates.teams[UK].byYear[2027].transferDestinations).toEqual(stored)
+    // A row that already carries the right pid is stored as the same object.
+    const again = buildTransferDestinationsSave(dynasty, stored)
+    expect(again.updates.transferDestinationsByTeamYear.UK[2027][0]).toBe(stored[0])
+  })
+
+  it('resolves a stored row by pid when its name no longer matches anyone', () => {
+    const { updates, skippedRows } = buildTransferDestinationsSave(dynasty, [{ playerName: 'Benjamin Roberts', pid: 1, newTeam: 'OSU', newTeamTid: OSU }])
+    expect(skippedRows).toEqual([])
+    expect(updates.players.find(x => x.pid === 1).team).toBe(OSU)
+  })
+
+  it('uses the pid to pick between two roster players with the same name', () => {
+    const twins = { ...dynasty, players: [
+      { pid: 7, name: 'Same Name', team: UK, year: 'So', teamsByYear: { 2027: UK }, classByYear: { 2027: 'So' } },
+      { pid: 8, name: 'Same Name', team: UK, year: 'Jr', teamsByYear: { 2027: UK }, classByYear: { 2027: 'Jr' } },
+    ] }
+    const { updates } = buildTransferDestinationsSave(twins, [{ playerName: 'Same Name', pid: 8, newTeam: 'OSU', newTeamTid: OSU }])
+    expect(updates.players.find(x => x.pid === 8).team).toBe(OSU)
+    expect(updates.players.find(x => x.pid === 7)).toBe(twins.players[0])
+    // Without a pid the first match wins, exactly as before.
+    const noPid = buildTransferDestinationsSave(twins, [{ playerName: 'Same Name', newTeam: 'OSU', newTeamTid: OSU }])
+    expect(noPid.updates.players.find(x => x.pid === 7).team).toBe(OSU)
   })
 
   it('does not mutate the input dynasty', () => {

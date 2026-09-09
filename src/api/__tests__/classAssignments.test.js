@@ -51,3 +51,26 @@ describe('buildFringeCaseClassSave', () => {
     expect(updatedCount).toBe(0)
   })
 })
+
+describe('id-anchored rows', () => {
+  it('stamps the resolved pid onto stored portal and fringe selections', () => {
+    const portal = buildPortalTransferClassSave(base, [{ playerName: 'portal guy', selectedClass: 'Jr' }, { playerName: 'Nobody', selectedClass: 'Fr' }])
+    expect(portal.updates.portalTransferClassByYear[2027]).toEqual([
+      { playerName: 'portal guy', selectedClass: 'Jr', pid: 1 },
+      { playerName: 'Nobody', selectedClass: 'Fr' },
+    ])
+    expect(portal.updates.teams[UK].byYear[2027].portalTransferClass[0].pid).toBe(1)
+    const fringe = buildFringeCaseClassSave(base, [{ playerName: 'HS Kid', selectedClass: 'So' }])
+    expect(fringe.updates.fringeCaseClassByYear[2027][0].pid).toBe(2)
+  })
+  it('resolves by pid when the name drifted, still only among this cycle\'s portal recruits', () => {
+    const { updates, updatedCount } = buildPortalTransferClassSave(base, [
+      { playerName: 'P. Guy', pid: 1, selectedClass: 'RS So' },
+      { playerName: 'O. Portal', pid: 3, selectedClass: 'Sr' }, // wrong class year
+    ])
+    expect(updatedCount).toBe(1)
+    expect(updates.players.find(x => x.pid === 1).classByYear[2028]).toBe('RS So')
+    expect(updates.players.find(x => x.pid === 3)).toBe(base.players[2])
+  })
+})
+

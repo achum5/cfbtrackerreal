@@ -2,7 +2,9 @@
 // overall/jersey sheet and the full-attribute (CFB 27) import. Extracted
 // verbatim from Dashboard.jsx; pinned by __tests__/recruitOveralls.test.js.
 
-import { normalizePlayerName } from '../utils/playerMatching'
+import { normalizePlayerName, findRowPlayerIndex, withRowPid } from '../utils/playerMatching'
+
+const nameEq = (a, b) => normalizePlayerName(a) === normalizePlayerName(b)
 
 const recruitYears = (dynasty) => {
   const isAfterYearFlip = dynasty.currentPhase === 'offseason' && dynasty.currentWeek >= 6
@@ -16,14 +18,16 @@ export function buildRecruitOverallsSave(dynasty, results) {
   const { year, freshmanYear } = recruitYears(dynasty)
   const updatedPlayers = [...(dynasty.players || [])]
   let updatedCount = 0
+  const isThisCyclesRecruit = (p) => p.isRecruit && p.recruitYear === year
+  const rows = results || []
+  const storedRows = [...rows]
 
-  for (const result of results || []) {
-    const playerIndex = updatedPlayers.findIndex(p =>
-      p.isRecruit &&
-      p.recruitYear === year &&
-      normalizePlayerName(p.name) === normalizePlayerName(result.name)
-    )
-    if (playerIndex === -1 || !result.overall) continue
+  for (let i = 0; i < rows.length; i++) {
+    const result = rows[i]
+    const playerIndex = findRowPlayerIndex(updatedPlayers, result, { nameEq, predicate: isThisCyclesRecruit })
+    if (playerIndex === -1) continue
+    storedRows[i] = withRowPid(result, updatedPlayers[playerIndex])
+    if (!result.overall) continue
     const existingOverallByYear = updatedPlayers[playerIndex].overallByYear || {}
     updatedPlayers[playerIndex] = {
       ...updatedPlayers[playerIndex],
@@ -38,7 +42,7 @@ export function buildRecruitOverallsSave(dynasty, results) {
   return {
     updates: {
       players: updatedPlayers,
-      recruitOverallsByYear: { ...existingResults, [year]: results },
+      recruitOverallsByYear: { ...existingResults, [year]: storedRows },
     },
     updatedCount,
     year,
@@ -48,11 +52,9 @@ export function buildRecruitOverallsSave(dynasty, results) {
 export function buildRecruitOverallsAttributesSave(dynasty, entries) {
   const { year, freshmanYear } = recruitYears(dynasty)
   const updatedPlayers = [...(dynasty.players || [])]
+  const isThisCyclesRecruit = (p) => p.isRecruit && p.recruitYear === year
   for (const entry of entries || []) {
-    const playerIndex = updatedPlayers.findIndex(p =>
-      p.isRecruit && p.recruitYear === year &&
-      normalizePlayerName(p.name) === normalizePlayerName(entry.playerName)
-    )
+    const playerIndex = findRowPlayerIndex(updatedPlayers, entry, { nameEq, predicate: isThisCyclesRecruit })
     if (playerIndex === -1) continue
     const player = updatedPlayers[playerIndex]
     const hasAttrs = entry.attributes && Object.keys(entry.attributes).length > 0
