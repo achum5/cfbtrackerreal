@@ -61,12 +61,16 @@ export default function RecruitOverallsModal({ isOpen, onClose, onSave, onImport
 
   const aiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Signed Recruit Overalls`,
-    roster: (recruits || []).map(p => ({
+    // The signed class IS the task's scope, not a name-lookup aid — so it goes
+    // in as the closed target set. Framed as a roster it read as a tiebreaker
+    // the model was free to look past.
+    targets: (recruits || []).map(p => ({
       name: p.name,
       jerseyNumber: p.jerseyNumber,
       position: p.position,
     })),
-    rosterLabel: 'YOUR INCOMING RECRUITING CLASS (match abbreviated names like "A. Guess" to full names)',
+    targetsLabel: 'THE SIGNED RECRUITS PRE-FILLED IN THE SHEET',
+    targetsNote: 'They fill the sheet in exactly this order, so your Nth line belongs to the Nth recruit above.',
     structure: `WHERE TO FIND THE DATA IN EA CFB
 ═══════════════════════════════════════════════════════════
 Recruit overalls appear on NATIONAL SIGNING DAY (before Training Results).
@@ -146,12 +150,15 @@ FINAL CHECK before you send
   // and matches by name, making paste order irrelevant.
   const localAiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Signed Recruit Overalls`,
-    roster: (recruits || []).map(p => ({
+    // The signed class IS the task's scope, not a name-lookup aid — so it goes
+    // in as the closed target set. Framed as a roster it read as a tiebreaker
+    // the model was free to look past.
+    targets: (recruits || []).map(p => ({
       name: p.name,
       jerseyNumber: p.jerseyNumber,
       position: p.position,
     })),
-    rosterLabel: 'YOUR INCOMING RECRUITING CLASS (match abbreviated names like "A. Guess" to full names)',
+    targetsLabel: 'THE SIGNED RECRUITS TO ENTER OVERALLS FOR',
     structure: `WHERE TO FIND THE DATA IN EA CFB
 ═══════════════════════════════════════════════════════════
 Recruit overalls appear on NATIONAL SIGNING DAY (before Training Results).
@@ -220,8 +227,8 @@ FINAL CHECK before you send
   // one cell, plus Position + OVR. Used by the local paste grid.
   const attributesPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Signed Recruits — Full Attributes`,
-    roster: (recruits || []).map(p => ({ name: p.name, jerseyNumber: p.jerseyNumber, position: p.position })),
-    rosterLabel: 'YOUR INCOMING RECRUITING CLASS (match abbreviated names like "A. Guess" to full names)',
+    targets: (recruits || []).map(p => ({ name: p.name, jerseyNumber: p.jerseyNumber, position: p.position })),
+    targetsLabel: 'THE SIGNED RECRUITS TO ENTER ATTRIBUTES FOR',
     structure: buildAttributesStructure('recruits'),
     includeTeamMap: false,
   }), [currentYear, recruits])

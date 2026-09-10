@@ -156,6 +156,51 @@ function formatRosterEntry(p) {
 }
 
 /**
+ * Build the TARGET SET block — the closed list of players a task covers.
+ *
+ * Distinct from the roster block below, which is explicitly NOT a whitelist:
+ * it exists only to expand abbreviated names. This one IS a whitelist. The
+ * app already knows exactly which players a task is about (the portal adds
+ * signed this cycle, the players leaving, the recruits in the class), and
+ * when the prompt withheld that list the model had to infer the set from the
+ * screen — so a sweep of a roster screen came back with every highlighted
+ * player in it and a note asking the user to prune whatever wasn't a
+ * transfer. Naming them removes the guesswork entirely.
+ *
+ * Order is the caller's: some tasks align output rows to a pre-filled sheet.
+ */
+function buildTargetBlock(targets, label, note) {
+  if (!Array.isArray(targets) || targets.length === 0) return null
+  const lines = targets.map(formatRosterEntry).filter(Boolean)
+  if (lines.length === 0) return null
+  return [
+    '═══════════════════════════════════════════════════════════',
+    `${label} — ${lines.length} player${lines.length === 1 ? '' : 's'}`,
+    '═══════════════════════════════════════════════════════════',
+    'The app already knows who this task is about. What follows is the',
+    'COMPLETE, CLOSED list — you are NOT being asked to work out who',
+    'qualifies, and there is nobody to add to it.',
+    '',
+    ...lines.map((l) => `  ${l}`),
+    '',
+    'RULES FOR THIS LIST',
+    '  • Output rows for players on this list ONLY. Anyone not named above',
+    '    does not belong in the output, however prominently a screenshot',
+    '    shows them.',
+    '  • Find each of them in the screenshots or video. If one never appears,',
+    '    OMIT that player rather than guessing a value or substituting',
+    '    somebody else.',
+    '  • These names are the app\'s own spelling, so they are canonical. When',
+    '    a screen abbreviates ("C.Pinnick", "A. Guess"), match by last name +',
+    '    first initial and output the FULL name exactly as written above,',
+    '    using position to break a tie between two same-initial players.',
+    '  • Say OUTSIDE the data block which of them you could not find — that',
+    '    is useful, and it keeps the block itself clean.',
+    ...(note ? ['', note.trim()] : []),
+  ].join('\n')
+}
+
+/**
  * Build a roster block to append to a prompt. Sorts by last-name initial so
  * the AI can scan alphabetically — that's how EA CFB displays abbreviated
  * names like "A. Guess", so alphabetical grouping makes the lookup fast.
@@ -209,6 +254,12 @@ function buildTeamMapFromDynasty(dynastyTeams) {
  *   team list reflects the user's actual dynasty (so the AI knows about
  *   FCS placeholders, renamed TB teams, etc.).
  * @param {string}  [config.notes]   — Optional extra guidance (e.g. "opponent abbreviations…")
+ * @param {Array<object|string>} [config.targets] — The CLOSED set of players
+ *   this task covers ({name, jerseyNumber, position, class} or plain strings).
+ *   Rendered as a whitelist: output rows for these players and nobody else.
+ *   Prefer it over `roster` whenever the app knows the exact list.
+ * @param {string}  [config.targetsLabel] — Heading for that block.
+ * @param {string}  [config.targetsNote] — Optional extra line under it.
  * @param {Array<object|string>} [config.roster] — Optional user-team roster
  *   so the AI can resolve "A. Guess" → "Alex Guess". Accepts objects
  *   ({ name, jerseyNumber, position, class }) or plain strings.
@@ -232,6 +283,11 @@ export function buildAIPrompt({
   notes,
   roster,
   rosterLabel = 'YOUR TEAM ROSTER (match abbreviated names like "A. Guess" to full names)',
+  // The closed set of players this task covers. Prefer this over `roster`
+  // whenever the app knows the exact list — see buildTargetBlock.
+  targets,
+  targetsLabel = 'THE EXACT PLAYERS THIS TASK COVERS',
+  targetsNote,
   opponentRoster,
   opponentRosterLabel = 'OPPONENT ROSTER',
   multiBlock = false,
@@ -364,6 +420,12 @@ export function buildAIPrompt({
   ].filter(line => line !== null)
   if (notes) {
     sections.push('', `Additional notes:`, notes.trim())
+  }
+  // Target block — WHO this task is about. Goes above the roster block, which
+  // answers a different question (how to spell a name it already has).
+  const targetBlock = buildTargetBlock(targets, targetsLabel, targetsNote)
+  if (targetBlock) {
+    sections.push('', targetBlock)
   }
   // Roster blocks — the AI uses these to expand abbreviated names (e.g.
   // EA CFB menus display "A. Guess" but the app matches on full names;

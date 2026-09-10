@@ -156,6 +156,18 @@ FINAL CHECK before you send
   // matches by name (omitted players are unchanged).
   const localAiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Portal Transfer Class Assignment`,
+    // The portal class for the year is already entered — these are exactly
+    // the players whose class is in question. Without the list the model has
+    // to infer the transfers from a roster screen that carries no transfer
+    // indicator, which is not something a screenshot can answer.
+    targets: (portalTransfers || []).map(t => ({
+      name: t.name,
+      position: t.position,
+      class: t.incomingClass,
+      jerseyNumber: t.jerseyNumber,
+    })),
+    targetsLabel: `THE PORTAL TRANSFERS TO ASSIGN A ${currentYear + 1} CLASS`,
+    targetsNote: `The class shown in parentheses after each name is their ${currentYear} class as the app has it — the value you are UPDATING, not the answer.`,
     structure: `Output ONE line per portal transfer whose updated ${currentYear + 1} class you can read. Each line is SELF-DESCRIBING — it carries the player's own name — so there is NO pre-filled column to line up against and NO fixed row order.
 
 For each portal transfer, read the YEAR column value from the roster
@@ -203,8 +215,9 @@ FINAL CHECK before you send
 [ ] Every line has exactly 2 tab-separated fields (one tab)
 [ ] Every Class value is one of: Fr, So, Jr, Sr, RS Fr, RS So, RS Jr, RS Sr (exact casing, single space)
 [ ] No jersey numbers, no extra columns
+[ ] Every name is one from the list above — no extra players
 [ ] No blank lines, no header row, no commentary INSIDE the data`,
-  }), [currentYear])
+  }), [currentYear, portalTransfers])
 
   // Pre-fill the local grid with each portal transfer's existing class so the
   // modal opens ready to edit. The local import reshapes each pasted row as

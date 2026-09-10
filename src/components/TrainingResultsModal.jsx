@@ -20,6 +20,7 @@ import {
 } from '../services/sheetsService'
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
+import { getSortableLastName } from '../utils/playerNames'
 import { buildAttributesStructure } from '../utils/attributeEntry'
 import { arePlayerAttributesEnabled } from '../editions'
 import AttributePasteGrid from './AttributePasteGrid'
@@ -75,9 +76,23 @@ export default function TrainingResultsModal({ isOpen, onClose, onSave, onImport
     }))
   ), [players])
 
+  // The sheet writes its rows in last-name order, so the sheet prompt — whose
+  // output is aligned by ROW POSITION — names them in that same order.
+  const sheetOrderPlayers = useMemo(
+    () => [...userRoster].sort((a, b) =>
+      getSortableLastName(a.name).localeCompare(getSortableLastName(b.name))),
+    [userRoster],
+  )
+
   const aiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Training Results`,
-    roster: userRoster,
+    // This roster IS the task's scope, so it also goes in as the closed target
+    // set — as a roster block alone it reads as a name-lookup tiebreaker the
+    // model may look past, which is how a screen sweep ends up carrying rows
+    // for players the task never covered.
+    targets: sheetOrderPlayers,
+    targetsLabel: 'THE PLAYERS PRE-FILLED IN THE SHEET',
+    targetsNote: 'They fill the sheet in exactly this order, so your Nth line belongs to the Nth player above.',
     structure: `EA CFB TRAINING RESULTS SCREEN — HOW TO READ IT
 ═══════════════════════════════════════════════════════════
 The game shows training results ONE POSITION GROUP at a time (QB, RB, WR, TE,
@@ -146,7 +161,7 @@ FINAL CHECK before you send
 [ ] No header row, no prose INSIDE the data, no commas, no +/- signs
 [ ] Output wrapped in a single \`\`\`tsv ... \`\`\` fence`,
     includeTeamMap: false,
-  }), [currentYear, userRoster])
+  }), [currentYear, sheetOrderPlayers])
 
   // Pre-fill the local (Overalls) grid with this team's already-saved training
   // results for the year so the modal opens ready to edit. The parser reads
@@ -168,7 +183,8 @@ FINAL CHECK before you send
   // one cell, plus Position + OVR. Used by the local paste grid.
   const attributesPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Training Results — Full Attributes`,
-    roster: userRoster,
+    targets: userRoster,
+    targetsLabel: 'THE PLAYERS TO ENTER ATTRIBUTES FOR',
     structure: buildAttributesStructure('training'),
     includeTeamMap: false,
   }), [currentYear, userRoster])

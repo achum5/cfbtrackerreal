@@ -23,6 +23,7 @@ import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
 import { getTeamNameOptions, getTeamNameLabel, getTeamNameAliases } from '../data/teamRegistry'
+import { getSortableLastName } from '../utils/playerNames'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -113,9 +114,68 @@ export default function TransferDestinationsModal({ isOpen, onClose, onSave, cur
       .join('\n')
   }, [currentDynasty?.teams, currentDynasty?.currentTid, currentDynasty?.teamName, currentDynasty?.transferDestinationsByTeamYear, currentDynasty?.currentPhase, currentDynasty?.currentWeek, currentYear])
 
+  // The players this task is about: everyone leaving via TRANSFER this
+  // offseason (not graduating, not the draft). Reads BOTH
+  // playersLeavingByYear and player.leavingYear/leavingReason.
+  //
+  // Computed here, above the prompts, because they name these players
+  // outright — a transfer list is not something a screenshot of a roster
+  // screen can be asked to derive.
+  const transferringPlayers = useMemo(() => {
+    const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[currentYear] || []
+    const nonTransferReasons = ['Graduating', 'Pro Draft']
+
+    // Source 1: Players from playersLeavingByYear
+    const transfersFromList = playersLeavingThisYear
+      .filter(p => p.reason && !nonTransferReasons.includes(p.reason))
+      .map(leaving => {
+        const player = (currentDynasty?.players || []).find(p => p.name === leaving.playerName || p.pid === leaving.pid)
+        return {
+          name: leaving.playerName,
+          pid: leaving.pid || player?.pid,
+          position: player?.position || ''
+        }
+      })
+
+    // Source 2: Players with leavingYear set on their player record
+    const transfersFromPlayerRecord = (currentDynasty?.players || [])
+      .filter(p =>
+        p.leavingYear === currentYear &&
+        p.leavingReason &&
+        !nonTransferReasons.includes(p.leavingReason)
+      )
+      .map(player => ({
+        name: player.name,
+        pid: player.pid,
+        position: player.position || ''
+      }))
+
+    // Combine both sources
+    const allTransfers = [...transfersFromList, ...transfersFromPlayerRecord]
+
+    // Deduplicate by player name (in case same player appears in both sources)
+    const seen = new Set()
+    return allTransfers.filter(p => {
+      if (seen.has(p.name)) return false
+      seen.add(p.name)
+      return true
+    })
+  }, [currentDynasty?.playersLeavingByYear, currentDynasty?.players, currentYear])
+
+  // The sheet writes its rows in last-name order, so the sheet prompt — whose
+  // output is aligned by ROW POSITION — must name them in that same order.
+  const sheetOrderTransfers = useMemo(
+    () => [...transferringPlayers].sort((a, b) =>
+      getSortableLastName(a.name).localeCompare(getSortableLastName(b.name))),
+    [transferringPlayers],
+  )
+
   const aiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Transfer Destinations`,
     roster: userRoster,
+    targets: sheetOrderTransfers,
+    targetsLabel: 'THE OUTGOING TRANSFERS PRE-FILLED IN COLUMN A',
+    targetsNote: 'They appear in the sheet in exactly this order, so your Nth line is the destination for the Nth player above.',
     structure: `This sheet has ONE tab: "Transfer Destinations". It has 2 columns total (A = Player Name, B = New Team). Row 1 is the protected header row. Column A (Player Name) is PRE-FILLED with outgoing transfers and PROTECTED — do NOT output column A. Column B is the only editable column — a STRICT dropdown of team names.
 
 ═══════════════════════════════════════════════════════════
@@ -168,7 +228,7 @@ FINAL CHECK before you send
 [ ] No header row, no commentary INSIDE the data, no totals`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
-  }), [currentYear, userRoster, currentDynasty?.teams])
+  }), [currentYear, userRoster, sheetOrderTransfers, currentDynasty?.teams])
 
   // LOCAL-PASTE prompt: self-describing rows, no pre-filled column to align
   // against. The AI emits one line per transferring player whose destination
@@ -177,6 +237,8 @@ FINAL CHECK before you send
   const localAiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Transfer Destinations`,
     roster: userRoster,
+    targets: transferringPlayers,
+    targetsLabel: 'THE OUTGOING TRANSFERS TO FIND A DESTINATION FOR',
     structure: `Output ONE line per outgoing transfer whose NEW TEAM you can see in the screenshots or video. Each line is SELF-DESCRIBING — it carries the player's own name, so there is NO pre-filled column to line up against and NO fixed row order.
 
 ═══════════════════════════════════════════════════════════
@@ -213,7 +275,7 @@ FINAL CHECK before you send
 [ ] Only players whose destination is visible — nothing invented, no "UNK"/"N/A"/"TBD"`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
-  }), [currentYear, userRoster, currentDynasty?.teams])
+  }), [currentYear, userRoster, transferringPlayers, currentDynasty?.teams])
 
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
@@ -255,48 +317,6 @@ FINAL CHECK before you send
     }
   }, [isOpen, sheetId, useEmbedded])
 
-  // Get transferring players (those leaving via transfer - NOT graduating or pro draft)
-  // Reads from BOTH playersLeavingByYear AND player.leavingYear/leavingReason
-  const getTransferringPlayers = () => {
-    const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[currentYear] || []
-    const nonTransferReasons = ['Graduating', 'Pro Draft']
-
-    // Source 1: Players from playersLeavingByYear
-    const transfersFromList = playersLeavingThisYear
-      .filter(p => p.reason && !nonTransferReasons.includes(p.reason))
-      .map(leaving => {
-        const player = (currentDynasty?.players || []).find(p => p.name === leaving.playerName || p.pid === leaving.pid)
-        return {
-          name: leaving.playerName,
-          pid: leaving.pid || player?.pid,
-          position: player?.position || ''
-        }
-      })
-
-    // Source 2: Players with leavingYear set on their player record
-    const transfersFromPlayerRecord = (currentDynasty?.players || [])
-      .filter(p =>
-        p.leavingYear === currentYear &&
-        p.leavingReason &&
-        !nonTransferReasons.includes(p.leavingReason)
-      )
-      .map(player => ({
-        name: player.name,
-        pid: player.pid,
-        position: player.position || ''
-      }))
-
-    // Combine both sources
-    const allTransfers = [...transfersFromList, ...transfersFromPlayerRecord]
-
-    // Deduplicate by player name (in case same player appears in both sources)
-    const seen = new Set()
-    return allTransfers.filter(p => {
-      if (seen.has(p.name)) return false
-      seen.add(p.name)
-      return true
-    })
-  }
 
   // Create sheet when modal opens (only if no existing sheet for this season)
   useEffect(() => {
@@ -332,7 +352,6 @@ FINAL CHECK before you send
             // stale sheet (trashed in Drive); fall through to regenerate
           }
 
-          const transferringPlayers = getTransferringPlayers()
 
           if (transferringPlayers.length === 0) {
             setNoTransfers(true)
@@ -532,7 +551,6 @@ FINAL CHECK before you send
 
   const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'Transfer Destinations') : null
   const isLoading = creatingSheet
-  const transferringPlayers = getTransferringPlayers()
   const transferCount = transferringPlayers.length
 
   return createPortal(
