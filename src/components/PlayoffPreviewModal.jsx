@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useDynasty } from '../context/DynastyContext'
 import { useToast } from './ui/Toast'
 import { buildPlayoffPreviewPrompt, PLAYOFF_PREVIEW_DEPTH_OPTIONS } from '../utils/playoffPreviewPrompt'
 import FormattedRecap from './FormattedRecap'
 import RecapSettingsModal from './RecapSettingsModal'
+import PasteEntrySteps from './ui/PasteEntrySteps'
 import {
   extractSocialBlock, parseSocialLines, resolveSocialPosts,
   getEffectiveCharacters, ensureUniverseLoaded,
@@ -31,12 +32,10 @@ export default function PlayoffPreviewModal({ isOpen, onClose, year, onSaved }) 
   const { currentDynasty, savePlayoffPreview, deletePlayoffPreview, isViewOnly, loadSocial, saveSocialPosts } = useDynasty()
   const { toast } = useToast()
   const yearNum = Number(year)
-  const promptTextareaRef = useRef(null)
 
   const existingPreview = currentDynasty?.playoffPreviewByYear?.[yearNum]
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [showManual, setShowManual] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -47,7 +46,6 @@ export default function PlayoffPreviewModal({ isOpen, onClose, year, onSaved }) 
   useEffect(() => {
     if (!isOpen) return
     setDraft('')
-    setCopied(false)
     setShowManual(false)
     setRegenerating(false)
   }, [isOpen, yearNum])
@@ -65,22 +63,6 @@ export default function PlayoffPreviewModal({ isOpen, onClose, year, onSaved }) 
     () => buildPlayoffPreviewPrompt(currentDynasty, yearNum, { depth, includeSocial, socialCount, charactersById }),
     [currentDynasty, yearNum, depth, includeSocial, socialCount, charactersById]
   )
-
-  const handleCopyPrompt = async () => {
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(prompt || '')
-      } else if (promptTextareaRef.current) {
-        promptTextareaRef.current.select()
-        document.execCommand('copy')
-      }
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
-      console.error('Copy failed:', err)
-      toast.error('Could not copy. Select the text and copy manually.')
-    }
-  }
 
   const saveOutput = async (text) => {
     if (isViewOnly) { toast.error('Read-only mode, cannot save.'); return }
@@ -130,17 +112,28 @@ export default function PlayoffPreviewModal({ isOpen, onClose, year, onSaved }) 
     }
   }
 
-  const handlePasteSave = async () => {
+  // Paste (step 3): drop the AI's reply into the VISIBLE draft box so the user
+  // can see it landed, then Save — identical to WeekRecapModal. Reading the
+  // clipboard can be blocked (mobile Safari especially); on failure the box
+  // opens so they can paste by hand.
+  const handlePasteFill = async () => {
     if (isViewOnly) { toast.error('Read-only mode, cannot save.'); return }
     let text = ''
     try {
       text = await navigator.clipboard.readText()
     } catch {
-      toast.error('Clipboard access blocked — use "Paste manually" below.')
       setShowManual(true)
+      toast.error('Clipboard blocked — paste into the box below, then Save.')
       return
     }
-    await saveOutput(text)
+    if (!text.trim()) {
+      setShowManual(true)
+      toast.error('Clipboard is empty — copy the AI\'s full reply first.')
+      return
+    }
+    setDraft(text)
+    setShowManual(true)
+    toast.success('Pasted — review below and hit Save preview.')
   }
 
   const handleDelete = async () => {
@@ -212,47 +205,47 @@ export default function PlayoffPreviewModal({ isOpen, onClose, year, onSaved }) 
                   <label className="text-sm font-semibold text-txt-primary">AI Prompt</label>
                 </div>
                 <p className="text-xs text-txt-tertiary">
-                  Copy the prompt, run it in your AI, then copy the <strong className="text-txt-secondary">entire</strong> output and hit Paste &amp; save.{includeSocial ? ' The app splits it automatically — the preview saves here, and the social posts go to the Social tab.' : ''}
+                  Copy the prompt, run it in your AI, then copy the <strong className="text-txt-secondary">entire</strong> output and paste it back.{includeSocial ? ' The app splits it automatically — the preview saves here, and the social posts go to the Social tab.' : ''}
                 </p>
-
-                <textarea ref={promptTextareaRef} readOnly value={prompt} aria-hidden="true" tabIndex={-1}
-                  style={{ position: 'absolute', left: -9999, width: 1, height: 1, opacity: 0 }} />
               </section>
 
               <section className="space-y-3">
-                <div className="grid grid-cols-[auto_1fr_1fr] gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowSettings(true)}
-                    title="Preview length and social posts"
-                    className="px-3 rounded-lg border border-surface-4 text-txt-secondary hover:text-txt-primary hover:bg-surface-2 transition-colors flex items-center justify-center"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="3" />
-                      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={handleCopyPrompt}
-                    className="px-4 py-2.5 rounded-lg text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98]"
-                    style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
-                  >
-                    {copied ? 'Copied!' : 'Copy prompt'}
-                  </button>
-                  <button
-                    onClick={handlePasteSave}
-                    disabled={saving || isViewOnly}
-                    className="px-4 py-2.5 rounded-lg text-sm font-semibold border border-surface-4 text-txt-primary hover:border-surface-5 hover:bg-surface-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {saving ? 'Saving…' : 'Paste & save'}
-                  </button>
-                </div>
+                {/* Unified 3-step flow: Copy prompt → Open your AI → Paste it
+                    back. Same component, labels and paste behavior as
+                    WeekRecapModal; the preview settings gear is joined to the
+                    Copy button exactly like the game-recap flow. */}
+                <PasteEntrySteps
+                  aiPrompt={prompt}
+                  onPaste={handlePasteFill}
+                  showText={showManual}
+                  onToggleText={() => setShowManual(v => !v)}
+                  disabled={saving || isViewOnly}
+                  copyEmoji={null}
+                  labels={{ copy: 'Copy prompt', copyButton: 'Copy prompt', paste: 'Paste it back' }}
+                  hints={{
+                    screenshot: 'Tap Copy prompt — it already includes the locked 12-team bracket, seeds, and context. No screenshot needed.',
+                    ai: 'Open your AI, paste the prompt, and it writes the playoff preview.',
+                    paste: 'Copy the AI\'s ENTIRE reply, then tap Paste — it drops into the box below to review before you Save. Tap the arrow to type/paste by hand if the button is blocked.',
+                  }}
+                  copyLeading={
+                    <button
+                      type="button"
+                      onClick={() => setShowSettings(true)}
+                      title="Preview length and social posts"
+                      aria-label="Preview settings"
+                      className="px-2.5 flex items-center justify-center transition-opacity hover:opacity-90"
+                      style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)', borderRight: '1px solid var(--surface-1)' }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" />
+                      </svg>
+                    </button>
+                  }
+                />
 
-                <div className="flex items-center justify-between text-xs text-txt-tertiary">
-                  <span>{existingPreview?.generatedAt ? `Last saved ${new Date(existingPreview.generatedAt).toLocaleString()}` : 'Not saved yet'}</span>
-                  <button onClick={() => setShowManual(v => !v)} className="underline hover:text-txt-secondary">
-                    {showManual ? 'Hide manual paste' : 'Paste manually'}
-                  </button>
+                <div className="text-xs text-txt-tertiary text-center">
+                  {existingPreview?.generatedAt ? `Last saved ${new Date(existingPreview.generatedAt).toLocaleString()}` : 'Not saved yet'}
                 </div>
 
                 {showManual && (
@@ -263,6 +256,9 @@ export default function PlayoffPreviewModal({ isOpen, onClose, year, onSaved }) 
                       className="w-full h-44 rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm font-sans p-3 resize-y focus:outline-none focus:ring-2 focus:ring-surface-5"
                       placeholder="Paste the AI's full output here, then Save. Markdown is supported."
                     />
+                    <p className="text-xs text-txt-tertiary">
+                      Markdown renders when you save.{includeSocial ? ' Any cfb-social block in the paste is split out to the Social tab automatically.' : ''}
+                    </p>
                     <button
                       onClick={() => saveOutput(draft)}
                       disabled={saving || !draft.trim() || isViewOnly}
