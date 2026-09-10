@@ -18,6 +18,12 @@ import {
   getSheetEmbedUrl,
   sheetExists
 } from '../services/sheetsService'
+import {
+  getFringeCaseClassOptions,
+  sortFringeCasePlayers,
+  fringeRowsFromPlayers,
+  widenFringeRows,
+} from '../utils/fringeCaseRows'
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
@@ -121,7 +127,7 @@ REQUIRED OUTPUT FORMAT
 <allowed value or blank>
 <allowed value or blank>
 <allowed value or blank>
-…one line per pre-filled player, in the EXACT order shown in the screenshots or video or video
+…one line per pre-filled player, in the EXACT order shown in the screenshots or video
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
@@ -138,29 +144,78 @@ FINAL CHECK before you send
     notes: `The "Games" column (protected) reflects regular-season games played in ${currentYear}. In the fringe-case context, the game decides whether a redshirt was applied (typically ≤ 4 games used a redshirt; 5–9 games is the fringe case where either progression or redshirt may apply). Use the screenshot's Games and context to pick the correct allowed value for each row.`
   }), [currentYear, userRoster, currentDynasty?.teams])
 
-  // Pre-fill the local grid with any class selections already saved for this
-  // year so re-opening the modal shows prior picks instead of a blank grid.
-  // Source: fringeCaseClassByYear[currentYear] (the exact array
-  // handleFringeCaseClassSave persisted). Column order mirrors the local parser
-  // (Player, New Class): serialize playerName + selectedClass.
-  const initialText = useMemo(() => {
-    const saved = currentDynasty?.fringeCaseClassByYear?.[currentYear] || []
-    return saved
-      .filter(s => s.playerName && s.selectedClass)
-      .map(s => `${s.playerName}\t${s.selectedClass}`)
+  // The fringe cases themselves, in the SAME order the Google Sheet lays them
+  // out (last name). This is the list the user is deciding on, so the local
+  // grid has to open on it — for a while it opened blank unless a previous
+  // save existed, which meant the one screen that is supposed to say "here are
+  // the players you must rule on" said nothing at all.
+  const sortedFringePlayers = useMemo(
+    () => sortFringeCasePlayers(fringeCasePlayers),
+    [fringeCasePlayers],
+  )
+
+  // Columns mirror the Google Sheet exactly: Player / Pos / current class /
+  // games are context the decision depends on (5-9 games is the whole reason
+  // a player is here), and only the last column is really being answered.
+  const LOCAL_COLUMNS = useMemo(() => (
+    ['Player', 'Pos', `${currentYear} Class`, 'Games', `Updated ${currentYear + 1} Class`]
+  ), [currentYear])
+  const NEW_CLASS_COLUMN = LOCAL_COLUMNS[4]
+
+  // Per-row dropdown, same allowed set the sheet enforces with data
+  // validation: progress, or apply the redshirt. Driven off the row's own
+  // current-class cell (column C), not a fixed list.
+  const localColumnOptions = useMemo(() => ({
+    [NEW_CLASS_COLUMN]: (row) => getFringeCaseClassOptions(row?.[2]),
+  }), [NEW_CLASS_COLUMN])
+
+  // Pre-fill the local grid with every fringe case: name, position, current
+  // class and games played, plus a starting pick for the new class.
+  const initialText = useMemo(() => (
+    fringeRowsFromPlayers(sortedFringePlayers, currentDynasty?.fringeCaseClassByYear?.[currentYear])
+      .map(cells => cells.join('\t'))
       .join('\n')
-  }, [currentDynasty?.fringeCaseClassByYear, currentYear])
+  ), [sortedFringePlayers, currentDynasty?.fringeCaseClassByYear, currentYear])
+
+  // A paste replaces the grid, so a reply carrying fewer columns than the grid
+  // would wipe the pre-filled context. Widen those shapes before they land.
+  const normalizeLocalRows = useMemo(
+    () => (rows) => widenFringeRows(rows, sortedFringePlayers),
+    [sortedFringePlayers],
+  )
 
   // LOCAL-PASTE prompt: self-describing rows, no pre-filled column to align
   // against. The AI emits ONE line per fringe-case player who gets a new class,
   // as PlayerName<TAB>NewClass — so a paste carries its own identity and the
   // save matches by name (omitted players are unchanged).
-  const localAiPrompt = useMemo(() => buildAIPrompt({
+  const localAiPrompt = useMemo(() => {
+    // Name the players outright. The decision is per-player and the allowed
+    // answers depend on each one's current class, so leaving the AI to work
+    // out who qualifies invites it to rule on the wrong people.
+    const playerLines = sortedFringePlayers.length === 0
+      ? '  (no fringe cases)'
+      : sortedFringePlayers.map(p => {
+          const cls = p.currentClass || p.year || ''
+          const games = p.gameCount ?? p.gamesPlayed ?? ''
+          const opts = getFringeCaseClassOptions(cls)
+          const allowed = opts.length ? opts.map(o => `"${o}"`).join(' or ') : 'NONE — omit this player'
+          return `  ${p.name}${p.position ? ` (${p.position})` : ''} — ${cls}, ${games} games → ${allowed}`
+        }).join('\n')
+
+    return buildAIPrompt({
     title: `${currentYear} Fringe Case Class Assignment`,
     roster: userRoster,
     structure: `Output ONE line per fringe-case player whose updated ${currentYear + 1} class you are setting. Each line is SELF-DESCRIBING — it carries the player's own name — so there is NO pre-filled column to line up against and NO fixed row order.
 
 These are players who played between 5 and 9 games in ${currentYear}. Depending on the redshirt logic, each player either PROGRESSES to the next class (e.g. "So", "Jr", "Sr") OR is kept at their current class with an "RS" prefix applied (a redshirt was used, e.g. "RS Fr", "RS So", "RS Jr").
+
+═══════════════════════════════════════════════════════════
+THE EXACT PLAYERS TO RULE ON — and the only values each may take
+═══════════════════════════════════════════════════════════
+${playerLines}
+
+Do NOT add players who are not on this list. Do NOT give a player a value
+outside their own arrow above.
 
 ═══════════════════════════════════════════════════════════
 CRITICAL RULES — read before anything else
@@ -195,7 +250,8 @@ FINAL CHECK before you send
 [ ] RS Sr players and unknowns are omitted — nothing invented`,
     includeTeamMap: false,
     notes: `In the fringe-case context, the game decides whether a redshirt was applied (typically ≤ 4 games used a redshirt; 5–9 games is the fringe case where either progression or redshirt may apply). Use the screenshot's Games and context to pick the correct class for each player.`
-  }), [currentYear, userRoster])
+    })
+  }, [currentYear, userRoster, sortedFringePlayers])
 
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
@@ -296,11 +352,12 @@ FINAL CHECK before you send
   }, [isOpen])
 
   // Local paste import: the AI emits PlayerName<TAB>NewClass rows. The parser
-  // reads name=row[0] and the new class=row[4], so reshape each pasted
-  // [name, class] pair into the parser's 5-column layout. Downstream save
-  // matches by name, so omitting unchanged players is correct.
+  // reads name=row[0] and the new class=row[4]. The grid is already that
+  // 5-column shape (normalizeLocalRows widens any narrower paste on the way
+  // in), so the serialized text feeds the sheet parser as-is. The save matches
+  // by name, so omitting unchanged players is correct.
   const handleLocalImport = async (text) => {
-    const rows = splitTsv(text).map(c => [c[0], '', '', '', (c[1] ?? '')])
+    const rows = normalizeLocalRows(splitTsv(text))
     const classSelections = await readFringeCaseClassFromSheet(null, (currentDynasty?.teams || currentDynasty?.customTeams), { rows })
     await onSave(classSelections)
     onClose()
@@ -432,7 +489,9 @@ FINAL CHECK before you send
         {useLocal && !showDeletedNote ? (
           <LocalDataEntry
             aiPrompt={localAiPrompt}
-            columns={['Player', 'New Class']}
+            columns={LOCAL_COLUMNS}
+            columnOptions={localColumnOptions}
+            normalizeRows={normalizeLocalRows}
             onImport={handleLocalImport}
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}

@@ -5,6 +5,7 @@ import { teamAbbreviations, getTeamAbbreviationsList, getSelectableTeamsList, ge
 import { getAbbrFromTeamName, getTidFromAbbr, getAbbrFromTid, TEAMS as DEFAULT_TEAMS, getTeamNameOptions } from '../data/teamRegistry'
 import { getTidFromTeamText } from '../data/teams'
 import { getSortableLastName } from '../utils/playerNames'
+import { getFringeCaseClassOptions } from '../utils/fringeCaseRows'
 import { conferenceTeams as CANONICAL_CONFERENCES } from '../data/conferenceTeams'
 import { STAT_TABS, STAT_TAB_ORDER, SCORING_SUMMARY, SCORE_TYPES, PAT_RESULTS, QUARTERS, DOWNS, PLAY_TYPES, AI_UNIFIED_TAB, computeUnifiedTabLayout } from '../data/boxScoreConstants'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../context/DynastyContext'
@@ -16228,26 +16229,6 @@ export async function createFringeCaseClassSheet(dynastyName, year, fringeCasePl
     console.error('Error creating fringe case class sheet:', error)
     throw error
   }
-}
-
-// Get class options for fringe case players (progressed class vs redshirt version)
-function getFringeCaseClassOptions(currentClass) {
-  const isRS = currentClass?.startsWith('RS ') || false
-  const baseClass = currentClass?.replace('RS ', '') || 'Fr'
-
-  // Map current class to progressed options
-  const progressionMap = {
-    'Fr': ['So', 'RS Fr'], // Progressed to So, or redshirt to RS Fr
-    'So': ['Jr', 'RS So'],
-    'Jr': ['Sr', 'RS Jr'],
-    'Sr': ['RS Sr'], // Can only redshirt
-    'RS Fr': ['RS So'], // Already RS, just progresses
-    'RS So': ['RS Jr'],
-    'RS Jr': ['RS Sr'],
-    'RS Sr': [] // No progression possible
-  }
-
-  return progressionMap[currentClass] || [baseClass]
 }
 
 // Initialize the Fringe Case Class sheet with headers, validation, and pre-filled data
