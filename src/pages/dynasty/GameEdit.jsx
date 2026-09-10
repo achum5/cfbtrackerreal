@@ -2476,8 +2476,8 @@ export default function GameEdit() {
         ]
         const showConferencePicker = editWeek === 'CCG'
         const showBowlPicker = editWeek === 'BW1' || editWeek === 'BW2' || editWeek === 'BW3'
-        const bw1Bowls = getWeek1BowlGamesList()
-        const bw2Bowls = getWeek2BowlGamesList()
+        const bw1Bowls = getWeek1BowlGamesList(currentDynasty)
+        const bw2Bowls = getWeek2BowlGamesList(currentDynasty)
         const cfpBowlConfig = currentDynasty?.cfpBowlConfigByYear?.[editYear] || {}
         const sfBowls = [cfpBowlConfig.sf1 || 'Peach Bowl', cfpBowlConfig.sf2 || 'Fiesta Bowl']
         const bowlOptions = editWeek === 'BW1' ? bw1Bowls : editWeek === 'BW2' ? bw2Bowls : sfBowls

@@ -116,6 +116,20 @@ export function getEditionKey(dynasty) {
 // `platform: 'pc'` is set at creation (the Console/PC selector, or a CFB27
 // save import which dictates its own platform) and re-stamped by every
 // Sync from Save, so a genuine PC dynasty is always positively marked.
+// Bowl games this dynasty's edition does not feature. Drives the bowl
+// PICKERS and the Bowl Week 1 sheet only — never the isBowlInWeek1 /
+// isBowlInWeek2 classifiers, which must keep resolving a game a user
+// already saved (or one entered before the bowl was dropped).
+export function getExcludedBowlGames(dynasty) {
+  const cfg = EDITION_CONFIGS[getEditionKey(dynasty)]
+  return Array.isArray(cfg?.bowls?.excluded) ? cfg.bowls.excluded : []
+}
+
+/** Is this bowl offered in this dynasty's edition? */
+export function isBowlAvailable(dynasty, bowlName) {
+  return !getExcludedBowlGames(dynasty).includes(bowlName)
+}
+
 export function isPcAutoDynasty(dynasty) {
   if (getEditionKey(dynasty) !== 'cfb27') return false
   return dynasty?.platform === 'pc'

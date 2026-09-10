@@ -28,6 +28,15 @@ export default {
     attributes: true,
   },
 
+  // Bowls CFB 27 does not feature. They stay in the catalog (name, logo,
+  // trophy) so a future edition — or a re-add — is a one-line change here,
+  // and so an existing CFB 27 dynasty that already SAVED one of these games
+  // still renders it correctly: only the pickers and the Bowl Week 1 sheet
+  // are filtered, never the classifiers that read saved games.
+  bowls: {
+    excluded: ['GameAbove Sports Bowl', 'LA Bowl'],
+  },
+
   // Dynasty Points economy — reference data for the input-driven Blueprint
   // tracker. We do NOT simulate EA's math; these just label the spend lanes
   // and surface the in-game "suggested allocation" percentages so the

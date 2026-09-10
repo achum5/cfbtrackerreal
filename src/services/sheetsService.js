@@ -8,6 +8,7 @@ import { getSortableLastName } from '../utils/playerNames'
 import { conferenceTeams as CANONICAL_CONFERENCES } from '../data/conferenceTeams'
 import { STAT_TABS, STAT_TAB_ORDER, SCORING_SUMMARY, SCORE_TYPES, PAT_RESULTS, QUARTERS, DOWNS, PLAY_TYPES, AI_UNIFIED_TAB, computeUnifiedTabLayout } from '../data/boxScoreConstants'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../context/DynastyContext'
+import { getExcludedBowlGames } from '../editions'
 import { OAuthError, RateLimitError } from '../utils/authErrors'
 import { parseRecruitingRows, parseAttributes, RECRUITING_READ_RANGE, TOTAL_COLS, PID_COL, NIL_COL, UPDATED_AT_COL, colLetter } from '../utils/recruitSheetParse'
 import { normalizeWeeklyScoreRow, normalizeWeeklyScoreRows } from '../utils/weeklyScoreRealign'
@@ -4340,32 +4341,45 @@ export async function readBowlGamesFromSheet(spreadsheetId, dynastyTeams = null,
   }
 }
 
+// Every getter below takes the dynasty so bowls its edition doesn't
+// feature are dropped (see editions/*/index.js → bowls.excluded). The
+// catalog constants above stay complete — a bowl is hidden, never deleted,
+// so re-adding it later is a one-line edition change. Passing no dynasty
+// yields the legacy edition's list, i.e. the full catalog.
+const withoutExcludedBowls = (list, dynasty) => {
+  const excluded = getExcludedBowlGames(dynasty)
+  return excluded.length === 0 ? [...list] : list.filter(b => !excluded.includes(b))
+}
+
 // Get list of bowl games for reference
-export function getBowlGamesList() {
-  return [...BOWL_GAMES_WEEK_1]
+export function getBowlGamesList(dynasty = null) {
+  return withoutExcludedBowls(BOWL_GAMES_WEEK_1, dynasty)
 }
 
 // Get list of Week 1 bowl games (without CFP First Round for selection dropdown)
-export function getWeek1BowlGamesList() {
-  return BOWL_GAMES_WEEK_1.filter(b => b !== 'CFP First Round')
+export function getWeek1BowlGamesList(dynasty = null) {
+  return withoutExcludedBowls(BOWL_GAMES_WEEK_1, dynasty).filter(b => b !== 'CFP First Round')
 }
 
 // Get list of Week 2 bowl games
-export function getWeek2BowlGamesList() {
-  return [...BOWL_GAMES_WEEK_2]
+export function getWeek2BowlGamesList(dynasty = null) {
+  return withoutExcludedBowls(BOWL_GAMES_WEEK_2, dynasty)
 }
 
 // Get all bowl games (for dropdown selection, no CFP games)
-export function getAllBowlGamesList() {
-  return ALL_BOWL_GAMES.filter(b => !b.includes('CFP'))
+export function getAllBowlGamesList(dynasty = null) {
+  return withoutExcludedBowls(ALL_BOWL_GAMES, dynasty).filter(b => !b.includes('CFP'))
 }
 
-// Check if a bowl game is in Week 1
+// Check if a bowl game is in Week 1.
+// DELIBERATELY UNFILTERED: this classifies a game that already exists (a
+// saved bowl, or one entered before its bowl was dropped from an edition).
+// Filtering here would strand that game outside both bowl weeks.
 export function isBowlInWeek1(bowlName) {
   return BOWL_GAMES_WEEK_1.some(b => b === bowlName)
 }
 
-// Check if a bowl game is in Week 2
+// Check if a bowl game is in Week 2. Unfiltered — see isBowlInWeek1.
 export function isBowlInWeek2(bowlName) {
   return BOWL_GAMES_WEEK_2.some(b => b === bowlName)
 }

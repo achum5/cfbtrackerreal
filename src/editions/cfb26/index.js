@@ -30,4 +30,13 @@ export default {
     scoutingWeek: false,     // week-0 scouting-only recruiting
     commitLadder: false,     // soft/hard commit + gems
   },
+
+  // Bowl games this edition's game does NOT feature. The catalog in
+  // services/sheetsService.js (BOWL_GAMES_WEEK_1 / _WEEK_2_REGULAR) stays
+  // whole — names, logos and trophies are kept in the repo — and the list
+  // getters filter against this per dynasty. CFB 26 shipped with all of
+  // them, so nothing is excluded here.
+  bowls: {
+    excluded: [],
+  },
 }
