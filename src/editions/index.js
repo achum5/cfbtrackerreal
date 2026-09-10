@@ -130,6 +130,17 @@ export function isBowlAvailable(dynasty, bowlName) {
   return !getExcludedBowlGames(dynasty).includes(bowlName)
 }
 
+// Bowls that sit in a different bowl week than the base catalog says, as
+// { '<Bowl Name>': 1 | 2 }. Unlike exclusions this DOES apply to the
+// isBowlInWeek* classifiers: a game entered fresh must land in the week its
+// edition actually plays it. Games already saved carry their own `bowlWeek`,
+// which every reader checks first, so nothing already entered moves.
+export function getBowlWeekOverrides(dynasty) {
+  const cfg = EDITION_CONFIGS[getEditionKey(dynasty)]
+  const o = cfg?.bowls?.weekOverrides
+  return o && typeof o === 'object' ? o : {}
+}
+
 export function isPcAutoDynasty(dynasty) {
   if (getEditionKey(dynasty) !== 'cfb27') return false
   return dynasty?.platform === 'pc'

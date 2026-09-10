@@ -35,6 +35,11 @@ export default {
   // are filtered, never the classifiers that read saved games.
   bowls: {
     excluded: ['GameAbove Sports Bowl', 'LA Bowl'],
+    // The Music City Bowl moved up to Bowl Week 1 in CFB 27 (the catalog
+    // lists it in Week 2, which is where CFB 26 played it). Overriding the
+    // week here moves it in the pickers, both bowl-week grids/sheets and
+    // their row counts at once.
+    weekOverrides: { 'Music City Bowl': 1 },
   },
 
   // Dynasty Points economy — reference data for the input-driven Blueprint

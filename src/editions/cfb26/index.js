@@ -38,5 +38,9 @@ export default {
   // them, so nothing is excluded here.
   bowls: {
     excluded: [],
+    // Bowls that sit in a different bowl week than the base catalog says.
+    // { '<Bowl Name>': 1 | 2 }. Base edition — the catalog IS cfb26, so
+    // nothing moves here.
+    weekOverrides: {},
   },
 }

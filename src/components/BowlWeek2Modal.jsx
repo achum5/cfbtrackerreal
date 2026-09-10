@@ -235,7 +235,7 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
       return `Team 1 = winner of First Round #${m.frHigh} vs #${m.frLow} Team 2 = #${m.byeSeed} seed (bye) — read teams off your screenshot`
     }
 
-    const allBowls = getBowlGamesWeek2(cfg)
+    const allBowls = getBowlGamesWeek2(cfg, currentDynasty)
     const filtered = allBowls.filter(b => !excludedBowlGames.includes(b))
     const maxNameLen = Math.max(...filtered.map(b => b.length))
     return filtered.map((bowl, i) => {
@@ -271,9 +271,17 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
     })
   }
 
+  // Bowl Week 2 slots for THIS dynasty's edition (a bowl moved to Week 1 is
+  // no longer one), and the row count once the user's own game is pulled out.
+  const week2SlotCount = getBowlGamesWeek2(
+    currentDynasty?.cfpBowlConfigByYear?.[currentYear] || null,
+    currentDynasty,
+  ).length
+  const sheetRowCount = week2SlotCount - excludedBowlGames.length
+
   const aiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Bowl Week 2 Results`,
-    structure: `This sheet has ONE tab: "Bowl Games". It contains ${13 - excludedBowlGames.length} rows (13 total Bowl Week 2 slots minus ${excludedBowlGames.length} excluded). All bowl names are PRE-FILLED in column A and sorted ALPHABETICALLY. The CFP Quarterfinal rows have the suffix "(CFP QF)" in their bowl name.${excludedBowlGames.length > 0 ? `
+    structure: `This sheet has ONE tab: "Bowl Games". It contains ${sheetRowCount} rows (${week2SlotCount} total Bowl Week 2 slots minus ${excludedBowlGames.length} excluded). All bowl names are PRE-FILLED in column A and sorted ALPHABETICALLY. The CFP Quarterfinal rows have the suffix "(CFP QF)" in their bowl name.${excludedBowlGames.length > 0 ? `
 
 ⚠️ GAMES NOT IN THIS SHEET — you may see the following in your screenshots, but there is NO row for them. Ignore them completely. Do NOT output a row for them:
 ${excludedBowlGames.map(g => `  • ${g}`).join('\n')}` : ''}
@@ -295,13 +303,13 @@ CRITICAL RULES — read before anything else
 10. ONE TSV block — output ONLY the fenced block, nothing before or after it.
 
 ═══════════════════════════════════════════════════════════
-SECTION: "Bowl Games" — ${13 - excludedBowlGames.length} rows × 6 editable columns
+SECTION: "Bowl Games" — ${sheetRowCount} rows × 6 editable columns
 ═══════════════════════════════════════════════════════════
 
 ═══════════════════════════════════════════════════════════
 EXACT ROW ORDER — this is the ground truth, NOT alphabetical inference
 ═══════════════════════════════════════════════════════════
-Output ${13 - excludedBowlGames.length} TSV lines, ONE per row below, in this EXACT order. Line N
+Output ${sheetRowCount} TSV lines, ONE per row below, in this EXACT order. Line N
 of your output lands in sheet row N+1 (paste starts at B2). Do NOT
 reorder, do NOT alphabetize on your own, do NOT skip rows, do NOT add
 rows. Four rows in the middle are CFP Quarterfinal games (the column-A
@@ -402,7 +410,7 @@ REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send the answer
 ═══════════════════════════════════════════════════════════
-[ ] Row count matches the number of bowl rows shown in the screenshot exactly (${13 - excludedBowlGames.length} rows)
+[ ] Row count matches the number of bowl rows shown in the screenshot exactly (${sheetRowCount} rows)
 [ ] Row order matches the screenshot's pre-filled Bowl Game column top-to-bottom (alphabetical)
 [ ] Exactly 6 tab-separated values per game row (5 tab characters per line)
 [ ] Columns B and D are team NAMES only, from the TEAM NAMES list
@@ -418,7 +426,7 @@ FINAL CHECK before you send the answer
 [ ] No header row, no bowl name text, no winner column INSIDE the data.`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
-  }), [currentYear, currentDynasty?.teams, excludedBowlGames, prevWeekTop25Block, bw2RowTable])
+  }), [currentYear, currentDynasty?.teams, excludedBowlGames, prevWeekTop25Block, bw2RowTable, sheetRowCount, week2SlotCount])
 
   // LOCAL-PASTE prompt: SELF-DESCRIBING rows. Every game row LEADS with its
   // exact bowl name (the identity the save matches on, including any "(CFP QF)"
@@ -488,7 +496,7 @@ FINAL CHECK before you send
 [ ] No blank lines, no header row, no commentary — only games you can see and the poll lines that complete the Top 25`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
-  }), [currentYear, currentDynasty?.teams, excludedBowlGames, prevWeekTop25Block, bw2RowTable])
+  }), [currentYear, currentDynasty?.teams, excludedBowlGames, prevWeekTop25Block, bw2RowTable, sheetRowCount, week2SlotCount])
 
   // Local paste import. The AI emits SELF-DESCRIBING lines:
   //   GAME: BowlName<TAB>Team1<TAB>T1Rank<TAB>Team2<TAB>T2Rank<TAB>T1Score<TAB>T2Score
@@ -670,6 +678,7 @@ FINAL CHECK before you send
             currentDynasty?.teamName || 'Dynasty', currentYear, cfpSeeds, firstRoundResults,
             excludeGames, existingBowlWeek2, existingCFPQuarterfinals,
             currentDynasty?.teams || currentDynasty?.customTeams, cfpBowlConfig,
+            currentDynasty,
           )
           setSheetId(sheetInfo.spreadsheetId)
         } catch (error) {

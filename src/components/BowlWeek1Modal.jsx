@@ -25,7 +25,6 @@ import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
-import { getExcludedBowlGames } from '../editions'
 import { splitTsv } from '../utils/tsvParse'
 
 const isMobileDevice = () => {
@@ -478,9 +477,10 @@ FINAL CHECK before you send
         setCreatingSheet(true)
         try {
           const cfpSeeds = currentDynasty?.cfpSeedsByYear?.[currentYear] || []
-          // Bowls this edition dropped are excluded from the sheet too, so the
-          // Google grid has exactly the rows the local grid and prompt do.
-          const excludeGames = [...getExcludedBowlGames(currentDynasty)]
+          // Only the user's own game is pulled out here — the sheet builder
+          // starts from this edition's Week 1 list (see the dynasty argument
+          // below), so dropped/moved bowls are already handled.
+          const excludeGames = []
 
           const userTeamTid = getCurrentTeamTid(currentDynasty)
           const userTeamAbbr = getCurrentTeamAbbr(currentDynasty) || ''
@@ -514,7 +514,7 @@ FINAL CHECK before you send
               if (Number(g.year) !== currentYear) return false
               const isBowl = g.gameType === 'bowl' || (g.bowlName && !g.bowlName.includes('CFP'))
               if (!isBowl) return false
-              return isBowlInWeek1(g.bowlName)
+              return isBowlInWeek1(g.bowlName, currentDynasty)
             })
             .map(g => {
               if (g.opponent) {
@@ -571,6 +571,7 @@ FINAL CHECK before you send
             existingBowlWeek1,
             existingCFPFirstRound,
             currentDynasty?.teams || currentDynasty?.customTeams,
+            currentDynasty,
           )
           setSheetId(sheetInfo.spreadsheetId)
         } catch (error) {

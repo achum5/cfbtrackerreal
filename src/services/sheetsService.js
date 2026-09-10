@@ -8,7 +8,7 @@ import { getSortableLastName } from '../utils/playerNames'
 import { conferenceTeams as CANONICAL_CONFERENCES } from '../data/conferenceTeams'
 import { STAT_TABS, STAT_TAB_ORDER, SCORING_SUMMARY, SCORE_TYPES, PAT_RESULTS, QUARTERS, DOWNS, PLAY_TYPES, AI_UNIFIED_TAB, computeUnifiedTabLayout } from '../data/boxScoreConstants'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../context/DynastyContext'
-import { getExcludedBowlGames } from '../editions'
+import { getExcludedBowlGames, getBowlWeekOverrides } from '../editions'
 import { OAuthError, RateLimitError } from '../utils/authErrors'
 import { parseRecruitingRows, parseAttributes, RECRUITING_READ_RANGE, TOTAL_COLS, PID_COL, NIL_COL, UPDATED_AT_COL, colLetter } from '../utils/recruitSheetParse'
 import { normalizeWeeklyScoreRow, normalizeWeeklyScoreRows } from '../utils/weeklyScoreRealign'
@@ -3536,7 +3536,10 @@ export function parseConferenceChampionshipsHistoryLocal(rows, dynastyTeams = nu
   return { years, byYear }
 }
 
-// Bowl games list for Bowl Week 1 (25 regular bowls + 4 CFP First Round = 29 games)
+// Bowl games list for Bowl Week 1 (25 regular bowls + 4 CFP First Round = 29
+// games). This is the CFB 26 catalog — the base an edition's bowls.excluded /
+// bowls.weekOverrides are applied on top of. Never edit it to express an
+// edition's change; add the override instead so other editions keep working.
 const BOWL_GAMES_WEEK_1 = [
   '68 Ventures Bowl',
   'Alamo Bowl',
@@ -3604,7 +3607,7 @@ const CFP_QF_MATCHUPS_BY_SEED = {
 // Exported so the Bowl Week 2 modal can show the AI prompt the EXACT
 // sorted row order the sheet uses (which depends on the user's QF bowl
 // assignments — Cotton vs. Sugar vs. Rose vs. Orange swap positions).
-export const getBowlGamesWeek2 = (cfpBowlConfig = null) => {
+export const getBowlGamesWeek2 = (cfpBowlConfig = null, dynasty = null) => {
   // Default bowl config if not provided
   const config = cfpBowlConfig || {
     seed1: 'Sugar Bowl',
@@ -3621,8 +3624,18 @@ export const getBowlGamesWeek2 = (cfpBowlConfig = null) => {
     `${config.seed4} (CFP QF)`
   ]
 
-  // Combine regular bowls + CFP QF bowls, sorted alphabetically
-  return [...BOWL_GAMES_WEEK_2_REGULAR, ...cfpQFBowls].sort()
+  // Combine regular bowls + CFP QF bowls, sorted alphabetically. The regular
+  // half honors this edition's excluded bowls and week overrides (a bowl
+  // moved to Week 1 is not a Week 2 slot); the CFP QF names come from the
+  // user's own config and are never edition-specific.
+  const excluded = getExcludedBowlGames(dynasty)
+  const overrides = getBowlWeekOverrides(dynasty)
+  const regular = BOWL_GAMES_WEEK_2_REGULAR
+    .filter(b => !excluded.includes(b) && (overrides[b] == null || overrides[b] === 2))
+  const movedIn = Object.entries(overrides)
+    .filter(([name, target]) => target === 2 && !excluded.includes(name) && BOWL_GAMES_WEEK_1.includes(name))
+    .map(([name]) => name)
+  return [...regular, ...movedIn, ...cfpQFBowls].sort()
 }
 
 // Legacy constant for backward compatibility (uses default config)
@@ -3765,12 +3778,14 @@ export async function readStaffMovesFromSheet(spreadsheetId, opts = {}) {
   return data.values || []
 }
 
-export async function createBowlWeek1Sheet(dynastyName, year, cfpSeeds = [], excludeGames = [], existingBowlWeek1 = [], existingCFPFirstRound = [], dynastyTeams = null) {
+export async function createBowlWeek1Sheet(dynastyName, year, cfpSeeds = [], excludeGames = [], existingBowlWeek1 = [], existingCFPFirstRound = [], dynastyTeams = null, dynasty = null) {
   try {
     const accessToken = await getAccessToken()
 
     // Filter out games that the user is playing in (they enter those separately)
-    const bowlGames = BOWL_GAMES_WEEK_1.filter(game => !excludeGames.includes(game))
+    // Same rows as the local grid and the AI prompt: this edition's Week 1
+    // bowls (exclusions + week overrides applied), minus the user's own game.
+    const bowlGames = bowlsForWeek(dynasty, 1).filter(game => !excludeGames.includes(game))
     const rowCount = bowlGames.length
 
     // Create the spreadsheet
@@ -4341,46 +4356,80 @@ export async function readBowlGamesFromSheet(spreadsheetId, dynastyTeams = null,
   }
 }
 
-// Every getter below takes the dynasty so bowls its edition doesn't
-// feature are dropped (see editions/*/index.js → bowls.excluded). The
-// catalog constants above stay complete — a bowl is hidden, never deleted,
-// so re-adding it later is a one-line edition change. Passing no dynasty
-// yields the legacy edition's list, i.e. the full catalog.
-const withoutExcludedBowls = (list, dynasty) => {
-  const excluded = getExcludedBowlGames(dynasty)
-  return excluded.length === 0 ? [...list] : list.filter(b => !excluded.includes(b))
+// Every getter below takes the dynasty so its edition's bowls.excluded and
+// bowls.weekOverrides are applied (see editions/*/index.js). The catalog
+// constants above stay complete — a bowl is hidden or moved, never deleted,
+// so re-adding one later is a one-line edition change. Passing no dynasty
+// yields the legacy edition's list, i.e. the untouched catalog.
+
+const isCfpRow = (name) => name.includes('CFP')
+
+// Insert a bowl at its alphabetical spot among the PLAIN bowl names. The CFP
+// rows sit at the alphabetical position of "CFP" but run in seed order
+// (8v9, 7v10, 6v11, 5v12) among themselves, so a blanket re-sort would
+// scramble them — and row order is the contract the Bowl Week sheet, its
+// pre-filled column A and the AI prompt all share.
+const insertAlphabetically = (list, name) => {
+  const at = list.findIndex(b => !isCfpRow(b) && b.localeCompare(name) > 0)
+  if (at === -1) return [...list, name]
+  return [...list.slice(0, at), name, ...list.slice(at)]
 }
 
-// Get list of bowl games for reference
+// The bowls this dynasty's edition plays in `week`, in row order.
+const bowlsForWeek = (dynasty, week) => {
+  const base = week === 1 ? BOWL_GAMES_WEEK_1 : BOWL_GAMES_WEEK_2
+  const excluded = getExcludedBowlGames(dynasty)
+  const overrides = getBowlWeekOverrides(dynasty)
+  // Drop excluded bowls, plus any this edition moved to the OTHER week.
+  let out = base.filter(b => !excluded.includes(b) && (overrides[b] == null || overrides[b] === week))
+  // Add the bowls moved INTO this week from the other one.
+  for (const [name, target] of Object.entries(overrides)) {
+    if (target !== week || excluded.includes(name) || out.includes(name)) continue
+    if (!(week === 1 ? BOWL_GAMES_WEEK_2 : BOWL_GAMES_WEEK_1).includes(name)) continue
+    out = insertAlphabetically(out, name)
+  }
+  return out
+}
+
+// Get list of bowl games for reference (Bowl Week 1, incl. CFP First Round)
 export function getBowlGamesList(dynasty = null) {
-  return withoutExcludedBowls(BOWL_GAMES_WEEK_1, dynasty)
+  return bowlsForWeek(dynasty, 1)
 }
 
 // Get list of Week 1 bowl games (without CFP First Round for selection dropdown)
 export function getWeek1BowlGamesList(dynasty = null) {
-  return withoutExcludedBowls(BOWL_GAMES_WEEK_1, dynasty).filter(b => b !== 'CFP First Round')
+  return bowlsForWeek(dynasty, 1).filter(b => b !== 'CFP First Round')
 }
 
 // Get list of Week 2 bowl games
 export function getWeek2BowlGamesList(dynasty = null) {
-  return withoutExcludedBowls(BOWL_GAMES_WEEK_2, dynasty)
+  return bowlsForWeek(dynasty, 2)
 }
 
 // Get all bowl games (for dropdown selection, no CFP games)
 export function getAllBowlGamesList(dynasty = null) {
-  return withoutExcludedBowls(ALL_BOWL_GAMES, dynasty).filter(b => !b.includes('CFP'))
+  const excluded = getExcludedBowlGames(dynasty)
+  return ALL_BOWL_GAMES.filter(b => !excluded.includes(b) && !b.includes('CFP'))
 }
 
-// Check if a bowl game is in Week 1.
-// DELIBERATELY UNFILTERED: this classifies a game that already exists (a
-// saved bowl, or one entered before its bowl was dropped from an edition).
-// Filtering here would strand that game outside both bowl weeks.
-export function isBowlInWeek1(bowlName) {
+// Which bowl week is this game in?
+//
+// EXCLUSIONS are deliberately ignored here: this classifies a game that
+// already exists (a saved bowl, or one entered before its bowl was dropped
+// from an edition), and filtering would strand it outside both weeks.
+// WEEK OVERRIDES do apply, so a game entered fresh lands in the week this
+// edition actually plays it. A game already saved carries its own
+// `bowlWeek`, which every caller checks before falling back to these.
+export function isBowlInWeek1(bowlName, dynasty = null) {
+  const moved = getBowlWeekOverrides(dynasty)[bowlName]
+  if (moved != null) return moved === 1
   return BOWL_GAMES_WEEK_1.some(b => b === bowlName)
 }
 
-// Check if a bowl game is in Week 2. Unfiltered — see isBowlInWeek1.
-export function isBowlInWeek2(bowlName) {
+// Check if a bowl game is in Week 2 — see isBowlInWeek1.
+export function isBowlInWeek2(bowlName, dynasty = null) {
+  const moved = getBowlWeekOverrides(dynasty)[bowlName]
+  if (moved != null) return moved === 2
   return BOWL_GAMES_WEEK_2.some(b => b === bowlName)
 }
 
@@ -4957,12 +5006,12 @@ export function getCFPQuarterfinalGameName(seed, firstRoundResults = [], cfpBowl
 // Create Bowl Week 2 sheet with CFP Quarterfinals teams pre-filled
 // excludeGames: array of game names to exclude (user's QF game, user's Week 2 bowl game)
 // cfpBowlConfig: { seed1: 'Sugar Bowl', seed2: 'Cotton Bowl', ... } - determines which bowls host CFP QF
-export async function createBowlWeek2Sheet(dynastyName, year, cfpSeeds = [], firstRoundResults = [], excludeGames = [], existingBowlWeek2 = [], existingCFPQuarterfinals = [], dynastyTeams = null, cfpBowlConfig = null) {
+export async function createBowlWeek2Sheet(dynastyName, year, cfpSeeds = [], firstRoundResults = [], excludeGames = [], existingBowlWeek2 = [], existingCFPQuarterfinals = [], dynastyTeams = null, cfpBowlConfig = null, dynasty = null) {
   try {
     const accessToken = await getAccessToken()
 
     // Get bowl games list with dynamic CFP QF bowls based on config
-    const allBowlGames = getBowlGamesWeek2(cfpBowlConfig)
+    const allBowlGames = getBowlGamesWeek2(cfpBowlConfig, dynasty)
     // Filter out games that the user is playing in (they enter those separately)
     const bowlGames = allBowlGames.filter(game => !excludeGames.includes(game))
     const rowCount = bowlGames.length

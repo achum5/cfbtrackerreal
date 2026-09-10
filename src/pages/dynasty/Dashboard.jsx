@@ -80,7 +80,7 @@ import EncourageTransfersModal from '../../components/EncourageTransfersModal'
 import RecruitOverallsModal from '../../components/RecruitOverallsModal'
 import PortalTransferClassModal from '../../components/PortalTransferClassModal'
 import FringeCaseClassModal from '../../components/FringeCaseClassModal'
-import { getAllBowlGamesList, getBowlGamesList, isBowlInWeek1, isBowlInWeek2 } from '../../services/sheetsService'
+import { getAllBowlGamesList, getBowlGamesList, getWeek2BowlGamesList, isBowlInWeek1, isBowlInWeek2 } from '../../services/sheetsService'
 import { isSameYear } from '../../utils/compareUtils'
 import { calculateRecruitingClassScore, formatRecruitingClassScore, flattenClassCommitments } from '../../utils/recruitingScore'
 import { normalizeLeavingReason } from '../../utils/leavingReason'
@@ -995,7 +995,7 @@ export default function Dashboard() {
         year,
         userTid,
         opponentTid,
-        isWeek1: isBowlInWeek1(data.bowlGame),
+        isWeek1: isBowlInWeek1(data.bowlGame, currentDynasty),
       })
       const shell = mutated.find(g =>
         g && g.isBowlGame && Number(g.year) === year &&
@@ -4270,7 +4270,7 @@ export default function Dashboard() {
             // Bowl Week 1 - check games[] then fallback to legacy bowlGamesByYear
             // Include bowl games missing bowlWeek if their name is classified as week1
             const bowlWeek1FromGames = allGames.filter(g => g && g.isBowlGame && Number(g.year) === Number(year) &&
-              (g.bowlWeek === 'week1' || (!g.bowlWeek && isBowlInWeek1(g.bowlName || ''))))
+              (g.bowlWeek === 'week1' || (!g.bowlWeek && isBowlInWeek1(g.bowlName || '', currentDynasty))))
             const bowlWeek1Legacy = currentDynasty.bowlGamesByYear?.[year]?.week1 || []
             const hasBowlWeek1Data = bowlWeek1FromGames.length > 0 || bowlWeek1Legacy.length > 0
 
@@ -4297,7 +4297,7 @@ export default function Dashboard() {
             const userBowlHasScores = userBowlGameTemp && userBowlGameTemp.team1Score !== undefined && userBowlGameTemp.team1Score !== null
             const userBowlIsInWeek1List = userBowlGameTemp && bowlWeek1Games.some(g => g.id === userBowlGameTemp.id)
             const userBowlBowlName = userBowlGameTemp?.bowlName || selectedBowl
-            const userBowlIsWeek1Temp = !!userBowlBowlName && (userBowlGameTemp?.bowlWeek === 'week1' || isBowlInWeek1(userBowlBowlName))
+            const userBowlIsWeek1Temp = !!userBowlBowlName && (userBowlGameTemp?.bowlWeek === 'week1' || isBowlInWeek1(userBowlBowlName, currentDynasty))
             const userBowlWeek1NotCounted = userBowlHasScores && userBowlIsWeek1Temp && !userBowlIsInWeek1List
 
             // Similarly check for CFP First Round
@@ -4312,14 +4312,18 @@ export default function Dashboard() {
             const cfpQuarterfinalsFromGames = allGames.filter(g => g && (g.isCFPQuarterfinal || g.gameType === GAME_TYPES.CFP_QUARTERFINAL) && Number(g.year) === Number(year))
             const cfpQuarterfinalsLegacy = currentDynasty.cfpResultsByYear?.[year]?.quarterfinals || []
 
-            // Count entered games for Week 2 (8 regular bowls + 4 CFP Quarterfinals = 12 total)
+            // Total Bowl Week 2 slots for THIS dynasty's edition (regular
+            // bowls + 4 CFP Quarterfinals), derived rather than hard-coded —
+            // CFB 27 moved the Music City Bowl up to Week 1.
+            const week2SlotTotal = getWeek2BowlGamesList(currentDynasty).length
+            // Count entered games for Week 2
             const bowlWeek2Games = bowlWeek2FromGames.length > 0 ? bowlWeek2FromGames : bowlWeek2Legacy
             const cfpQuarterfinalGames = cfpQuarterfinalsFromGames.length > 0 ? cfpQuarterfinalsFromGames : cfpQuarterfinalsLegacy
             const enteredBowlWeek2 = bowlWeek2Games.filter(g => g && g.team1Score !== undefined && g.team1Score !== null && g.team2Score !== undefined && g.team2Score !== null).length
             const enteredCFPQuarterfinals = cfpQuarterfinalGames.filter(g => g && g.team1Score !== undefined && g.team1Score !== null && g.team2Score !== undefined && g.team2Score !== null).length
 
             // Check if user's Week 2 bowl/CFP QF is entered but not counted
-            const userBowlIsWeek2Temp = !!userBowlBowlName && (userBowlGameTemp?.bowlWeek === 'week2' || isBowlInWeek2(userBowlBowlName))
+            const userBowlIsWeek2Temp = !!userBowlBowlName && (userBowlGameTemp?.bowlWeek === 'week2' || isBowlInWeek2(userBowlBowlName, currentDynasty))
             const userBowlWeek2NotCounted = userBowlHasScores && userBowlIsWeek2Temp && !bowlWeek2Games.some(g => g.id === userBowlGameTemp?.id)
             const userCFPQFGameTemp = findCurrentTeamGame(currentDynasty, g => (g.isCFPQuarterfinal || g.gameType === GAME_TYPES.CFP_QUARTERFINAL) && isSameYear(g.year, currentDynasty.currentYear))
             const userCFPQFHasScores = userCFPQFGameTemp && userCFPQFGameTemp.team1Score !== undefined && userCFPQFGameTemp.team1Score !== null
@@ -4370,8 +4374,8 @@ export default function Dashboard() {
             // further falling back to the wizard's selectedBowl state for the
             // case where the shell hasn't been created yet (e.g. opponentTid
             // lookup failed or migration hasn't run yet this session).
-            const userHasBowlWeek1Game = !!userBowlGame && (userBowlGame.bowlWeek === 'week1' || isBowlInWeek1(userBowlGame.bowlName || ''))
-            const userHasBowlWeek2Game = !!userBowlGame && (userBowlGame.bowlWeek === 'week2' || isBowlInWeek2(userBowlGame.bowlName || ''))
+            const userHasBowlWeek1Game = !!userBowlGame && (userBowlGame.bowlWeek === 'week1' || isBowlInWeek1(userBowlGame.bowlName || '', currentDynasty))
+            const userHasBowlWeek2Game = !!userBowlGame && (userBowlGame.bowlWeek === 'week2' || isBowlInWeek2(userBowlGame.bowlName || '', currentDynasty))
             // SF + NC equivalents defined later in this IIFE, after the
             // SF/NC game variables are introduced (~line 4326, ~4413).
 
@@ -4964,7 +4968,7 @@ export default function Dashboard() {
                               year: bowlYear,
                               userTid: userTeamTid,
                               opponentTid,
-                              isWeek1: isBowlInWeek1(selectedBowl),
+                              isWeek1: isBowlInWeek1(selectedBowl, currentDynasty),
                             })
                             const shell = updatedGames.find(g =>
                               g && g.isBowlGame && Number(g.year) === Number(bowlYear) &&
@@ -6098,11 +6102,11 @@ export default function Dashboard() {
               if (!isCfb27Auto) {
                 w34Todos.push({
                   key: 'bw2-results',
-                  done: totalEnteredWeek2 >= 13,
+                  done: totalEnteredWeek2 >= week2SlotTotal,
                   title: 'Week 2 Bowl Results',
-                  subtitle: totalEnteredWeek2 === 13
-                    ? 'All 13 games entered'
-                    : `${totalEnteredWeek2}/13 games entered (incl. CFP Quarterfinals)`,
+                  subtitle: totalEnteredWeek2 >= week2SlotTotal
+                    ? `All ${week2SlotTotal} games entered`
+                    : `${totalEnteredWeek2}/${week2SlotTotal} games entered (incl. CFP Quarterfinals)`,
                   onAction: () => setShowBowlWeek2Modal(true),
                   actionLabel: hasBowlWeek2Data ? 'Edit' : 'Enter',
                   viewTo: hasBowlWeek2Data ? `${pathPrefix}/weekly-scores/${year}/18` : null,
