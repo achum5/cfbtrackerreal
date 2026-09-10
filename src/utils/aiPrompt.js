@@ -156,6 +156,48 @@ function formatRosterEntry(p) {
 }
 
 /**
+ * The "whose recruits are these" block for the recruiting commitments prompt.
+ *
+ * A commit list is national: most rows on it belong to other schools, and the
+ * only thing distinguishing them is the logo beside each name. Without being
+ * told which logo is the user's, the model entered recruits who signed
+ * elsewhere — or signed nowhere — as this team's class.
+ *
+ * The blank case is deliberately split by screen, because a blank means
+ * opposite things on the two screens the same prompt has to handle.
+ */
+export function commitmentScopeBlock(team) {
+  return `═══════════════════════════════════════════════════════════
+WHOSE RECRUITS TO ENTER — ${team} ONLY
+═══════════════════════════════════════════════════════════
+This sheet is ${team}'s recruiting class. Every row you output has to
+be a recruit who belongs to ${team}. A commit list shows the whole
+country, so most of what is on screen is somebody else's.
+
+Read the logo (or school name) beside each recruit and decide:
+
+  • ${team}'s logo → they signed with you. OUTPUT the row, with
+    Commitment = the ${team} entry from the TEAM NAMES list.
+  • ANOTHER school's logo → you lost this recruit. DO NOT OUTPUT a row for
+    them, however highly rated they are or however prominently the screen
+    shows them. They are that school's signee, not ${team}'s.
+  • NO logo, on a COMMIT LIST → the recruit signed nowhere. Not yours either.
+    DO NOT OUTPUT a row.
+  • NO logo, on ${team}'s OWN recruiting board / target list → a
+    recruit you are still chasing. OUTPUT the row with Commitment =
+    "Uncommitted".
+
+The last two look alike and are not: a commit list is national, so a blank
+there means the recruit is nobody's; your own board only ever lists recruits
+you are pursuing, so a blank there means the pursuit is still live.
+
+If you cannot tell which screen you are looking at, or whose logo sits on a
+row, leave that recruit out and say so OUTSIDE the data block. A missing row
+is easy for the user to add; another school's signee filed as ${team}'s
+is not.`
+}
+
+/**
  * Build the TARGET SET block — the closed list of players a task covers.
  *
  * Distinct from the roster block below, which is explicitly NOT a whitelist:

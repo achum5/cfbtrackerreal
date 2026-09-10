@@ -20,7 +20,7 @@ import {
   refreshRecruitingSheetPrefill
 } from '../services/sheetsService'
 import { getModalColors } from '../utils/colorUtils'
-import { buildAIPrompt } from '../utils/aiPrompt'
+import { buildAIPrompt, commitmentScopeBlock } from '../utils/aiPrompt'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../utils/recruitAttributes'
 import { normalizeRecruitRows } from '../utils/recruitSheetParse'
 import SheetLoadingHint from './SheetLoadingHint'
@@ -143,6 +143,16 @@ export default function RecruitingCommitmentsModal({
   // Recognized attribute names + their short codes. The AI may use either when
   // filling the single Attributes cell; the app reads them back by name/code.
   const attrNameRef = ATTRIBUTE_COLUMNS.map(n => `${n} (${ATTRIBUTE_ABBR[n] || n})`).join(', ')
+
+  // The user's own team, named in the prompt. A commit screen shows the whole
+  // country, so the model needs to know whose logo counts as "ours" — without
+  // it, recruits who signed elsewhere came back entered as this team's.
+  const userTeamName = useMemo(() => (
+    getTeamNameLabel(currentDynasty?.teams, Number(currentDynasty?.currentTid))
+      || currentDynasty?.teams?.[currentDynasty?.currentTid]?.abbr
+      || currentDynasty?.teamName
+      || 'your team'
+  ), [currentDynasty?.teams, currentDynasty?.currentTid, currentDynasty?.teamName])
   const recruitingPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Recruiting: ${recruitingLabel || ''}`.trim(),
     structure: `This sheet has ONE tab: "Commitments". Row 1 is a PROTECTED header. Output ONLY the NEW rows visible in THIS request's screenshots, pasted BELOW the rows already entered; never re-output existing rows.
@@ -151,6 +161,8 @@ You may get any of these screenshots. Handle each:
   • A RECRUITING BOARD or weekly COMMIT LIST: output each recruit's columns A–P (recruit info + Commitment). Leave the Attributes cell (Q) blank.
   • A recruit's PLAYER PAGE "Attributes" tab: output that ONE recruit's row, columns A–P PLUS the single Attributes cell (Q) filled from the tab.
 Attributes appear ONLY on the player-page Attributes tab, never on the board. If you only have the board, the Attributes cell stays blank (not every recruit is scouted, and that is expected).
+
+${commitmentScopeBlock(userTeamName)}
 
 ═══════════════════════════════════════════════════════════
 USE CODE EXECUTION (MANDATORY)
@@ -228,7 +240,7 @@ COLUMNS A–P
  K Hometown   | text           L State | 2-letter code        M Gem/Bust | Gem, Bust, or blank
  N Dev Trait  | Elite, Star, Impact, Normal, Hidden (Hidden = trait not yet revealed; do not guess — use Hidden when trait is unknown)
  O Prev Team  | team ABBR (transfers only; blank for HS/JUCO or unknown)
- P Commitment | "Uncommitted" if uncommitted/still being recruited; otherwise the team NAME they committed to (use YOUR team's name if they committed to you). Use ONLY team names from the TEAM NAMES list below.
+ P Commitment | "${userTeamName}" for a recruit who signed with you, or "Uncommitted" for one you are still pursuing on your own board. Those are the only two values — a recruit who committed ELSEWHERE gets no row at all (see "WHOSE RECRUITS TO ENTER" above). Use the ${userTeamName} entry exactly as it appears in the TEAM NAMES list below.
 
 ═══════════════════════════════════════════════════════════
 ENUMERATED DROPDOWN VALUES (use EXACTLY — case-sensitive)
@@ -277,12 +289,13 @@ FINAL CHECK
 [ ] Built via csv.writer (or a length-17 asserted list) so EVERY row has exactly 17 fields = 16 tabs — no column-shift
 [ ] No header row; no commas in numbers; Stars use ☆ symbols
 [ ] B/C/D/E/I/L/M/N/O/P are literal dropdown values
-[ ] Column P is "Uncommitted" or a team name
+[ ] Column P is "${userTeamName}" or "Uncommitted" — no other school appears in it
+[ ] No row belongs to a recruit who signed with another school, or with nobody
 [ ] The Q cell holds ONLY "<name> <rating>" pairs where a NUMBER was shown (bar-only attributes omitted); blank when not scouted; pid/NIL never output`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
-    notes: 'Column P (Commitment): "Uncommitted" for uncommitted recruits you are still pursuing, otherwise the team abbreviation the recruit committed to (your own team\'s abbr if they committed to you). The single Attributes cell (Q) is filled ONLY from a recruit\'s player-page "Attributes" tab, never from the recruiting board — leave it blank if the recruit has not been scouted.',
-  }), [currentYear, recruitingLabel, currentDynasty?.teams, startRow, prefillRecruits])
+    notes: `Column P (Commitment): "${userTeamName}" for a recruit who signed with ${userTeamName}, "Uncommitted" for one still being pursued on ${userTeamName}'s own board. A recruit who committed to any OTHER school is left out of the output entirely. The single Attributes cell (Q) is filled ONLY from a recruit's player-page "Attributes" tab, never from the recruiting board — leave it blank if the recruit has not been scouted.`,
+  }), [currentYear, recruitingLabel, currentDynasty?.teams, startRow, prefillRecruits, userTeamName])
 
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
