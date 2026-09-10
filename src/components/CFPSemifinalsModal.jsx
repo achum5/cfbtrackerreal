@@ -1,69 +1,20 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useDynasty, getGamesByType, GAME_TYPES } from '../context/DynastyContext'
-import { teamAbbreviations } from '../data/teamAbbreviations'
-import { getTeamLogo, stripMascotFromName } from '../data/teams'
-import { getBowlLogo } from '../data/bowlGames'
-import { TEAMS, getGameTeamInfo, getTeamNameLabel } from '../data/teamRegistry'
-import { getModalColors, getContrastTextColor } from '../utils/colorUtils'
+import { TEAMS, getGameTeamInfo, getTeamNameLabel, getTeamNameOptions, getTeamNameAliases } from '../data/teamRegistry'
+import { getTidFromTeamText } from '../data/teams'
 import { useToast } from './ui/Toast'
 import { DEFAULT_BOWL_CONFIG } from '../data/cfpConstants'
+import SheetModalHeader from './ui/SheetModalHeader'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { buildAIPrompt } from '../utils/aiPrompt'
+import { splitTsv } from '../utils/tsvParse'
 
-// Map abbreviations to mascot names for logo lookup
-const mascotMap = {
-  'AFA': 'Air Force Falcons', 'AKR': 'Akron Zips', 'APP': 'Appalachian State Mountaineers',
-  'ARIZ': 'Arizona Wildcats', 'ARK': 'Arkansas Razorbacks', 'ARMY': 'Army Black Knights',
-  'ARST': 'Arkansas State Red Wolves', 'ASU': 'Arizona State Sun Devils', 'AUB': 'Auburn Tigers',
-  'BALL': 'Ball State Cardinals', 'BAMA': 'Alabama Crimson Tide', 'BC': 'Boston College Eagles',
-  'BGSU': 'Bowling Green Falcons', 'BOIS': 'Boise State Broncos', 'BU': 'Baylor Bears',
-  'BUFF': 'Buffalo Bulls', 'BYU': 'Brigham Young Cougars', 'CAL': 'California Golden Bears',
-  'CCU': 'Coastal Carolina Chanticleers', 'CHAR': 'Charlotte 49ers', 'CLEM': 'Clemson Tigers',
-  'CMU': 'Central Michigan Chippewas', 'COLO': 'Colorado Buffaloes', 'CONN': 'Connecticut Huskies',
-  'CSU': 'Colorado State Rams', 'DUKE': 'Duke Blue Devils', 'ECU': 'East Carolina Pirates',
-  'EMU': 'Eastern Michigan Eagles', 'FIU': 'Florida International Panthers', 'FSU': 'Florida State Seminoles',
-  'FAU': 'Florida Atlantic Owls', 'FRES': 'Fresno State Bulldogs', 'UF': 'Florida Gators',
-  'GASO': 'Georgia Southern Eagles', 'GAST': 'Georgia State Panthers', 'GT': 'Georgia Tech Yellow Jackets',
-  'UGA': 'Georgia Bulldogs', 'HAW': 'Hawaii Rainbow Warriors', 'HOU': 'Houston Cougars',
-  'ILL': 'Illinois Fighting Illini', 'IU': 'Indiana Hoosiers', 'IOWA': 'Iowa Hawkeyes',
-  'ISU': 'Iowa State Cyclones', 'JKST': 'Jacksonville State Gamecocks', 'JMU': 'James Madison Dukes',
-  'KU': 'Kansas Jayhawks', 'KSU': 'Kansas State Wildcats', 'KENT': 'Kent State Golden Flashes',
-  'UK': 'Kentucky Wildcats', 'LIB': 'Liberty Flames', 'ULL': 'Louisiana Ragin\' Cajuns',
-  'LT': 'Louisiana Tech Bulldogs', 'LOU': 'Louisville Cardinals', 'LSU': 'LSU Tigers',
-  'UM': 'Miami Hurricanes', 'M-OH': 'Miami Redhawks', 'UMD': 'Maryland Terrapins',
-  'MASS': 'Massachusetts Minutemen', 'MEM': 'Memphis Tigers', 'MICH': 'Michigan Wolverines',
-  'MSU': 'Michigan State Spartans', 'MTSU': 'Middle Tennessee State Blue Raiders',
-  'MINN': 'Minnesota Golden Gophers', 'MISS': 'Ole Miss Rebels', 'MSST': 'Mississippi State Bulldogs',
-  'MZST': 'Missouri State Bears', 'MRSH': 'Marshall Thundering Herd', 'NAVY': 'Navy Midshipmen',
-  'NEB': 'Nebraska Cornhuskers', 'NEV': 'Nevada Wolf Pack', 'UNM': 'New Mexico Lobos',
-  'NMSU': 'New Mexico State Aggies', 'UNC': 'North Carolina Tar Heels', 'NCST': 'North Carolina State Wolfpack',
-  'UNT': 'North Texas Mean Green', 'NU': 'Northwestern Wildcats', 'ND': 'Notre Dame Fighting Irish',
-  'NIU': 'Northern Illinois Huskies', 'OHIO': 'Ohio Bobcats', 'OSU': 'Ohio State Buckeyes',
-  'OKLA': 'Oklahoma Sooners', 'OKST': 'Oklahoma State Cowboys', 'ODU': 'Old Dominion Monarchs',
-  'ORE': 'Oregon Ducks', 'ORST': 'Oregon State Beavers', 'PSU': 'Penn State Nittany Lions',
-  'PITT': 'Pittsburgh Panthers', 'PUR': 'Purdue Boilermakers', 'RICE': 'Rice Owls',
-  'RUT': 'Rutgers Scarlet Knights', 'SDSU': 'San Diego State Aztecs', 'SJSU': 'San Jose State Spartans',
-  'SAM': 'Sam Houston State Bearkats', 'USF': 'South Florida Bulls', 'SMU': 'SMU Mustangs',
-  'USC': 'USC Trojans', 'SCAR': 'South Carolina Gamecocks', 'STAN': 'Stanford Cardinal',
-  'SYR': 'Syracuse Orange', 'TCU': 'TCU Horned Frogs', 'TEM': 'Temple Owls',
-  'TENN': 'Tennessee Volunteers', 'TEX': 'Texas Longhorns', 'TAMU': 'Texas A&M Aggies', 'TXAM': 'Texas A&M Aggies',
-  'TXST': 'Texas State Bobcats', 'TXTECH': 'Texas Tech Red Raiders', 'TOL': 'Toledo Rockets',
-  'TROY': 'Troy Trojans', 'TUL': 'Tulane Green Wave', 'TLSA': 'Tulsa Golden Hurricane',
-  'UAB': 'UAB Blazers', 'UCF': 'UCF Knights', 'UCLA': 'UCLA Bruins', 'UNLV': 'UNLV Rebels',
-  'UTEP': 'UTEP Miners', 'USA': 'South Alabama Jaguars', 'USU': 'Utah State Aggies',
-  'UTAH': 'Utah Utes', 'UTSA': 'UTSA Roadrunners', 'VAN': 'Vanderbilt Commodores',
-  'UVA': 'Virginia Cavaliers', 'VT': 'Virginia Tech Hokies', 'WAKE': 'Wake Forest Demon Deacons',
-  'WASH': 'Washington Huskies', 'WSU': 'Washington State Cougars', 'WVU': 'West Virginia Mountaineers',
-  'WMU': 'Western Michigan Broncos', 'WKU': 'Western Kentucky Hilltoppers', 'WIS': 'Wisconsin Badgers',
-  'WYO': 'Wyoming Cowboys', 'DEL': 'Delaware Fightin\' Blue Hens', 'FLA': 'Florida Gators',
-  'KENN': 'Kennesaw State Owls', 'ULM': 'UL Monroe Warhawks', 'UC': 'Cincinnati Bearcats',
-  'MIA': 'Miami Hurricanes', 'MIZ': 'Missouri Tigers', 'OU': 'Oklahoma Sooners', 'GSU': 'Georgia State Panthers',
-  'USM': 'Southern Mississippi Golden Eagles', 'RUTG': 'Rutgers Scarlet Knights', 'SHSU': 'Sam Houston State Bearkats',
-  'TTU': 'Texas Tech Red Raiders', 'TULN': 'Tulane Green Wave', 'UH': 'Houston Cougars',
-  'UL': 'Louisiana Ragin\' Cajuns', 'UT': 'Tennessee Volunteers',
-  // FCS teams
-  'FCSE': 'FCS East Sentinels', 'FCSM': 'FCS Midwest Thunderbirds',
-  'FCSN': 'FCS Northwest Kodiaks', 'FCSW': 'FCS West Rivertoads'
-}
+// CFP Semifinals results — the same Copy prompt → Open your AI → Paste grid
+// flow every other results modal uses (see CFPQuarterfinalsModal). The two
+// matchups are derived from the quarterfinal winners and pre-filled into a
+// fixed two-row grid (one row per semifinal bowl), so the user only fills in
+// the scores — by pasting the AI's lines or typing straight into the grid.
 
 // Semifinal structure - USE SLOT IDs for QF lookup (bowl names are configurable!)
 // SF1 (cfpsf1): cfpqf1 winner vs cfpqf2 winner (1/4 bracket side)
@@ -88,56 +39,22 @@ const SEMIFINAL_STRUCTURE = [
   }
 ]
 
+const SF_COLUMNS = ['Team 1', 'Team 2', 'Team 1 Score', 'Team 2 Score', 'Winner']
+
 export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYear, teamColors, userTeamAbbr }) {
   const { currentDynasty } = useDynasty()
   const { toast } = useToast()
   const [games, setGames] = useState([])
   const [saving, setSaving] = useState(false)
-  const [userGameIndex, setUserGameIndex] = useState(-1) // Index of user's game (if any)
-  const modalColors = useMemo(() => getModalColors(teamColors), [teamColors])
-
-  // Bowl host assignments are entered upstream in the Bowl Week 2 Results
-  // modal (during Bowl Week 3). Read-only here.
-  const bowlConfig = useMemo(() => {
-    const saved = currentDynasty?.cfpBowlConfigByYear?.[currentYear] || {}
-    return {
-      sf1: saved.sf1 || DEFAULT_BOWL_CONFIG.sf1,
-      sf2: saved.sf2 || DEFAULT_BOWL_CONFIG.sf2,
-    }
-  }, [currentYear, currentDynasty?.cfpBowlConfigByYear])
+  // teamColors is accepted for API parity with the other results modals; the
+  // shared entry shell is neutral, like the quarterfinals modal.
+  void teamColors
 
   // Get seed by tid
   const getSeedByTid = (tid) => {
     const cfpSeeds = currentDynasty?.cfpSeedsByYear?.[currentYear] || []
     const seedEntry = cfpSeeds.find(s => s.tid === tid)
     return seedEntry?.seed || null
-  }
-
-  // Get team info for display (accepts tid or abbr for backward compatibility)
-  const getTeamInfoByTid = (tid) => {
-    if (!tid) return null
-    const teams = currentDynasty?.teams || TEAMS
-    const teamData = getGameTeamInfo(teams, tid)
-    if (!teamData) return null
-
-    const abbr = teamData.abbr
-    const mascotName = teamData.name || mascotMap[abbr]
-    const logo = teamData.logo || (mascotName ? getTeamLogo(mascotName, teams) : null)
-
-    // Extract just the school name (remove mascot suffix). Delegates
-    // to the shared helper so the known-mascot list stays in one place.
-    const getSchoolName = (fullName) => stripMascotFromName(fullName) || abbr
-
-    return {
-      abbr,
-      tid,
-      name: getSchoolName(mascotName) || teamData?.name || abbr,
-      fullMascot: mascotName,
-      backgroundColor: teamData?.primaryColor || teamAbbreviations[abbr]?.backgroundColor || '#4B5563',
-      textColor: teamData?.secondaryColor || teamAbbreviations[abbr]?.textColor || '#FFFFFF',
-      logo,
-      seed: getSeedByTid(tid)
-    }
   }
 
   // Initialize games with auto-filled teams from quarterfinal results
@@ -472,57 +389,133 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
         }
       })
 
-      // Track which game index is the user's
-      const userIdx = initialGames.findIndex(g => g.userGame)
-      setUserGameIndex(userIdx)
-
       setGames(initialGames)
     }
   }, [isOpen, currentYear, currentDynasty, userTeamAbbr])
 
-  const handleScoreChange = (gameIndex, field, value) => {
-    const updatedGames = [...games]
-    updatedGames[gameIndex] = {
-      ...updatedGames[gameIndex],
-      [field]: value
-    }
-    setGames(updatedGames)
-  }
+  const teams = currentDynasty?.teams || TEAMS
+  // Team-name options for the grid's team cells — same label builder the
+  // pre-fill uses, so a pre-filled cell matches an option.
+  const teamNameOptions = useMemo(() => getTeamNameOptions(currentDynasty?.teams, { includeFCS: false }), [currentDynasty?.teams])
+  const comboboxColumns = useMemo(() => ({ 'Team 1': teamNameOptions, 'Team 2': teamNameOptions, 'Winner': teamNameOptions }), [teamNameOptions])
 
-  const handleSave = async () => {
-    // Check if user's game is pending (not yet played)
-    const userPendingGame = games.find(g => g.userGame && g.userGamePending)
-    if (userPendingGame) {
+  const labelFor = (tid, abbr) => (tid != null ? (getTeamNameLabel(teams, tid) || getGameTeamInfo(teams, tid)?.abbr) : null) || abbr || ''
+  const rowLabels = useMemo(() => games.map(g => g.bowlName), [games])
+
+  // Pre-fill: one index-led row per semifinal (the grid is labeled by bowl,
+  // so LocalDataEntry keys rows by index, not line position).
+  const initialText = useMemo(() => games.map((g, i) => {
+    const t1 = labelFor(g.team1Tid, g.team1)
+    const t2 = labelFor(g.team2Tid, g.team2)
+    const s1 = g.team1Score === '' || g.team1Score == null ? '' : String(g.team1Score)
+    const s2 = g.team2Score === '' || g.team2Score == null ? '' : String(g.team2Score)
+    const winner = s1 !== '' && s2 !== '' ? (Number(s1) > Number(s2) ? t1 : t2) : ''
+    return [i, t1, t2, s1, s2, winner].join('\t')
+  }).join('\n'), [games, teams])
+
+  const localAiPrompt = useMemo(() => {
+    const matchups = games.map((g, i) => {
+      const t1 = labelFor(g.team1Tid, g.team1) || 'TBD'
+      const t2 = labelFor(g.team2Tid, g.team2) || 'TBD'
+      return `  Line ${i + 1} — ${g.bowlName}: ${t1} vs ${t2}${g.userGame ? '  (your game — already entered through the game editor; leave its scores as shown)' : ''}`
+    }).join('\n')
+    return buildAIPrompt({
+      title: `${currentYear} CFP Semifinals Results`,
+      structure: `Output EXACTLY ${games.length} lines, ONE per semifinal, in this FIXED order (line N is that semifinal — there is NO bowl-name column and NO other identifier):
+${matchups}
+
+═══════════════════════════════════════════════════════════
+CRITICAL RULES — read before anything else
+═══════════════════════════════════════════════════════════
+1. Each line has EXACTLY 5 tab-separated fields: Team1<TAB>Team2<TAB>Team1Score<TAB>Team2Score<TAB>Winner.
+2. NO header row. NO blank lines. NO bowl name. NO commentary, totals, or labels INSIDE the data.
+3. ROW ORDER IS FIXED — line 1 is the first semifinal listed above, line 2 the second. Never reorder, never add or drop a line.
+4. Team1 and Team2 are the teams listed above for that line, as team names from the list at the bottom — NEVER an abbreviation, nickname, mascot, or city. Keep them in the order shown.
+5. Team1Score / Team2Score are integers. No commas, no decimals, no "pts".
+6. Winner = whichever of Team1 / Team2 has the HIGHER score. If the game hasn't been played or the score isn't visible, leave Team1Score, Team2Score and Winner BLANK (still keep all 5 fields / 4 tabs) — never guess.
+
+═══════════════════════════════════════════════════════════
+REQUIRED OUTPUT FORMAT
+═══════════════════════════════════════════════════════════
+=== CFP SEMIFINALS ===
+<Team1>\\t<Team2>\\t<Team1Score>\\t<Team2Score>\\t<Winner>
+<Team1>\\t<Team2>\\t<Team1Score>\\t<Team2Score>\\t<Winner>
+
+(Each \\t above represents a LITERAL TAB character — use actual tab characters, not the text "\\t".)
+
+═══════════════════════════════════════════════════════════
+FINAL CHECK before you send
+═══════════════════════════════════════════════════════════
+[ ] Exactly ${games.length} lines, in the order listed above
+[ ] Every line has exactly 5 tab-separated fields (four tabs)
+[ ] Team names are from the list — no abbreviations
+[ ] Scores are integers; Winner matches the higher score (or all three blank if unplayed)`,
+      includeTeamMap: true,
+      dynastyTeams: currentDynasty?.teams,
+    })
+  }, [games, currentYear, currentDynasty?.teams, teams])
+
+  // Grid rows arrive index-led ("<i>\tTeam1\tTeam2\tS1\tS2\tWinner"). A row
+  // with both scores updates that semifinal; a row without scores leaves it
+  // unchanged (same "omit = untouched" rule as the quarterfinals). The user's
+  // own game keeps the values it was opened with — it is entered through the
+  // game editor, exactly as before this modal used the shared flow.
+  const handleLocalImport = async (text) => {
+    const rows = splitTsv(text)
+    const byIndex = new Map()
+    for (const cells of rows) {
+      const i = Number(cells[0])
+      if (Number.isInteger(i) && i >= 0 && i < games.length) byIndex.set(i, cells.slice(1))
+    }
+
+    const userPending = games.find(g => g.userGame && g.userGamePending)
+    if (userPending) {
       toast.error('Please play and enter your semifinal game first before saving results.')
       return
     }
 
-    // Validate all games have scores
-    const allComplete = games.every(g =>
-      g.team1 && g.team2 && g.team1Score !== '' && g.team2Score !== ''
-    )
+    const resolveTeam = (textValue, fallbackTid, fallbackAbbr) => {
+      const t = String(textValue || '').trim()
+      if (!t) return { tid: fallbackTid ?? null, abbr: fallbackAbbr || '' }
+      const tid = getTidFromTeamText(t, teams)
+      if (tid != null) return { tid: Number(tid), abbr: getGameTeamInfo(teams, tid)?.abbr || t }
+      return { tid: fallbackTid ?? null, abbr: fallbackAbbr || t }
+    }
 
-    if (!allComplete) {
-      toast.error('Please enter scores for all games')
+    const processed = []
+    games.forEach((game, i) => {
+      if (game.userGame) {
+        const s1 = parseInt(game.team1Score, 10); const s2 = parseInt(game.team2Score, 10)
+        if (!Number.isFinite(s1) || !Number.isFinite(s2)) return
+        processed.push({ ...game, team1Score: s1, team2Score: s2, winner: s1 > s2 ? game.team1 : game.team2, seed1: getSeedByTid(game.team1Tid), seed2: getSeedByTid(game.team2Tid) })
+        return
+      }
+      const cells = byIndex.get(i)
+      if (!cells) return
+      const [t1Text, t2Text, s1Text, s2Text] = cells
+      const s1 = parseInt(String(s1Text ?? '').trim(), 10)
+      const s2 = parseInt(String(s2Text ?? '').trim(), 10)
+      if (!Number.isFinite(s1) || !Number.isFinite(s2)) return
+      const t1 = resolveTeam(t1Text, game.team1Tid, game.team1)
+      const t2 = resolveTeam(t2Text, game.team2Tid, game.team2)
+      if (!t1.abbr || !t2.abbr) return
+      processed.push({
+        ...game,
+        team1: t1.abbr, team2: t2.abbr, team1Tid: t1.tid, team2Tid: t2.tid,
+        team1Score: s1, team2Score: s2,
+        winner: s1 > s2 ? t1.abbr : t2.abbr,
+        seed1: getSeedByTid(t1.tid), seed2: getSeedByTid(t2.tid),
+      })
+    })
+
+    if (processed.length === 0) {
+      toast.error('No semifinal scores to import — fill in both scores for at least one game.')
       return
     }
 
     setSaving(true)
     try {
-      const processedGames = games.map(game => {
-        const s1 = parseInt(game.team1Score, 10)
-        const s2 = parseInt(game.team2Score, 10)
-        return {
-          ...game,
-          team1Score: s1,
-          team2Score: s2,
-          winner: s1 > s2 ? game.team1 : game.team2,
-          seed1: getSeedByTid(game.team1Tid),
-          seed2: getSeedByTid(game.team2Tid),
-        }
-      })
-
-      await onSave(processedGames)
+      await onSave(processed)
       onClose()
     } catch (error) {
       console.error('Error saving CFP Semifinals results:', error)
@@ -534,338 +527,36 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
 
   if (!isOpen) return null
 
-  // Neutral CFP gold — this modal isn't about any one team, so we don't tint
-  // it with the user's primary color. Team cards below still use real team
-  // colors for their left rails (those ARE about the teams).
-  const accent = '#c9a227'
-
   return createPortal(
     <div
-      className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-70 flex items-center justify-center z-[9999] p-3 sm:p-4 modal-backdrop-in"
+      className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-70 flex items-center justify-center z-[9999] py-8 px-4 sm:p-4 modal-backdrop-in"
       style={{ margin: 0 }}
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose?.() }}
+      onMouseDown={onClose}
     >
       <div
-        className="w-full max-w-3xl card-elevated flex flex-col max-h-[90dvh] overflow-hidden modal-panel-in"
-        role="dialog"
-        aria-modal="true"
-        aria-label="CFP Semifinals"
+        className="card-elevated w-full max-h-[calc(100dvh-4rem)] flex flex-col overflow-hidden sm:max-w-[680px] sm:h-auto"
+        onMouseDown={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <header className="px-5 sm:px-6 py-4 sm:py-5 border-b border-surface-4 flex items-start justify-between flex-shrink-0">
-          <div>
-            <div
-              className="text-txt-tertiary"
-              style={{ fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 600 }}
-            >
-              {currentYear} College Football Playoff
-            </div>
-            <h2 className="font-display text-txt-primary m-0 mt-1" style={{ fontSize: 'clamp(1.25rem, 3vw, 1.75rem)', fontWeight: 900, letterSpacing: '-0.02em' }}>
-              Semifinals
-            </h2>
-          </div>
-          <button
-            aria-label="Close"
-            onClick={onClose}
-            className="p-1.5 rounded-md text-txt-tertiary hover:text-txt-primary hover:bg-surface-3 transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </header>
+        <SheetModalHeader eyebrow="College Football Playoff" title={`${currentYear} CFP Semifinals`} onClose={onClose} />
 
-        {/* Games */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-5 stagger-reveal">
-          {/* When the user's SF game has already been entered (via GameEdit
-              during Bowl Week 3), it stays in the games[] state — so the
-              save round-trip preserves it — but it's hidden from the entry
-              list below. The point of opening this modal in Champ Week is
-              to fill in the OTHER semifinal; showing the entered one as
-              a locked card just makes the modal feel cluttered. The note
-              right above the list keeps the context visible. */}
-          {(() => {
-            const lockedUserSF = games.find(g => g.userGame && !g.userGamePending && g.team1Score !== '' && g.team2Score !== '')
-            if (!lockedUserSF) return null
-            const t1Abbr = getTeamInfoByTid(lockedUserSF.team1Tid)?.abbr || lockedUserSF.team1
-            const t2Abbr = getTeamInfoByTid(lockedUserSF.team2Tid)?.abbr || lockedUserSF.team2
-            return (
-              <div
-                className="rounded-lg border border-surface-4 bg-surface-2 px-4 py-3 flex items-center gap-3"
-                role="status"
-              >
-                <span
-                  aria-hidden="true"
-                  className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: 'var(--accent-success)' }}
-                />
-                <div className="flex-1 min-w-0">
-                  <div
-                    className="text-txt-tertiary"
-                    style={{ fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700 }}
-                  >
-                    Your Semifinal: Already Entered
-                  </div>
-                  <div className="text-sm text-txt-primary truncate">
-                    {lockedUserSF.bowlName}: {t1Abbr} {lockedUserSF.team1Score}–{lockedUserSF.team2Score} {t2Abbr}
-                  </div>
-                </div>
-              </div>
-            )
-          })()}
-          {games.filter(g => !(g.userGame && !g.userGamePending && g.team1Score !== '' && g.team2Score !== '')).map((game) => {
-            // `index` for handleScoreChange needs to point into the unfiltered
-            // `games` array — re-resolve from id rather than using map's index,
-            // which would be wrong once any games are filtered out above.
-            const index = games.findIndex(g => g.id === game.id)
-            const team1Info = getTeamInfoByTid(game.team1Tid)
-            const team2Info = getTeamInfoByTid(game.team2Tid)
-            const sfStruct = SEMIFINAL_STRUCTURE.find(s => s.id === game.id || s.slotId === game.cfpSlot)
-            const configKey = sfStruct?.configKey
-            const selectedBowl = configKey
-              ? (bowlConfig[configKey] || DEFAULT_BOWL_CONFIG[configKey])
-              : game.bowlName
-            const bowlLogo = getBowlLogo(selectedBowl)
-
-            return (
-              <div
-                key={game.id}
-                className="rounded-lg overflow-hidden border border-surface-4 bg-surface-2"
-              >
-                {/* Bowl row */}
-                <div className="px-4 py-3 flex items-center gap-3 border-b border-surface-4 bg-surface-3">
-                  {bowlLogo && (
-                    <div className="w-8 h-8 bg-white rounded p-1 flex items-center justify-center flex-shrink-0">
-                      <img src={bowlLogo} alt={selectedBowl} className="w-full h-full object-contain" />
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div
-                      className="text-txt-tertiary"
-                      style={{ fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 600 }}
-                    >
-                      Semifinal
-                    </div>
-                    <h3 className="text-sm sm:text-base font-semibold text-txt-primary truncate">
-                      {selectedBowl}
-                    </h3>
-                  </div>
-                  {game.userGame && (
-                    <span
-                      className="px-2.5 py-1 rounded border"
-                      style={{
-                        fontSize: '9px',
-                        letterSpacing: '2px',
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        color: game.userGamePending ? '#fbbf24' : accent,
-                        borderColor: game.userGamePending ? 'rgba(251, 191, 36, 0.4)' : accent,
-                        backgroundColor: game.userGamePending ? 'rgba(251, 191, 36, 0.08)' : 'transparent',
-                      }}
-                    >
-                      {game.userGamePending ? 'Pending' : 'Your Game'}
-                    </span>
-                  )}
-                </div>
-
-                {/* Teams + Scores */}
-                <div className="p-4 sm:p-5">
-                  <div className="flex flex-col sm:flex-row sm:items-stretch gap-3 sm:gap-4">
-                    {/* Team 1 */}
-                    <TeamCard info={team1Info} side="left" qfLabel={game.qfBowl1} />
-
-                    {/* Scores (desktop) */}
-                    <div className="hidden sm:flex items-center justify-center gap-3 px-1 min-w-[180px]">
-                      {game.userGame && game.userGamePending ? (
-                        <div className="text-center px-3 py-2 rounded border border-amber-500/40 bg-amber-500/5">
-                          <div
-                            className="text-amber-400"
-                            style={{ fontSize: '9px', letterSpacing: '2px', fontWeight: 700, textTransform: 'uppercase' }}
-                          >
-                            Enter via Game Entry
-                          </div>
-                          <div className="text-xs text-txt-tertiary mt-1">Play this game first</div>
-                        </div>
-                      ) : game.userGame ? (
-                        <>
-                          <ScoreDisplay value={game.team1Score} />
-                          <Dash />
-                          <ScoreDisplay value={game.team2Score} />
-                        </>
-                      ) : (
-                        <>
-                          <ScoreInput
-                            value={game.team1Score}
-                            onChange={(v) => handleScoreChange(index, 'team1Score', v)}
-                            disabled={!game.team1}
-                            accent={accent}
-                          />
-                          <Dash />
-                          <ScoreInput
-                            value={game.team2Score}
-                            onChange={(v) => handleScoreChange(index, 'team2Score', v)}
-                            disabled={!game.team2}
-                            accent={accent}
-                          />
-                        </>
-                      )}
-                    </div>
-
-                    {/* Team 2 */}
-                    <TeamCard info={team2Info} side="right" qfLabel={game.qfBowl2} />
-                  </div>
-
-                  {/* Mobile score entry */}
-                  {!game.userGame && (
-                    <div className="flex sm:hidden items-center justify-center gap-3 mt-4">
-                      <ScoreInput
-                        value={game.team1Score}
-                        onChange={(v) => handleScoreChange(index, 'team1Score', v)}
-                        disabled={!game.team1}
-                        accent={accent}
-                        small
-                      />
-                      <Dash />
-                      <ScoreInput
-                        value={game.team2Score}
-                        onChange={(v) => handleScoreChange(index, 'team2Score', v)}
-                        disabled={!game.team2}
-                        accent={accent}
-                        small
-                      />
-                    </div>
-                  )}
-                  {game.userGame && !game.userGamePending && (
-                    <div className="flex sm:hidden items-center justify-center gap-3 mt-4">
-                      <ScoreDisplay value={game.team1Score} small />
-                      <Dash />
-                      <ScoreDisplay value={game.team2Score} small />
-                    </div>
-                  )}
-                  {game.userGame && game.userGamePending && (
-                    <div className="flex sm:hidden justify-center mt-3">
-                      <div className="px-3 py-2 rounded border border-amber-500/40 bg-amber-500/5">
-                        <div
-                          className="text-amber-400"
-                          style={{ fontSize: '9px', letterSpacing: '2px', fontWeight: 700, textTransform: 'uppercase' }}
-                        >
-                          Enter via Game Entry
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
+        <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
+          <LocalDataEntry
+            aiPrompt={localAiPrompt}
+            onImport={handleLocalImport}
+            onCancel={onClose}
+            importLabel="Import CFP Semifinals"
+            busy={saving}
+            initialText={initialText}
+            rowLabels={rowLabels}
+            rowLabelHeader="Semifinal"
+            columns={SF_COLUMNS}
+            comboboxColumns={comboboxColumns}
+            comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
+            instructions="Screenshot the CFP semifinal results. Both matchups are already filled in below from the quarterfinal winners — the AI (or you, straight in the grid) only needs the scores."
+          />
         </div>
-
-        {/* Footer */}
-        <footer className="px-5 sm:px-6 py-4 border-t border-surface-4 flex items-center justify-end gap-3 flex-shrink-0 bg-surface-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-md text-sm font-semibold text-txt-secondary hover:text-txt-primary hover:bg-surface-3 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving || games.some(g => !g.team1 || !g.team2)}
-            className="px-5 py-2 rounded-md text-sm font-semibold transition-all disabled:opacity-40"
-            style={{
-              backgroundColor: accent,
-              color: '#0b0b10',
-            }}
-          >
-            {saving ? 'Saving…' : 'Save Results'}
-          </button>
-        </footer>
       </div>
     </div>,
     document.body
   )
-}
-
-// --- Local presentational helpers ---
-
-function TeamCard({ info, side, qfLabel }) {
-  const reverse = side === 'right'
-  if (!info) {
-    return (
-      <div className="sm:flex-1 rounded-md border border-dashed border-surface-4 bg-surface-3 px-3 py-4 flex flex-col items-center justify-center text-center">
-        <span className="font-display text-base font-bold text-txt-tertiary tracking-tight">TBD</span>
-        <p
-          className="mt-1 text-txt-muted"
-          style={{ fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 600 }}
-        >
-          Awaiting {qfLabel || 'QF'} result
-        </p>
-      </div>
-    )
-  }
-  // CFB-27 solid team-color panel (broadcast scorebug): true team color +
-  // gradient sheen + grain, white-circle logo, contrast-aware text (light teams
-  // borrow their secondary for the label instead of pure black).
-  const bg = info.backgroundColor
-  const txt = getContrastTextColor(bg, info.textColor)
-  return (
-    <div
-      className={`sm:flex-1 relative rounded-lg overflow-hidden cfb-texture flex items-center gap-3 px-3.5 py-3.5 ${reverse ? 'sm:flex-row-reverse sm:text-right' : ''}`}
-      style={{
-        backgroundColor: bg,
-        backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.40) 100%)',
-        border: '1px solid rgba(0,0,0,0.28)',
-      }}
-    >
-      {info.logo && (
-        <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-full p-1.5 flex items-center justify-center flex-shrink-0 shadow-md">
-          <img src={info.logo} alt={info.fullMascot} className="w-full h-full object-contain" />
-        </div>
-      )}
-      <div className={`flex-1 min-w-0 ${reverse ? 'sm:text-right' : ''}`}>
-        <div style={{ fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: 800, color: txt, opacity: 0.82 }}>
-          #{info.seed || '–'} Seed
-        </div>
-        <div className="font-display font-extrabold text-base sm:text-lg truncate leading-tight" style={{ color: txt, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
-          {info.name}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ScoreInput({ value, onChange, disabled, accent, small }) {
-  const size = small ? 'w-14 h-12 text-xl' : 'w-16 h-16 text-2xl'
-  return (
-    <input
-      type="number"
-      min="0"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={disabled}
-      placeholder="0"
-      className={`${size} text-center font-display font-black rounded-md bg-surface-3 border border-surface-4 text-txt-primary focus:outline-none focus:ring-2 transition-all disabled:opacity-30`}
-      style={{
-        fontVariantNumeric: 'tabular-nums',
-        letterSpacing: '-0.02em',
-        '--tw-ring-color': accent,
-      }}
-    />
-  )
-}
-
-function ScoreDisplay({ value, small }) {
-  const size = small ? 'w-14 h-12 text-xl' : 'w-16 h-16 text-2xl'
-  return (
-    <div
-      className={`${size} flex items-center justify-center font-display font-black rounded-md bg-surface-3 border border-surface-4 text-txt-primary`}
-      style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}
-    >
-      {value !== '' && value !== null && value !== undefined ? value : '–'}
-    </div>
-  )
-}
-
-function Dash() {
-  return <div className="text-txt-tertiary text-lg font-light px-1 select-none">–</div>
 }
