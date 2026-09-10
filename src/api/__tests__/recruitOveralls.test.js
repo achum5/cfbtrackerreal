@@ -40,6 +40,40 @@ describe('buildRecruitOverallsAttributesSave', () => {
     expect(p.attributesByYear[2028]).toEqual({ SPD: 88 })
     expect(updates.players.find(x => x.pid === 2)).toBe(dynasty.players[1])
   })
+
+  // The Signing Day to-do reads recruitOverallsByYear to decide whether
+  // Incoming Freshmen Overalls is done, so the Full Attributes path has to
+  // write it too or the task never goes green.
+  it('records the same completion ledger the overall-only path writes', () => {
+    const { updates, year } = buildRecruitOverallsAttributesSave(dynasty, [
+      { playerName: 'Signee', position: 'WR', overall: 66, attributes: { SPD: 88 } },
+    ])
+    expect(year).toBe(2027)
+    expect(updates.recruitOverallsByYear[2027]).toEqual([
+      { playerName: 'Signee', position: 'WR', overall: 66, pid: 1 },
+    ])
+  })
+
+  it('keeps the ratings off the ledger row', () => {
+    const { updates } = buildRecruitOverallsAttributesSave(dynasty, [
+      { playerName: 'Signee', overall: 66, attributes: { SPD: 88, AWR: 70 } },
+    ])
+    expect(updates.recruitOverallsByYear[2027][0].attributes).toBeUndefined()
+  })
+
+  it('leaves an existing ledger alone when the import matched nobody', () => {
+    const withLedger = { ...dynasty, recruitOverallsByYear: { 2027: [{ playerName: 'Signee', overall: 68 }] } }
+    const { updates } = buildRecruitOverallsAttributesSave(withLedger, [
+      { playerName: 'Ghost', overall: 66, attributes: { SPD: 88 } },
+    ])
+    expect(updates.recruitOverallsByYear).toBeUndefined()
+  })
+
+  it('skips an entry that carries neither an overall nor attributes', () => {
+    const { updates } = buildRecruitOverallsAttributesSave(dynasty, [{ playerName: 'Signee' }])
+    expect(updates.recruitOverallsByYear).toBeUndefined()
+    expect(updates.players.find(x => x.pid === 1)).toBe(dynasty.players[0])
+  })
 })
 
 describe('id-anchored rows', () => {

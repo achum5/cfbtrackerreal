@@ -58,5 +58,32 @@ describe('buildTrainingResultsAttributesSave', () => {
   it('ignores an entry with nothing to apply', () => {
     const { updates } = buildTrainingResultsAttributesSave(dynasty, [{ playerName: 'Returner', attributes: {} }])
     expect(updates.players).toEqual(dynasty.players)
+    expect(updates.trainingResultsByYear).toBeUndefined()
+    expect(updates.teams).toBeUndefined()
+  })
+
+  // The week-7 to-do reads trainingResultsByYear, and getTrainingResults reads
+  // the team-year mirror FIRST — so the Full Attributes path writes both, or
+  // the task stays red and the mirror serves a stale list.
+  it('records the completion ledger and the team-year mirror together', () => {
+    const { updates } = buildTrainingResultsAttributesSave(dynasty, [
+      { playerName: 'returner', position: 'QB', overall: 74, attributes: { ACC: 85 } },
+    ])
+    const row = { playerName: 'returner', position: 'QB', newOverall: 74, pid: 1 }
+    expect(updates.trainingResultsByYear[2028]).toEqual([row])
+    expect(updates.teams[UK].byYear[2028].trainingResults).toEqual([row])
+  })
+
+  it('keeps the ratings off the ledger row', () => {
+    const { updates } = buildTrainingResultsAttributesSave(dynasty, [
+      { playerName: 'Returner', overall: 74, attributes: { ACC: 85, SPD: 90 } },
+    ])
+    expect(updates.trainingResultsByYear[2028][0].attributes).toBeUndefined()
+  })
+
+  it('leaves an existing ledger alone when the import matched nobody', () => {
+    const withLedger = { ...dynasty, trainingResultsByYear: { 2028: [{ playerName: 'Returner', newOverall: 72 }] } }
+    const { updates } = buildTrainingResultsAttributesSave(withLedger, [{ playerName: 'Ghost', overall: 74 }])
+    expect(updates.trainingResultsByYear).toBeUndefined()
   })
 })

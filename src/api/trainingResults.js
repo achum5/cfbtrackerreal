@@ -68,6 +68,10 @@ export function buildTrainingResultsSave(dynasty, results) {
 export function buildTrainingResultsAttributesSave(dynasty, entries) {
   const year = dynasty.currentYear
   const updatedPlayers = [...(dynasty.players || [])]
+  // Same ledger the overall-only path writes, and the same reason: the week-7
+  // to-do reads trainingResultsByYear to decide whether Training Results is
+  // done, so without it a Full Attributes import left the task red.
+  const storedRows = []
   for (const entry of entries || []) {
     const playerIndex = findRowPlayerIndex(updatedPlayers, entry, { nameEq })
     if (playerIndex === -1) continue
@@ -84,6 +88,35 @@ export function buildTrainingResultsAttributesSave(dynasty, entries) {
       next.attributesByYear = { ...(player.attributesByYear || {}), [year]: { ...existingAttrs, ...entry.attributes } }
     }
     updatedPlayers[playerIndex] = next
+    // Ratings stay on the player; the ledger row keeps only identity + the new
+    // overall, under the same key name the sheet path stores.
+    storedRows.push(withRowPid({
+      playerName: entry.playerName ?? entry.name ?? player.name,
+      position: entry.position ?? player.position ?? '',
+      newOverall: entry.overall ?? null,
+    }, player))
   }
-  return { updates: { players: updatedPlayers }, year }
+  const updates = { players: updatedPlayers }
+  // An import that matched nobody leaves the ledger alone: writing [] would
+  // un-complete a task the user had already finished the other way. Both
+  // copies move together — getTrainingResults reads the team-year mirror
+  // FIRST, so writing one without the other would serve a stale list.
+  if (storedRows.length > 0) {
+    updates.trainingResultsByYear = { ...(dynasty.trainingResultsByYear || {}), [year]: storedRows }
+    const userTid = getUserTeamTid(dynasty)
+    if (userTid && dynasty.teams) {
+      const existingTeams = dynasty.teams
+      const existingTeamData = existingTeams[userTid] || {}
+      const existingByYear = existingTeamData.byYear || {}
+      const existingYearData = existingByYear[year] || {}
+      updates.teams = {
+        ...existingTeams,
+        [userTid]: {
+          ...existingTeamData,
+          byYear: { ...existingByYear, [year]: { ...existingYearData, trainingResults: storedRows } },
+        },
+      }
+    }
+  }
+  return { updates, year }
 }
