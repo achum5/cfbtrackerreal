@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useLayoutEffect, useCallback } from 'react'
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { useDynasty, GAME_TYPES, detectGameType, getCustomConferencesForYear, getTeamRankForWeek } from '../../context/DynastyContext'
+import { useDynasty, GAME_TYPES, detectGameType, getCustomConferencesForYear, getTeamRankForWeek, rankSlotForGame } from '../../context/DynastyContext'
 import { isPcAutoDynasty } from '../../editions'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { TEAMS, getCurrentTeamTid, getCurrentTeamAbbr, isFCSPlaceholderAbbr } from '../../data/teamRegistry'
@@ -53,19 +53,9 @@ const weekLabelFor = (wk) => WEEK_LABELS[wk] ?? `Week ${wk}`
 //   18 = Bowl Week 2 + CFP Quarterfinal
 //   19 = Bowl Week 3 / CFP Semifinal
 //   20 = National Championship
-const weekBucketFor = (g) => {
-  const type = detectGameType(g)
-  if (type === GAME_TYPES.CONFERENCE_CHAMPIONSHIP) return 16
-  if (type === GAME_TYPES.CFP_FIRST_ROUND) return 17
-  if (type === GAME_TYPES.CFP_QUARTERFINAL) return 18
-  if (type === GAME_TYPES.CFP_SEMIFINAL) return 19
-  if (type === GAME_TYPES.CFP_CHAMPIONSHIP) return 20
-  if (type === GAME_TYPES.BOWL) {
-    return g.bowlWeek === 'week2' ? 18 : 17
-  }
-  const wk = Number(g.week)
-  return Number.isFinite(wk) ? wk : null
-}
+// One numbering for the whole app (gameSlot): a Bowl Week 3 bowl lands in
+// 19, which the old inline map dropped into Bowl Week 1.
+const weekBucketFor = (g) => rankSlotForGame(g)
 
 // The latest week slot that has a *played* game (both scores entered) for a
 // given year. Used to default the recap to the most recent results once the
@@ -218,7 +208,9 @@ function GameCard({ game, teams, pathPrefix, recordsByTid, domId, compact = fals
       const n = parseInt(raw, 10)
       if (Number.isFinite(n) && n >= 1 && n <= 25) return n
     }
-    return getTeamRankForWeek(currentDynasty, tid, game.year, game.week) ?? null
+    // Postseason games store a string week ('CCG', 'Bowl'); resolve the
+    // real poll slot or the lookup falls through to the preseason rank.
+    return getTeamRankForWeek(currentDynasty, tid, game.year, rankSlotForGame(game) ?? game.week) ?? null
   }
 
   const topScore = scoreFor(topTid)
@@ -602,15 +594,10 @@ export default function WeeklyScores() {
   const handleBowlWeek1Save = async (bowlGames) => {
     try {
       const year = displayYear
-      const pollEntries = bowlGames.pollEntries || []
-      if (pollEntries.length > 0) {
-        const rankSlot = (() => {
-          const phase = currentDynasty?.currentPhase
-          const wk = Number(currentDynasty?.currentWeek)
-          return phase === 'postseason' && Number.isFinite(wk) ? 16 + wk : 17
-        })()
-        await saveRankings(currentDynasty.id, pollEntries, year, rankSlot)
-      }
+      // The poll rows were already saved by BowlWeek1Modal at the slot the
+      // user picked in its rankings-week dropdown. Saving them again here at
+      // a slot computed from the current week wrote the same poll into a
+      // second slot whenever the two disagreed.
       const gamesWithScores = bowlGames.filter(g =>
         g.team1Score !== null && g.team1Score !== undefined &&
         g.team2Score !== null && g.team2Score !== undefined
@@ -637,15 +624,8 @@ export default function WeeklyScores() {
   const handleBowlWeek2Save = async (bowlGames) => {
     try {
       const year = displayYear
-      const pollEntries = bowlGames.pollEntries || []
-      if (pollEntries.length > 0) {
-        const rankSlot = (() => {
-          const phase = currentDynasty?.currentPhase
-          const wk = Number(currentDynasty?.currentWeek)
-          return phase === 'postseason' && Number.isFinite(wk) ? 16 + wk : 18
-        })()
-        await saveRankings(currentDynasty.id, pollEntries, year, rankSlot)
-      }
+      // Poll rows already saved by BowlWeek2Modal at the user's chosen slot
+      // (see handleBowlWeek1Save).
       const gamesWithScores = bowlGames.filter(g =>
         g.team1Score !== null && g.team1Score !== undefined &&
         g.team2Score !== null && g.team2Score !== undefined

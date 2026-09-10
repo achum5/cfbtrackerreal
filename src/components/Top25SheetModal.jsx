@@ -678,6 +678,10 @@ function Top25DiffConfirmModal({ summary, yearTotals, unknownAbbrs, alsoDelete, 
   const weekLabel = (w) => {
     if (w === 0) return 'Preseason'
     if (w === 16) return 'CCG'
+    if (w === 17) return 'Bowl 1'
+    if (w === 18) return 'Bowl 2'
+    if (w === 19) return 'Bowl 3'
+    if (w === 20) return 'Natty'
     if (w === 101) return 'CFP-1'
     if (w === 102) return 'CFP-Q'
     if (w === 103) return 'CFP-S'

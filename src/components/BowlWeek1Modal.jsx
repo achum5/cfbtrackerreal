@@ -156,7 +156,7 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
     return rows.join('\n')
   }, [isOpen, currentDynasty, currentYear, excludedBowlGames])
 
-  // Prior Top 25 reference (post-CCG poll = rankByWeek slot 15) so the AI can
+  // Prior Top 25 reference (the slot before this modal's rank week) so the AI can
   // reason about which ranked teams aren't playing in Bowl Week 1. If that slot
   // is sparse, fall back to the most recent slot holding a (near-)complete poll
   // so the AI still gets a full 25 to carry forward.

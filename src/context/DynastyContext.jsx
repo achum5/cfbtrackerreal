@@ -1607,6 +1607,93 @@ export function gameSlot(game) {
   }
 }
 
+// ============================================================================
+// THE rankByWeek slot for a game — the poll a team CARRIED INTO that game.
+//
+// One numbering, used by every writer and reader of postseason ranks:
+//   0–14  regular season (a legacy Week 15 still resolves)
+//   16    Conference Championship week
+//   17    Bowl Week 1   (incl. CFP First Round)
+//   18    Bowl Week 2   (incl. CFP Quarterfinals)
+//   19    Bowl Week 3   (incl. CFP Semifinals)
+//   20    National Championship
+//   105   Final Poll (written only by the Final Polls flow)
+//
+// Postseason games store a string week ('CCG', 'Bowl'), so anything that
+// keys a poll off game.week directly gets NaN and falls through to stale
+// data — always go through this. Returns null when nothing sensible exists.
+// ============================================================================
+export const RANK_SLOT = Object.freeze({ CCG: 16, BOWL1: 17, BOWL2: 18, BOWL3: 19, NATTY: 20, FINAL: 105 })
+
+export function rankSlotForGame(game) {
+  if (!game) return null
+  const type = detectGameType(game)
+  switch (type) {
+    case GAME_TYPES.CONFERENCE_CHAMPIONSHIP:
+    case GAME_TYPES.CFP_FIRST_ROUND:
+    case GAME_TYPES.CFP_QUARTERFINAL:
+    case GAME_TYPES.CFP_SEMIFINAL:
+    case GAME_TYPES.CFP_CHAMPIONSHIP:
+    case GAME_TYPES.BOWL:
+      return gameSlot(game)
+    default: {
+      const w = Number(game.week)
+      return Number.isFinite(w) ? w : null
+    }
+  }
+}
+
+// Legacy CFP-round slots (101 = First Round … 104 = National Championship)
+// that some writers used for CFP game ranks. Folded onto the calendar slots
+// above at load by healCfpRankSlots; kept here so readers can still fall back
+// to them on a dynasty that hasn't loaded since.
+const LEGACY_CFP_RANK_SLOTS = Object.freeze({ 101: 17, 102: 18, 103: 19, 104: 20 })
+
+/**
+ * Fold legacy CFP-round rank slots (101–104) onto the calendar slots
+ * (17–20) in every team's rankByWeek / cfpRankByWeek, so one poll lives in
+ * one slot. A calendar slot that already holds a rank wins; the legacy key
+ * is removed either way. Pure and a fixed point (second pass is a no-op);
+ * returns the same object when nothing changes.
+ */
+export function healCfpRankSlots(dynasty) {
+  const teams = dynasty?.teams
+  if (!teams || typeof teams !== 'object') return dynasty
+  const foldMap = (m) => {
+    if (!m || typeof m !== 'object') return m
+    let out = null
+    for (const [legacy, target] of Object.entries(LEGACY_CFP_RANK_SLOTS)) {
+      if (!(legacy in m)) continue
+      if (!out) out = { ...m }
+      const v = out[legacy]
+      const cur = out[target] ?? out[String(target)]
+      if ((cur == null) && typeof v === 'number' && v >= 1 && v <= 25) out[target] = v
+      delete out[legacy]
+    }
+    return out || m
+  }
+  let teamsChanged = false
+  const nextTeams = {}
+  for (const [tid, team] of Object.entries(teams)) {
+    const byYear = team?.byYear
+    if (!byYear || typeof byYear !== 'object') { nextTeams[tid] = team; continue }
+    let yearChanged = false
+    const nextByYear = {}
+    for (const [y, yd] of Object.entries(byYear)) {
+      if (!yd || typeof yd !== 'object') { nextByYear[y] = yd; continue }
+      const r = foldMap(yd.rankByWeek)
+      const c = foldMap(yd.cfpRankByWeek)
+      if (r === yd.rankByWeek && c === yd.cfpRankByWeek) { nextByYear[y] = yd; continue }
+      yearChanged = true
+      nextByYear[y] = { ...yd, ...(r !== yd.rankByWeek ? { rankByWeek: r } : {}), ...(c !== yd.cfpRankByWeek ? { cfpRankByWeek: c } : {}) }
+    }
+    if (!yearChanged) { nextTeams[tid] = team; continue }
+    teamsChanged = true
+    nextTeams[tid] = { ...team, byYear: nextByYear }
+  }
+  return teamsChanged ? { ...dynasty, teams: nextTeams } : dynasty
+}
+
 /**
  * Check if a game has valid scores for record calculation
  */
@@ -2309,8 +2396,8 @@ export function getTeamRankForWeek(dynasty, tidOrAbbr, year, week) {
     // EARLIER week with an entry — including preseason (week 0). Without this,
     // the Scores page and Sportsbook showed no rank pips for teams that are
     // clearly ranked on the Rankings page (which displays the latest populated
-    // week). Regular-season weeks (≤20) never inherit a postseason poll
-    // (101–105).
+    // week). Calendar slots (≤20) never inherit the Final Poll (105) or a
+    // legacy CFP-round slot (101–104).
     //
     // The scan keeps the most recent PRESENT entry, valid or not — an explicit
     // null at week N is the drop-out marker, and it must win over week N-1's
@@ -2405,20 +2492,9 @@ export function migrateRanksToRankByWeek(dynasty, options = {}) {
   // Determine each game's "week key" — regular weeks use the integer
   // week; CC / CFP / bowls use 100+ to match getGameOrder() semantics
   // and avoid collision with regular weeks.
-  const weekKeyOf = (g) => {
-    if (g.isCFPChampionship) return 104
-    if (g.isCFPSemifinal) return 103
-    if (g.isCFPQuarterfinal) return 102
-    if (g.isCFPFirstRound) return 101
-    // Canonical rankByWeek slots: Conf Champ = 16, Bowl Week 1 = 17,
-    // Bowl Week 2 = 18 (matches getGameOrderForRecord + the Rankings
-    // labels). The old shared "100" slot collided CCG with bowls and
-    // surfaced as a bogus "Week 100" in the Top 25 week picker.
-    if (g.isConferenceChampionship) return 16
-    if (g.isBowlGame) return g.bowlWeek === 'week3' ? 19 : g.bowlWeek === 'week2' ? 18 : 17
-    const w = Number(g.week)
-    return Number.isFinite(w) ? w : null
-  }
+  // One slot numbering for every game — see rankSlotForGame. CFP rounds
+  // land on the bowl week they're played in (17–20), never on 101–104.
+  const weekKeyOf = (g) => rankSlotForGame(g)
 
   // Single pass — every game's stored rank goes to rankByWeek[gameWeek]
   // unshifted. The earlier two-pass user/CPU split existed to overlay
@@ -2588,20 +2664,9 @@ export function rebuildRankByWeekFromCurrentState(dynasty) {
     teamsCopy[tidKey] = { ...team, byYear }
   }
 
-  const weekKeyOf = (g) => {
-    if (g.isCFPChampionship) return 104
-    if (g.isCFPSemifinal) return 103
-    if (g.isCFPQuarterfinal) return 102
-    if (g.isCFPFirstRound) return 101
-    // Canonical rankByWeek slots: Conf Champ = 16, Bowl Week 1 = 17,
-    // Bowl Week 2 = 18 (matches getGameOrderForRecord + the Rankings
-    // labels). The old shared "100" slot collided CCG with bowls and
-    // surfaced as a bogus "Week 100" in the Top 25 week picker.
-    if (g.isConferenceChampionship) return 16
-    if (g.isBowlGame) return g.bowlWeek === 'week3' ? 19 : g.bowlWeek === 'week2' ? 18 : 17
-    const w = Number(g.week)
-    return Number.isFinite(w) ? w : null
-  }
+  // One slot numbering for every game — see rankSlotForGame. CFP rounds
+  // land on the bowl week they're played in (17–20), never on 101–104.
+  const weekKeyOf = (g) => rankSlotForGame(g)
 
   // Walk every game; team1Rank/team2Rank ARE the entering rank by now.
   for (const g of (dynasty.games || [])) {
@@ -2671,18 +2736,8 @@ export function applyGameRanksToTeams(dynasty, game) {
     teamsCopy[tidKey] = { ...team, byYear }
   }
 
-  const weekKey = (() => {
-    if (game.isCFPChampionship) return 104
-    if (game.isCFPSemifinal) return 103
-    if (game.isCFPQuarterfinal) return 102
-    if (game.isCFPFirstRound) return 101
-    // Canonical rankByWeek slots: Conf Champ = 16, Bowl Week 1 = 17,
-    // Bowl Week 2 = 18 (see weekKeyOf above).
-    if (game.isConferenceChampionship) return 16
-    if (game.isBowlGame) return game.bowlWeek === 'week3' ? 19 : game.bowlWeek === 'week2' ? 18 : 17
-    const w = Number(game.week)
-    return Number.isFinite(w) ? w : null
-  })()
+  // One slot numbering for every game — see rankSlotForGame.
+  const weekKey = rankSlotForGame(game)
   if (weekKey == null) return teamsCopy
 
   // The stored game.team1Rank / team2Rank is now ALWAYS the entering
@@ -3010,10 +3065,13 @@ export function getTeamRanking(dynasty, tidOrAbbr, year) {
 
       // Postseason slot priority — newest in time first. Used only
       // when no Final Poll is saved yet (still mid-postseason).
-      // Final Poll (105) is the canonical "end-of-season" rank; CFP
-      // rounds 101-104 are the per-round polls (post-FR through
-      // post-NC); slot 16 is the post-Week-15 Conf-Champ-Week poll.
-      const POSTSEASON_SLOTS = [105, 104, 103, 102, 101, 16]
+      // Final Poll (105) is the canonical "end-of-season" rank; 20 → 16
+      // are the calendar polls (entering the National Championship, Bowl
+      // Week 3, 2, 1, Conference Championship week). The legacy CFP-round
+      // slots 101–104 are folded onto 17–20 at load (healCfpRankSlots) and
+      // kept here only as a last resort. Before this list carried 17–20,
+      // every bowl-week poll a user entered was invisible to this lookup.
+      const POSTSEASON_SLOTS = [105, 20, 19, 18, 17, 16, 104, 103, 102, 101]
       const pickPostseasonRank = () => {
         for (const slot of POSTSEASON_SLOTS) {
           const v = rankByWeek[slot] ?? rankByWeek[String(slot)]
@@ -3378,7 +3436,7 @@ export function getRecordAsOfGame(dynasty, game, tid) {
   if (!dynasty || !game || !tid) return { overall: '0-0', conference: '0-0', wins: 0, losses: 0 }
 
   // Calculate including this game using the game's sort order as the cutoff.
-  // getGameOrderForRecord returns numeric values: reg season 1-14, CC=15, BW1=16, BW2=17, CFP 20-23.
+  // getGameOrderForRecord returns gameSlot values: regular weeks 0-14, CC=16, Bowl Weeks 17-19, NC=20.
   const gameOrder = getGameOrderForRecord(game)
   const calc = calculateTeamRecordFromGames(dynasty, tid, game.year, {
     upToWeek: gameOrder,
@@ -9129,6 +9187,10 @@ export function DynastyProvider({ children }) {
       // Encouraged transfers recorded under both the ended season and the new
       // one (pre-2026-09-08 writer). Keeps the canonical copy only.
       migrated = healDuplicateEncouragedMarkers(migrated)
+
+      // Legacy CFP-round rank slots (101–104) → the bowl-week slots (17–20)
+      // they were played in, so one poll lives in one slot.
+      migrated = healCfpRankSlots(migrated)
 
       // ─── Versioned, PERSISTED migrations (src/migrations) ─────────────
       // Everything above is a read-time transform re-run on every load.
@@ -15038,7 +15100,9 @@ export function DynastyProvider({ children }) {
   // Used by bowl-week modals after saving game scores — identical to the
   // rank pass inside saveWeeklyScores but without the game-creation logic.
   // rankings: [{ tid, rank }]  — tid may be null if abbr lookup failed
-  // rankWeek: integer week slot (16=BowlWk1, 17=BowlWk2, 18=NatChamp)
+  // rankWeek: integer rank slot — 16 = Conference Championship week,
+  // 17–20 = Bowl Weeks 1–3 and the National Championship, 105 = Final Poll
+  // (see RANK_SLOT / rankSlotForGame).
   const saveRankings = async (dynastyId, rankings, year, rankWeek) => {
     if (blockIfReadOnly(dynastyId, 'save rankings')) return
     if (!Array.isArray(rankings) || rankings.length === 0) return

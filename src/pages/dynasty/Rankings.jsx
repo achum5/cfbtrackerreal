@@ -481,7 +481,7 @@ export default function Rankings() {
   const weekLabel = (w) => {
     if (w === APP_PRESEASON_WEEK) return 'Preseason Rankings'
     if (w === 0) return hasSplitPreseasonWeek ? 'Week 0' : 'Preseason Rankings'
-    if (w === 16) return 'Conf Champ Week'  // post-Week-15 / pre-CCG poll slot
+    if (w === 16) return 'Conf Champ Week'  // post-Week-14 / entering-CCG poll slot
     if (w === 17) return 'Bowl Week 1'
     if (w === 18) return 'Bowl Week 2'
     if (w === 19) return 'Bowl Week 3'
@@ -489,7 +489,7 @@ export default function Rankings() {
     if (w === 101) return 'CFP First Round'
     if (w === 102) return 'CFP Quarterfinals'
     if (w === 103) return 'CFP Semifinals'
-    if (w === 104) return 'National Championship'
+    if (w === 104) return 'National Championship (legacy slot)'
     if (w === 105) return 'Final Poll'
     return `Week ${w}`
   }

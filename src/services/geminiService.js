@@ -10,7 +10,7 @@
 import { getTeamName } from '../data/teamAbbreviations'
 import { getCurrentTeamAbbr, TEAMS, getGameTeamInfo, getNameByAbbr, getTidFromAbbr } from '../data/teamRegistry'
 import { getTeamConference } from '../data/conferenceTeams'
-import { getUserGamePerspective, getLockedCoachingStaff, getCustomConferencesForYear, getTeamRankForWeek } from '../context/DynastyContext'
+import { getUserGamePerspective, getLockedCoachingStaff, getCustomConferencesForYear, getTeamRankForWeek, rankSlotForGame } from '../context/DynastyContext'
 import { buildCFPProjection } from '../utils/cfpProjection'
 import { canonicalBoxScore, getPlayerStatsForTid, getTeamStatsForTid } from '../utils/boxScoreHelpers'
 import { collapsePatRowsIntoTDs, resolveScoringTeamTids, buildScorerTidResolver } from '../utils/scoringPlayOrder'
@@ -1371,10 +1371,15 @@ export function summarizeHeadToHead(headToHeadList, team1Name, team2Name) {
 // in-progress game. Both prompts use it so the AI can write
 // pre-game-rank prose without inferring it from a tangle of weeks.
 // ──────────────────────────────────────────────────────────────────────
-export function getTeamEnteringRank(allGames, teamAbbr, year, currentGameOrder, dynasty) {
+export function getTeamEnteringRank(allGames, teamAbbr, year, currentGameOrder, dynasty, currentGame = null) {
   if (!Array.isArray(allGames) || !teamAbbr) return null
   const teamTid = getTidFromAbbr(teamAbbr, dynasty)
   const yearNum = Number(year)
+  // rankByWeek is keyed by calendar slot (regular week, 16 CCG, 17–20 bowl
+  // weeks) — NOT by getGameOrder's 100+ sort keys. Resolve the slot from
+  // the game when we have it; a plain regular-season order IS its week.
+  const rankSlot = currentGame ? rankSlotForGame(currentGame)
+    : (Number.isFinite(Number(currentGameOrder)) && Number(currentGameOrder) < 100 ? Number(currentGameOrder) : null)
 
   // Prefer dynasty.teams[tid].byYear[year].rankByWeek if populated —
   // that's the post-migration source of truth, populated by addGame /
@@ -1385,8 +1390,8 @@ export function getTeamEnteringRank(allGames, teamAbbr, year, currentGameOrder, 
     const byYear = dynasty?.teams?.[teamTid]?.byYear
       || dynasty?.teams?.[String(teamTid)]?.byYear
     const rankByWeek = byYear?.[yearNum]?.rankByWeek ?? byYear?.[String(yearNum)]?.rankByWeek
-    if (rankByWeek) {
-      const v = rankByWeek[currentGameOrder] ?? rankByWeek[String(currentGameOrder)]
+    if (rankByWeek && rankSlot != null) {
+      const v = rankByWeek[rankSlot] ?? rankByWeek[String(rankSlot)]
       if (v != null) {
         const n = Number(v)
         return n >= 1 && n <= 25 ? n : null
@@ -3063,32 +3068,12 @@ export function buildGameRecapContext(dynasty, game) {
   // the recap prompt said "UNRANKED" for both CFP teams in a National
   // Championship recap even though their post-SF poll ranks were in
   // rankByWeek.
-  // Canonical postseason rank slots (matches TOP25_WEEK_KEYS in
-  // sheetsService.js): 16 = post-Week-15 / Conf Champ Week poll,
-  // 101 = post-FR / entering Bowl Week 1, 102 = entering Bowl Week 2 / QF,
-  // 103 = entering Bowl Week 3 / SF, 104 = entering NC, 105 = Final Poll.
-  // These are the slots WeeklyScoresModal + Top25SheetModal + final-poll
-  // save flow actually write to.
-  const postseasonSlot = (() => {
-    if (game.isCFPChampionship || game.gameType === 'cfp_championship') return 104
-    if (game.isCFPSemifinal || game.gameType === 'cfp_semifinal') return 103
-    if (game.isCFPQuarterfinal || game.gameType === 'cfp_quarterfinal') return 102
-    if (game.isCFPFirstRound || game.gameType === 'cfp_first_round') return 101
-    if (game.isBowlGame || game.gameType === 'bowl') {
-      return game.bowlWeek === 'week2' ? 102 : 101
-    }
-    if (game.isConferenceChampionship || game.gameType === 'conference_championship') return 16
-    return null
-  })()
-  const rankSlotForGame = postseasonSlot != null
-    ? postseasonSlot
-    : (() => {
-        const wk = Number(game.week)
-        return Number.isFinite(wk) && wk >= 0 && wk <= 15 ? wk : null
-      })()
+  // The poll a team carried into THIS game — one slot numbering for the
+  // whole app (rankSlotForGame): regular week, 16 CCG, 17–20 bowl weeks.
+  const rankSlotThisGame = rankSlotForGame(game)
   const fallbackRankFor = (tid) => {
-    if (tid == null || rankSlotForGame == null) return null
-    return getTeamRankForWeek(dynasty, tid, year, rankSlotForGame)
+    if (tid == null || rankSlotThisGame == null) return null
+    return getTeamRankForWeek(dynasty, tid, year, rankSlotThisGame)
   }
   const team1Ranking = (typeof game.team1Rank === 'number' ? game.team1Rank : null) ?? fallbackRankFor(team1Tid)
   const team2Ranking = (typeof game.team2Rank === 'number' ? game.team2Rank : null) ?? fallbackRankFor(team2Tid)
@@ -3256,15 +3241,7 @@ export function buildGameRecapContext(dynasty, game) {
   // Rank progression (week-by-week trajectory) for both teams. Powers
   // "Tennessee's six-week descent from #2 to #15" / "Texas climbed 14
   // spots in three weeks" beats — the AI doesn't have to count.
-  const thisGameWeekKey = (() => {
-    if (game.isCFPChampionship) return 104
-    if (game.isCFPSemifinal) return 103
-    if (game.isCFPQuarterfinal) return 102
-    if (game.isCFPFirstRound) return 101
-    if (game.isConferenceChampionship) return 100
-    if (game.isBowlGame) return 100
-    return Number(game.week)
-  })()
+  const thisGameWeekKey = rankSlotForGame(game) ?? Number(game.week)
   const team1RankProgression = getTeamRankProgression(dynasty, team1, year, thisGameWeekKey)
   const team2RankProgression = getTeamRankProgression(dynasty, team2, year, thisGameWeekKey)
 

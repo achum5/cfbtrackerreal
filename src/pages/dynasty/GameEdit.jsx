@@ -4,7 +4,7 @@ import { Link, useParams, useNavigate, useSearchParams, useLocation } from 'reac
 import { getTeamLogo, getMascotName as getMascotNameFromTeams, stripMascotFromName } from '../../data/teams'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { TEAMS, resolveTid, getCurrentTeamAbbr, getGameTeamInfo, getAbbrFromTeamName, getTidFromAbbr, getOriginalTeamAbbr } from '../../data/teamRegistry'
-import { useDynasty, GAME_TYPES, getCurrentCustomConferences, buildRecordUpdatePayload, calculateTeamRecordFromGames, getStoredTeamRecord, getTeamRecord, getTeamRankForWeek, propagateCFPWinner, isPlayerOnRoster, getRecordAsOfGame } from '../../context/DynastyContext'
+import { useDynasty, GAME_TYPES, getCurrentCustomConferences, buildRecordUpdatePayload, calculateTeamRecordFromGames, getStoredTeamRecord, getTeamRecord, getTeamRankForWeek, propagateCFPWinner, isPlayerOnRoster, getRecordAsOfGame, rankSlotForGame } from '../../context/DynastyContext'
 import { useAuth } from '../../context/AuthContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getFullRecapPrompt } from '../../services/geminiService'
@@ -203,21 +203,13 @@ function deriveDisplayWeek(game, fallbackWeek, fallbackGameType, fallbackBowlNam
 
 // Resolve the rankByWeek slot that holds a game's ENTERING-week poll, so the
 // editor can auto-fill team ranks the same way it does for regular weeks.
-//
-// Regular-season games key directly on their numeric week. Conference
-// Championship games carry the string sentinel week='CCG' (see weekLabel
-// above) — that must map to the canonical slot the weekly-scores entry writes
-// the pre-CCG poll into: slot 15 (post-Week-14 / pre-CCG poll), the same slot
-// used by the Top-25 seed builder and the CCG-phase rank override in
-// DynastyContext. Without this, getTeamRankForWeek(week='CCG') reads
-// rankByWeek['CCG'] / rankByWeek[NaN], finds nothing, and CCG ranks never
-// auto-fill even when the user entered that week's Top 25.
+// One numbering for the whole app (rankSlotForGame): regular week, 16 for
+// Conference Championship week, 17–20 for the bowl weeks / CFP rounds.
+// Postseason games carry a string week ('CCG', 'Bowl'), so keying on
+// game.week directly read rankByWeek[NaN] and ranks never auto-filled for
+// any bowl or CFP game.
 function resolveRankWeek(game) {
-  if (!game) return null
-  const n = typeof game.week === 'number' ? game.week : parseInt(game.week, 10)
-  if (Number.isFinite(n)) return n
-  if (game.isConferenceChampionship || game.gameType === GAME_TYPES.CONFERENCE_CHAMPIONSHIP || game.week === 'CCG') return 16
-  return null
+  return rankSlotForGame(game)
 }
 
 export default function GameEdit() {

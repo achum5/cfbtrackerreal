@@ -17102,19 +17102,24 @@ export async function readTop25FromSheet(spreadsheetId, dynasty) {
   return { yearTotals, teamUpdates, unknownAbbrs }
 }
 
-// Week options for the local Top 25 paste picker (one entry per rankByWeek key).
+// Week options for the local Top 25 paste picker — the app's rank slots:
+// regular weeks 0–14, 16 Conference Championship week, 17–20 the bowl weeks
+// (CFP rounds included) and 105 the Final Poll. (TOP25_WEEK_KEYS above is
+// the legacy Google-sheet column layout and stays as-is so existing sheets
+// keep reading by column; it is not the picker's list.)
+export const TOP25_LOCAL_WEEK_KEYS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 105]
 export function getTop25WeekOptions() {
   const label = (w) => {
     if (w === 0) return 'Preseason'
-    if (w === 16) return 'Conf Championships'
-    if (w === 101) return 'CFP First Round'
-    if (w === 102) return 'CFP Quarterfinals'
-    if (w === 103) return 'CFP Semifinals'
-    if (w === 104) return 'National Championship'
-    if (w === 105) return 'Final'
+    if (w === 16) return 'Conf Championship Week'
+    if (w === 17) return 'Bowl Week 1'
+    if (w === 18) return 'Bowl Week 2'
+    if (w === 19) return 'Bowl Week 3 (CFP Semis)'
+    if (w === 20) return 'National Championship'
+    if (w === 105) return 'Final Poll'
     return `Week ${w}`
   }
-  return TOP25_WEEK_KEYS.map((w) => ({ key: w, label: label(w) }))
+  return TOP25_LOCAL_WEEK_KEYS.map((w) => ({ key: w, label: label(w) }))
 }
 
 // Local (no-Google) counterpart of readTop25FromSheet, scoped to ONE (year,

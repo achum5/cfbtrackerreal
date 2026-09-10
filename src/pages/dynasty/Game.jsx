@@ -8,7 +8,7 @@ import { getTeamLogo, getTeamLogoByTid, getMascotName as getMascotNameFromTeams,
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { TEAMS, resolveTid, getCurrentTeamAbbr, getGameTeamInfo, getColorsFromTid } from '../../data/teamRegistry'
 import { getTeamColors } from '../../data/teamColors'
-import { useDynasty, getUserGamePerspective, GAME_TYPES, getRecordAsOfGame, getTeamRatingsForYear, getCustomConferencesForYear, getTeamRankForWeek, isPlayerOnRoster } from '../../context/DynastyContext'
+import { useDynasty, getUserGamePerspective, GAME_TYPES, getRecordAsOfGame, getTeamRatingsForYear, getCustomConferencesForYear, getTeamRankForWeek, isPlayerOnRoster, rankSlotForGame } from '../../context/DynastyContext'
 import { saveGamesToSubcollection } from '../../services/dynastyService'
 import { matchAndRankPlayers } from '../../utils/playerTagSearch'
 import CardComposer from '../../components/CardComposer'
@@ -1443,9 +1443,12 @@ export default function Game() {
     const oppRank = isDisplayTeam1 ? game.team2Rank : game.team1Rank
     const displayTid = isDisplayTeam1 ? game.team1Tid : game.team2Tid
     const opponentTid = isDisplayTeam1 ? game.team2Tid : game.team1Tid
+    // Postseason games store a string week ('CCG', 'Bowl'); resolve the
+    // real poll slot, or the lookup misses and shows the PRESEASON rank.
+    const pollSlot = rankSlotForGame(game)
     const rankFromPoll = (tid) =>
-      tid != null && game.week != null && game.year != null
-        ? (getTeamRankForWeek(currentDynasty, tid, game.year, game.week) || null)
+      tid != null && pollSlot != null && game.year != null
+        ? (getTeamRankForWeek(currentDynasty, tid, game.year, pollSlot) || null)
         : null
     const userRankFinal = displayRank ?? perspective?.userRank ?? game.userRank ?? rankFromPoll(displayTid) ?? null
     const oppRankFinal = oppRank ?? perspective?.opponentRank ?? game.opponentRank ?? rankFromPoll(opponentTid) ?? null
