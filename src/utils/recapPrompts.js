@@ -658,23 +658,26 @@ export function buildWeekRecapPrompt(dynasty, year, week, opts = {}) {
   // rather than feeding the AI a one-row "Top 25" that misrepresents
   // the state of the dynasty.
   const top25ByWeek = []
-  for (let w = 0; w <= weekNum + 1; w++) {
+  for (let w = 0; w <= (weekNum === 14 ? 16 : weekNum + 1); w++) {
     const rows = buildSnapshotEnteringWeek(w)
     if (rows.length >= 10) top25ByWeek.push({ week: w, rows })
   }
 
-  // Latest derivable poll — entering-Week-(N+1) = post-Week-N. Fresh
-  // when the user has just entered Week N's scores during their
-  // current Week-N+1 session (the typical recap flow).
-  const peekSnapshot = buildPeekSnapshot(weekNum + 1)
-  const hasFreshPostWeekPoll = peekSnapshot.latestWeek === weekNum + 1
+  // Latest derivable poll — entering-the-NEXT-slot = post-this-week. Fresh
+  // when the user has just entered this week's scores during their
+  // current next-slot session (the typical recap flow). The slot after
+  // Week 14 is Conference Championship Week (16) — there is no Week 15,
+  // and the post-Week-14 poll is entered during CCG week under slot 16.
+  const nextSlot = weekNum === 14 ? 16 : weekNum + 1
+  const peekSnapshot = buildPeekSnapshot(nextSlot)
+  const hasFreshPostWeekPoll = peekSnapshot.latestWeek === nextSlot
   const rankSnapshot = peekSnapshot.rows
-  const nextWeekLabel = weekNum + 1 === 16 ? 'Conference Championship Week'
-    : weekNum + 1 === 17 ? 'Bowl Week 1'
-    : weekNum + 1 === 18 ? 'Bowl Week 2'
-    : weekNum + 1 === 19 ? 'Bowl Week 3 / CFP Semifinals'
-    : weekNum + 1 === 20 ? 'National Championship'
-    : `Week ${weekNum + 1}`
+  const nextWeekLabel = nextSlot === 16 ? 'Conference Championship Week'
+    : nextSlot === 17 ? 'Bowl Week 1'
+    : nextSlot === 18 ? 'Bowl Week 2'
+    : nextSlot === 19 ? 'Bowl Week 3 / CFP Semifinals'
+    : nextSlot === 20 ? 'National Championship'
+    : `Week ${nextSlot}`
   const rankSnapshotLabel = hasFreshPostWeekPoll
     ? `POST-${weekLabel.toUpperCase()} TOP 25 (= the rankings teams ENTERED ${nextWeekLabel} with)`
     : `MOST RECENT TOP 25 SNAPSHOT (the post-${weekLabel} poll isn't populated yet — use as baseline and infer movement from this week's results.)`

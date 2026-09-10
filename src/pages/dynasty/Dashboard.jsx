@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { proxyImageUrl } from '../../utils/imageProxy'
-import { LAST_REGULAR_SEASON_WEEK, regularSeasonWeekOptions } from '../../utils/seasonCalendar'
+import { LAST_REGULAR_SEASON_WEEK, CONF_CHAMP_WEEK_SLOT, regularSeasonWeekOptions, lastCompletedWeekSlot } from '../../utils/seasonCalendar'
 import { saveWeeklyGamesChanges } from '../../services/dynastyService'
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useDynasty, getCurrentSchedule, getScheduleWithGameData, getCurrentRoster, getCurrentPreseasonSetup, getCurrentTeamRatings, getCurrentCoachingStaff, getCurrentGoogleSheet, findCurrentTeamGame, getCurrentTeamGames, GAME_TYPES, getGamesByType, getCurrentCustomConferences, MOVEMENT_TYPES, createMovement, getUserGamePerspective, isTeamInGame, getTeamGamePerspective, isFirstYearOnTeam, getCurrentTeamRecord, getTeamRecord, getCurrentTeamRanking, getTeamRanking, getEncourageTransfers, getRecruitingCommitments, buildRecruitingCommitmentUpdate, getConferenceChampionshipData, createOrUpdateCFPGameShells, createOrUpdateBowlGameShell, getUserCFPGameStatus, getCFPRoundDisplayName, propagateCFPWinner, findUserCFPGameShell, isPlayerOnRoster, getPlayerClassForYear, lookupByTeamYear, getTeamConferenceForDynasty, CLASS_PROGRESSION } from '../../context/DynastyContext'
@@ -317,14 +317,12 @@ export default function Dashboard() {
     const phase = currentDynasty?.currentPhase
     const cw = Number(currentDynasty?.currentWeek)
     if (!Number.isFinite(cw)) return null
-    // Same just-completed-week slot the recap CARD uses (see lastWeekRecap):
-    // regular → cw-1, conf champ → 14, postseason → 14+cw. Must match so the
-    // links are built from the exact text being rendered (otherwise team
-    // names / scores in a postseason recap never become clickable).
-    let prevSlot = null
-    if (phase === 'regular_season') { if (cw >= 2) prevSlot = cw - 1 }
-    else if (phase === 'conference_championship') prevSlot = 15
-    else if (phase === 'postseason') prevSlot = Math.max(16, 15 + cw)
+    // Same just-completed-week slot the recap CARD uses (see lastWeekRecap)
+    // — one helper so the links are built from the exact text being rendered
+    // (otherwise team names / scores in a postseason recap never become
+    // clickable). Was hard-coded to 15 for CCG week, a slot that no longer
+    // exists, so the card never showed the Week 14 recap.
+    const prevSlot = lastCompletedWeekSlot(phase, cw)
     if (prevSlot == null) return null
     const lastWeekText = currentDynasty?.weekRecapsByYear?.[yr]?.[prevSlot]?.text
     if (!lastWeekText) return null
@@ -1167,31 +1165,16 @@ export default function Dashboard() {
 
   if (!currentDynasty) return null
 
-  // Last-week recap detector — only meaningful in regular_season at week >= 2
-  // (week 1 has no preceding regular-season game to recap). Drives the
-  // dashboard layout shuffle below: when a recap exists for the prior week,
-  // Roster + Schedule fold into one tabbed section (matching the mobile
-  // pattern) and the recap card sits where Schedule used to be.
-  const lastWeekRecap = (() => {
-    const yr = Number(currentDynasty.currentYear)
-    const phase = currentDynasty.currentPhase
-    const cw = Number(currentDynasty.currentWeek)
-    if (!Number.isFinite(cw)) return null
-    // The slot of the week that JUST completed (the one whose recap should
-    // surface as a card on the dashboard), per phase. Postseason weeks recap
-    // the prior calendar slot: bowl week 1 → Conf Champ Week (15), bowl week 2
-    // → Bowl Week 1 (16), etc. — mirroring the Weekly Recap page's displayWeek.
-    let prevSlot = null
-    if (phase === 'regular_season') {
-      if (cw >= 2) prevSlot = cw - 1
-    } else if (phase === 'conference_championship') {
-      prevSlot = 15
-    } else if (phase === 'postseason') {
-      prevSlot = Math.max(16, 15 + cw)
-    }
-    if (prevSlot == null) return null
-    return currentDynasty.weekRecapsByYear?.[yr]?.[prevSlot] || null
-  })()
+  // Last-week recap detector — the recap of the week that JUST completed
+  // (lastCompletedWeekSlot: regular week N → N-1 incl. Week 1 → Week 0,
+  // CCG week → Week 14, Bowl Week 1 → CCG week, …). Drives the dashboard
+  // layout shuffle below: when that recap exists, Roster + Schedule fold
+  // into one tabbed section (matching the mobile pattern) and the recap
+  // card sits where Schedule used to be.
+  const lastWeekRecapSlot = lastCompletedWeekSlot(currentDynasty.currentPhase, currentDynasty.currentWeek)
+  const lastWeekRecap = lastWeekRecapSlot == null
+    ? null
+    : (currentDynasty.weekRecapsByYear?.[Number(currentDynasty.currentYear)]?.[lastWeekRecapSlot] || null)
   const lastWeekRecapExists = !!lastWeekRecap?.text
 
   // Get the user's team conference (from custom conferences or default)
@@ -4684,6 +4667,27 @@ export default function Dashboard() {
                 })
               }
 
+              // Generate Conference Championship Week Recap — the week that
+              // just completed. Slot 16 is what the dashboard's recap card
+              // shows during Bowl Week 1 and what the CCG week's Recap tab
+              // reads; without this row it could only be generated from that
+              // tab, so the card sat empty every Bowl Week 1.
+              {
+                const yearNum = Number(currentDynasty.currentYear)
+                const recap = currentDynasty.weekRecapsByYear?.[yearNum]?.[CONF_CHAMP_WEEK_SLOT]
+                const done = !!recap?.text
+                if (!done) {
+                  bw1Todos.push({
+                    key: 'ccg-week-recap',
+                    done: false,
+                    title: 'Generate Conference Championship Week Recap',
+                    subtitle: 'Generate the AI recap of championship week',
+                    onAction: () => setRecapModalContext({ year: yearNum, week: CONF_CHAMP_WEEK_SLOT }),
+                    actionLabel: 'Generate',
+                  })
+                }
+              }
+
               // Generate Playoff Preview — same "Copy AI Prompt" shape as
               // Generate CCG Recap above, just built from the locked 12-team
               // CFP bracket instead of a played week's games. Needs the
@@ -7429,7 +7433,7 @@ export default function Dashboard() {
                   top-right of the body, out of the way. */}
               <div className="relative px-5 py-4">
                 <Link
-                  to={`${pathPrefix}/weekly-scores/${Number(currentDynasty.currentYear)}/${Number(currentDynasty.currentWeek) - 1}?tab=recap`}
+                  to={`${pathPrefix}/weekly-scores/${Number(currentDynasty.currentYear)}/${lastWeekRecapSlot}?tab=recap`}
                   className="absolute top-3 right-3 z-10 p-1.5 rounded-lg text-txt-tertiary hover:text-txt-secondary hover:bg-surface-3 transition-colors"
                   title="Open recap on Around the Country page"
                 >

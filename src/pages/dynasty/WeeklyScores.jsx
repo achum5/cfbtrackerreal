@@ -1161,7 +1161,7 @@ export default function WeeklyScores() {
         return (
           <Card>
             <EmptyState
-              title={displayWeek === -1 ? `No preseason recap for ${displayYear} yet` : `No recap for Week ${displayWeek} yet`}
+              title={displayWeek === -1 ? `No preseason recap for ${displayYear} yet` : `No recap for ${weekLabelFor(displayWeek)} yet`}
               message={
                 isViewOnly
                   ? 'Read-only. The dynasty owner can generate one.'

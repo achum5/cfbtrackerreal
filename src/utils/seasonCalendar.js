@@ -40,3 +40,38 @@ export function weeksInUse(rows, year) {
   }
   return [...out]
 }
+
+/** Recap / weekly-scores slots for the weeks after the regular season. */
+export const CONF_CHAMP_WEEK_SLOT = 16
+export const BOWL_WEEK_SLOT = Object.freeze({ 1: 17, 2: 18, 3: 19, 4: 20 })
+
+/**
+ * The slot of the week that JUST completed — the recap the dashboard should
+ * surface and the one its "last week" to-do generates:
+ *   regular season week N  -> N-1  (Week 1 shows the Week 0 recap)
+ *   conference championship -> 14  (the last regular-season week)
+ *   postseason week N       -> 16 for Bowl Week 1 (CCG week), then 17, 18, 19,
+ *                              20 for the Recap week (National Championship)
+ * Returns null when there is no completed week (preseason, Week 0, offseason).
+ */
+export function lastCompletedWeekSlot(phase, currentWeek) {
+  const cw = Number(currentWeek)
+  if (!Number.isFinite(cw)) return null
+  if (phase === 'regular_season') return cw >= 1 ? cw - 1 : null
+  if (phase === 'conference_championship') return LAST_REGULAR_SEASON_WEEK
+  if (phase === 'postseason') return Math.max(CONF_CHAMP_WEEK_SLOT, CONF_CHAMP_WEEK_SLOT - 1 + cw)
+  return null
+}
+
+/** Human label for a recap / weekly-scores slot. */
+export function weekSlotLabel(slot) {
+  const n = Number(slot)
+  if (n === -1) return 'Preseason'
+  if (n === CONF_CHAMP_WEEK_SLOT) return 'Conference Championship Week'
+  if (n === BOWL_WEEK_SLOT[1]) return 'Bowl Week 1'
+  if (n === BOWL_WEEK_SLOT[2]) return 'Bowl Week 2'
+  if (n === BOWL_WEEK_SLOT[3]) return 'Bowl Week 3 / CFP Semifinals'
+  if (n === BOWL_WEEK_SLOT[4]) return 'National Championship'
+  return `Week ${slot}`
+}
+
