@@ -97,6 +97,65 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
     return excluded
   }, [currentDynasty, currentYear])
 
+  // Local-grid pre-fill: one self-describing row per Bowl Week 1 slot, in the
+  // sheet's row order, filled from whatever is already saved so results can
+  // be edited in place. Every other entry modal seeds its grid this way; the
+  // bowl grid opened blank, so adding one late game meant regenerating the
+  // whole TSV. Same source data the Google-sheet path pre-fills from.
+  // Blank cells are safe: the save keeps an existing game when its row is
+  // blank, so nothing here can wipe a result.
+  const initialBowlText = useMemo(() => {
+    if (!isOpen) return ''
+    const yearNum = Number(currentYear)
+    const teamsForResolve = currentDynasty?.teams || currentDynasty?.customTeams || TEAMS
+    const abbrFromTid = (tid) => (tid == null ? null : (getGameTeamInfo(teamsForResolve, tid)?.abbr || null))
+    const userTeamAbbr = getCurrentTeamAbbr(currentDynasty) || ''
+    const cell = (v) => (v === null || v === undefined ? '' : String(v))
+
+    // Regular bowls: legacy store first, unified games win.
+    const byBowl = new Map()
+    for (const b of (currentDynasty?.bowlGamesByYear?.[yearNum]?.week1 || [])) {
+      if (b?.bowlName) byBowl.set(b.bowlName, b)
+    }
+    for (const g of (currentDynasty?.games || [])) {
+      if (!g || Number(g.year) !== yearNum) continue
+      const isBowl = g.gameType === 'bowl' || (g.bowlName && !g.bowlName.includes('CFP'))
+      if (!isBowl || !isBowlInWeek1(g.bowlName, currentDynasty)) continue
+      byBowl.set(g.bowlName, g.opponent
+        ? { team1: g.userTeam || userTeamAbbr, team2: g.opponent, team1Rank: g.teamRank ?? g.team1Rank, team2Rank: g.opponentRank ?? g.team2Rank, team1Score: g.teamScore, team2Score: g.opponentScore }
+        : { team1: abbrFromTid(g.team1Tid) || g.team1, team2: abbrFromTid(g.team2Tid) || g.team2, team1Rank: g.team1Rank, team2Rank: g.team2Rank, team1Score: g.team1Score, team2Score: g.team2Score })
+    }
+
+    // CFP First Round: teams come from the seeds even before a result exists.
+    const cfpSeeds = currentDynasty?.cfpSeedsByYear?.[yearNum] || []
+    const seedToAbbr = (seed) => {
+      const e = cfpSeeds.find(s => s.seed === seed)
+      return e ? (abbrFromTid(e.tid) || e.team || '') : ''
+    }
+    const firstRound = (currentDynasty?.games || [])
+      .filter(g => g && (g.gameType === 'cfp_first_round' || g.isCFPFirstRound) && Number(g.year) === yearNum)
+      .map(g => {
+        const slotCfg = g.cfpSlot ? CFP_BRACKET_SLOTS[g.cfpSlot] : null
+        return { seed1: g.seed1 ?? slotCfg?.higherSeed ?? null, seed2: g.seed2 ?? slotCfg?.lowerSeed ?? null, g }
+      })
+
+    const rows = getBowlGamesList(currentDynasty)
+      .filter(b => !excludedBowlGames.includes(b))
+      .map(bowl => {
+        const m = bowl.match(/^CFP First Round \(#(\d+) vs #(\d+)\)$/)
+        if (m) {
+          const hi = Number(m[1]); const lo = Number(m[2])
+          const hit = firstRound.find(f => (f.seed1 === hi && f.seed2 === lo) || (f.seed1 === lo && f.seed2 === hi))?.g
+          const t1 = (hit && (abbrFromTid(hit.team1Tid) || hit.team1)) || seedToAbbr(hi)
+          const t2 = (hit && (abbrFromTid(hit.team2Tid) || hit.team2)) || seedToAbbr(lo)
+          return [bowl, cell(t1), cell(hit?.team1Rank), cell(t2), cell(hit?.team2Rank), cell(hit?.team1Score), cell(hit?.team2Score)].join('\t')
+        }
+        const ex = byBowl.get(bowl)
+        return [bowl, cell(ex?.team1), cell(ex?.team1Rank), cell(ex?.team2), cell(ex?.team2Rank), cell(ex?.team1Score), cell(ex?.team2Score)].join('\t')
+      })
+    return rows.join('\n')
+  }, [isOpen, currentDynasty, currentYear, excludedBowlGames])
+
   // Prior Top 25 reference (post-CCG poll = rankByWeek slot 15) so the AI can
   // reason about which ranked teams aren't playing in Bowl Week 1. If that slot
   // is sparse, fall back to the most recent slot holding a (near-)complete poll
@@ -741,6 +800,7 @@ FINAL CHECK before you send
                 onUseGoogle={() => setUseLocal(false)}
                 onCancel={onClose}
                 importLabel="Import Bowl Week 1"
+                initialText={initialBowlText}
               >
                 <section className="text-center">
                   <label htmlFor="bw1-rank-week" className="label-xs text-txt-tertiary block mb-2">
