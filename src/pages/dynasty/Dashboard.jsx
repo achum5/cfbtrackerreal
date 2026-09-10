@@ -7038,8 +7038,17 @@ export default function Dashboard() {
                       : hasPortalTransferClassData
                         ? `${portalTransfersForClass.length} transfer class${portalTransfersForClass.length !== 1 ? 'es' : ''} assigned`
                         : `Assign classes for ${portalTransfersForClass.length} transfer${portalTransfersForClass.length !== 1 ? 's' : ''}`,
-                  onAction: !hasPortalTransfers ? undefined : () => setShowPortalTransferClassModal(true),
-                  actionLabel: !hasPortalTransfers ? undefined : (portalComplete ? 'Done' : 'Open'),
+                  // The action used to vanish whenever no portal transfers were
+                  // detected. That list is derived from the recruiting
+                  // commitments, so it is empty for the whole stretch BEFORE
+                  // Signing Day is entered — leaving a red, incomplete row with
+                  // nothing to click. The neighbouring Fringe Case row never
+                  // hits that because its candidates come from the roster.
+                  // Always offer the modal instead: with nothing detected it
+                  // opens on an empty grid the user can fill in by hand, which
+                  // beats a dead end.
+                  onAction: () => setShowPortalTransferClassModal(true),
+                  actionLabel: hasPortalTransferClassData ? 'Done' : 'Open',
                   viewTo: hasPortalTransferClassData ? `${pathPrefix}/recruiting/portal/${userTidForCommits}/${offseasonDataYear}` : null,
                 })
 
