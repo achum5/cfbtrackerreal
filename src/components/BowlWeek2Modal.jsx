@@ -283,7 +283,7 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
     title: `${currentYear} Bowl Week 2 Results`,
     structure: `This sheet has ONE tab: "Bowl Games". It contains ${sheetRowCount} rows (${week2SlotCount} total Bowl Week 2 slots minus ${excludedBowlGames.length} excluded). All bowl names are PRE-FILLED in column A and sorted ALPHABETICALLY. The CFP Quarterfinal rows have the suffix "(CFP QF)" in their bowl name.${excludedBowlGames.length > 0 ? `
 
-⚠️ GAMES NOT IN THIS SHEET — you may see the following in your screenshots, but there is NO row for them. Ignore them completely. Do NOT output a row for them:
+⚠️ GAMES NOT IN THIS SHEET — you may see the following in your screenshots or video, but there is NO row for them. Ignore them completely. Do NOT output a row for them:
 ${excludedBowlGames.map(g => `  • ${g}`).join('\n')}` : ''}
 
 The sheet's pre-filled column A rows are the ONLY rows you output — match them exactly.
@@ -344,7 +344,7 @@ PRIOR-WEEK TOP 25 — entering Bowl Week 2 (post-Bowl-Week-1 poll)
 These teams were ranked BEFORE Bowl Week 2 started. Use this as your
 baseline to determine the new ranks for teams NOT playing in Bowl Week 2.
 
-${prevWeekTop25Block || '  (no prior-week Top 25 stored — infer non-playing ranks from any poll visible in screenshots)'}
+${prevWeekTop25Block || '  (no prior-week Top 25 stored — infer non-playing ranks from any poll visible in the screenshots or video)'}
 
 ═══════════════════════════════════════════════════════════
 NON-PLAYING RANKED TEAMS — paste BELOW the game rows (critical, read carefully)
@@ -438,7 +438,7 @@ FINAL CHECK before you send the answer
     title: `${currentYear} Bowl Week 2 Results`,
     structure: `You produce TWO kinds of SELF-DESCRIBING lines: GAME lines (each LEADS with its exact bowl name) and POLL lines (each LEADS with the word POLL). There is NO pre-filled column and NO fixed row order — every line carries its own identity. The CFP Quarterfinal games have a bowl name ending in "(CFP QF)".${excludedBowlGames.length > 0 ? `
 
-⚠️ GAMES TO IGNORE — you may see these in your screenshots, but do NOT output a line for them:
+⚠️ GAMES TO IGNORE — you may see these in your screenshots or video, but do NOT output a line for them:
 ${excludedBowlGames.map(g => `  • ${g}`).join('\n')}` : ''}
 
 ═══════════════════════════════════════════════════════════
@@ -465,7 +465,7 @@ PRIOR-WEEK TOP 25 — entering Bowl Week 2 (post-Bowl-Week-1 poll)
 ═══════════════════════════════════════════════════════════
 These teams were ranked BEFORE Bowl Week 2. Use as the baseline for POLL lines (ranks for teams not on a regular game line).
 
-${prevWeekTop25Block || '  (no prior-week Top 25 stored — emit POLL lines only for ranks clearly visible in screenshots, otherwise omit them)'}
+${prevWeekTop25Block || '  (no prior-week Top 25 stored — emit POLL lines only for ranks clearly visible in the screenshots or video, otherwise omit them)'}
 
 ═══════════════════════════════════════════════════════════
 PER-LINE OUTPUT

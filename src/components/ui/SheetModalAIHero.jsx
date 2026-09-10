@@ -20,7 +20,7 @@ import { useState } from 'react'
  */
 export default function SheetModalAIHero({
   tagline = 'Skip the typing. Let AI fill the sheet.',
-  description = `Copy the prompt → paste it into your AI assistant along with screenshots from CFB 26 → the AI fills the sheet for you. Paste its TSV reply at the cell it tells you, then save.`,
+  description = `Copy the prompt → paste it into your AI assistant along with screenshots or a video from the game → the AI fills the sheet for you. Paste its TSV reply at the cell it tells you, then save.`,
   note = null,
   buttons = [],
 }) {

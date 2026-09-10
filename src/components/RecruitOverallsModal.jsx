@@ -73,12 +73,12 @@ Recruit overalls appear on NATIONAL SIGNING DAY (before Training Results).
 
 The YOUR INCOMING RECRUITING CLASS block below is the definitive list of the
 commits you signed this class — the SOURCE OF TRUTH for who to record. Your job
-is to find each of those exact players in the screenshots and read their overall
+is to find each of those exact players in the screenshots or video and read their overall
 (and jersey #). Do NOT filter by the class/year shown on the depth chart: a
 commit can appear as "Fr", "RS Fr", or any other year. Include a player because
 their name is in the commit list, not because of the year beside them.
 
-HOW TO FIND EACH COMMIT in the screenshots:
+HOW TO FIND EACH COMMIT in the screenshots or video:
 1. Browse the position group depth charts and match each name against the commit
    list below — EA's abbreviated names (e.g. "D.Ware") resolve to a full name there.
 2. Walk the commit list itself and locate every player on it somewhere in the
@@ -158,7 +158,7 @@ Recruit overalls appear on NATIONAL SIGNING DAY (before Training Results).
 
 The YOUR INCOMING RECRUITING CLASS block below is the definitive list of the
 commits you signed this class — the SOURCE OF TRUTH for who to record. Find each
-of those exact players in the screenshots and read their overall (and jersey #).
+of those exact players in the screenshots or video and read their overall (and jersey #).
 Do NOT filter by the class/year shown on the depth chart: a commit can appear as
 "Fr", "RS Fr", or any other year. Include a player because their name is in the
 commit list, not because of the year beside them. Browse the position group

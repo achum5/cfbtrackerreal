@@ -106,12 +106,12 @@ REQUIRED OUTPUT FORMAT
 <TRUE or FALSE>
 <TRUE or FALSE>
 <TRUE or FALSE>
-…one line per pre-filled player, in the exact order shown in the screenshots
+…one line per pre-filled player, in the exact order shown in the screenshots or video or video
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
-[ ] Exactly N lines, where N = number of pre-filled player rows visible in the screenshots
+[ ] Exactly N lines, where N = number of pre-filled player rows visible in the screenshots or video
 [ ] Every line is either the literal TRUE or the literal FALSE (uppercase, no quotes)
 [ ] No tabs, no commas, no other columns
 [ ] No blank lines

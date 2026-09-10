@@ -552,7 +552,7 @@ FINAL CHECK before you send
             columns={SF_COLUMNS}
             comboboxColumns={comboboxColumns}
             comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
-            instructions="Screenshot the CFP semifinal results. Both matchups are already filled in below from the quarterfinal winners — the AI (or you, straight in the grid) only needs the scores."
+            instructions="Screenshot — or record a video of — the CFP semifinal results. Both matchups are already filled in below from the quarterfinal winners — the AI (or you, straight in the grid) only needs the scores."
           />
         </div>
       </div>

@@ -183,7 +183,7 @@ CRITICAL RULES — read before anything else
 ═══════════════════════════════════════════════════════════
 FIELD FORMATS
 ═══════════════════════════════════════════════════════════
-- Conference — the EXACT conference this team plays in (e.g. "ACC", "SEC", "Big Ten", "Big 12", "Pac-12", "American", "Conference USA", "Mountain West", "MAC", "Sun Belt", "Independent"). Copy the conference name as shown in your screenshots. The Team MUST be a member of this conference.
+- Conference — the EXACT conference this team plays in (e.g. "ACC", "SEC", "Big Ten", "Big 12", "Pac-12", "American", "Conference USA", "Mountain West", "MAC", "Sun Belt", "Independent"). Copy the conference name as shown in your screenshots or video. The Team MUST be a member of this conference.
 - Rank — the team's place WITHIN its conference standings (integer, 1 = first place). If the screenshot lists teams top-to-bottom, the top team is 1, next is 2, and so on.
 - Team — team name from the list at the bottom (e.g. Alabama, Ohio State, Georgia). NEVER an abbreviation, nickname, or mascot. Must be a member of that line's Conference.
 - Wins — integer, no decimals, no commas (e.g. "12" not "12.0").

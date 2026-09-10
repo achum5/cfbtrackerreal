@@ -267,7 +267,7 @@ D. Common skip-trap to watch: Week 0 (and many early-season weeks) routinely hav
 
 E. If N > ${WEEKLY_SCORES_MAX_ROWS}, you have more games than the sheet supports — emit the first ${WEEKLY_SCORES_MAX_ROWS} games in the order they appear and add a one-line note AFTER the TSV block reporting how many were dropped.
 
-F. TEAM-COVERAGE CHECK. After your initial pass, build a mental SET of every team mentioned in the screenshots — any logo or abbreviation you saw, even briefly, even in a corner widget or sidebar. For each team in that set, EXACTLY ONE of these must be true:
+F. TEAM-COVERAGE CHECK. After your initial pass, build a mental SET of every team mentioned in the screenshots or video — any logo or abbreviation you saw, even briefly, even in a corner widget or sidebar. For each team in that set, EXACTLY ONE of these must be true:
      (i)  the team appears in your row list (as Col A or Col D), OR
      (ii) you affirmatively confirmed the team is on bye this week (no game visible anywhere, and bye-status confirmed by a "BYE" tag, an empty schedule slot, or its absence from a complete league-wide list).
    If a team appears in your set but in NEITHER (i) nor (ii), you missed its game. Re-walk the screenshots specifically for that team — the missing game is almost always near a list edge (top/bottom fade, scroll cutoff) or in a conference filter you breezed past.
@@ -286,7 +286,7 @@ Field reports show this catches both bug classes:
     screen order)
   • Missing games (you forgot a row that you would have caught here)
 
-For every game in the screenshots, write ONE worksheet line, in this
+For every game in the screenshots or video, write ONE worksheet line, in this
 exact pipe-separated order:
 
   WS<n> | <img> | <leftTeam> <leftScore> [VS|@|NEUT] <rightTeam> <rightScore> | HOME=<team> | WINNER=<team> | NEUTRAL=Y/N
@@ -559,7 +559,7 @@ CRITICAL RULES — output format
 9. UNKNOWN TEAMS — never invent. If you cannot find a team in the TEAM NAMES list AT ALL after a careful re-scan, OMIT that game (rare — almost everything an in-game screenshot shows is in the mapping, including all FBS teams, FCS placeholders, and any user-renamed teambuilder teams). Re-check the mapping CAREFULLY before omitting — it includes every valid team name for this dynasty.
 10. SKIP bye weeks. Teams on bye are not games and have no row.
 11. NO HEADER ROW in the output. Do not include "HOME TEAM" / "AWAY TEAM" labels.
-12. ${userAbbr ? `OPTIONAL — the user's own team is ${userAbbr}. If you can see their game in the screenshots, INCLUDE it; if not, that's fine — they enter their own game separately and any duplicate row is harmlessly preserved.` : `If the user's own team plays in this week, include the row anyway — duplicates with their separately-entered game are handled automatically.`}
+12. ${userAbbr ? `OPTIONAL — the user's own team is ${userAbbr}. If you can see their game in the screenshots or video, INCLUDE it; if not, that's fine — they enter their own game separately and any duplicate row is harmlessly preserved.` : `If the user's own team plays in this week, include the row anyway — duplicates with their separately-entered game are handled automatically.`}
 
 ═══════════════════════════════════════════════════════════
 WEEK SCOPE — REGULAR-SEASON ONLY (Week 0 through Week 14)
@@ -588,7 +588,7 @@ ${prevWeekTop25Block || '  (no prior-week Top 25 stored — bye-week ranks block
 BYE WEEK RANKINGS — the second block you must emit (critical, read carefully)
 ═══════════════════════════════════════════════════════════
 EA's screenshot only shows teams that PLAYED this week. Teams on a bye
-disappear from the screenshot entirely — but they're still ranked in the
+disappear from the screenshot or video entirely — but they're still ranked in the
 new poll. The user can see by inspection that a missing slot in the new
 Top 25 belongs to a bye team (e.g. "Miami was #1 last week, had a bye,
 slot 1 is the only empty slot this week → Miami is still #1"), but the
@@ -605,7 +605,7 @@ HOW TO REASON ABOUT BYE-WEEK RANKS:
     From the PRIOR-WEEK TOP 25 above, list every team that was ranked last week.
     Call this set P (should be up to 25 teams).
     Cross off every team in P that appears as Col A or Col D in any of your game rows
-    — those teams played, their rank is already transcribed from the screenshot.
+    — those teams played, their rank is already transcribed from the screenshot or video.
     The leftover teams in P are on BYE. Call them B. Your bye block must have
     EXACTLY |B| rows — one per bye team, no more, no fewer.
 
@@ -726,7 +726,7 @@ FINAL CHECK before you send the answer — actually run these
 Don't just glance at this list. Physically execute each check on your draft.
 
 [ ] EXHAUSTIVENESS: count the games visible across ALL the user's screenshots (deduplicated, INCLUDING FBS-vs-FCS warm-ups). That number is N. Your TSV has EXACTLY N rows. If your row count is less than N, you missed games — go back to the screenshots and find them. A 2-row or 5-row output for a Week with a full slate is almost certainly wrong.
-[ ] FCS GAMES INCLUDED: every FBS-vs-FCS game in the screenshots is a row in your output, mapped to the appropriate FCS placeholder (FCSE / FCSM / FCSN / FCSW or whatever appears in the team mapping below). Skipping a Week 0 FCS warm-up is a known failure mode — confirm you didn't.
+[ ] FCS GAMES INCLUDED: every FBS-vs-FCS game in the screenshots or video is a row in your output, mapped to the appropriate FCS placeholder (FCSE / FCSM / FCSN / FCSW or whatever appears in the team mapping below). Skipping a Week 0 FCS warm-up is a known failure mode — confirm you didn't.
 [ ] EVERY SCREENSHOT PROCESSED: if the user sent multiple images (look for "1 of 2", "2 of 2" etc., or simply more than one attachment), confirm you read every one of them, not just the first.
 [ ] NO TRUNCATION: your output does not end with "...", "[and the rest]", "etc.", or any phrase implying you stopped early. The full list goes through.
 [ ] FENCED TSV: the scores are inside a \`\`\`tsv code block — NOT a plain list, prose, or markdown table. If you wrote "North Carolina 45 TCU 42" style lines, you failed this: rewrite as tab-separated team-NAME rows inside the \`\`\`tsv fence.
@@ -740,7 +740,7 @@ Don't just glance at this list. Physically execute each check on your draft.
 [ ] No same-team-in-Col-A bias. Within this single week's slate, scan your Col A values: if any team appears more than once in Col A, that's an error (a team plays at most one game per week). Across many weeks of separate entries, the same team should NOT appear in Col A for every game it plays — half its games are home, half are away.
 [ ] SCORE-FOLLOWS-TEAM (per-row, rule 6.5). Pick THREE rows from your draft at random. For each, mentally re-read the screenshot at that exact row position. Confirm that the value in Col C is the score that was visually next to the team you put in Col A — and the value in Col F is the score next to the team in Col D. If your home/away decision swapped which side of the screen Col A came from, the score MUST have swapped with it. Any row that fails this check has the WINNER WRONG — fix it before sending. This is the most common source of "wrong team won" bug reports.
 [ ] WORKSHEET vs TSV (winner consistency). For every TSV row, find the matching WS line. The team with the higher score in the worksheet's middle block (the screen-order summary) MUST equal WINNER on that worksheet line, AND must equal whichever team has the higher score in the TSV row (whether that's Col C or Col F). If any row's TSV winner disagrees with the worksheet's WINNER, you introduced a score-swap during the worksheet→TSV derivation. Fix the TSV row.
-[ ] TEAM COVERAGE (rule F in PRE-EXTRACTION COUNT). Every team you saw in the screenshots is now either (a) in a row of your output, or (b) confirmed on bye. No team silently disappeared. If you can name a team you remember seeing that doesn't appear in EITHER place, you have a missing game — go find it.
+[ ] TEAM COVERAGE (rule F in PRE-EXTRACTION COUNT). Every team you saw in the screenshots or video is now either (a) in a row of your output, or (b) confirmed on bye. No team silently disappeared. If you can name a team you remember seeing that doesn't appear in EITHER place, you have a missing game — go find it.
 [ ] Inside the TSV block: data rows only — no header row, no commentary. Notes outside the block are fine (e.g. an "X games dropped" note if N > ${WEEKLY_SCORES_MAX_ROWS}). The worksheet fence above is expected.
 [ ] BYE BLOCK PRESENT + COMPLETE: IF the PRIOR-WEEK TOP 25 block above has data — count the teams listed there (P). Count how many of them appear in your games block with a rank (G). Your bye block must have EXACTLY P − G rows. Every team in the prior-week top 25 must be accounted for in EXACTLY ONE place: either (a) in a game row with their new rank, or (b) in the bye block with a derived new rank. NO ranked team silently drops out. The total ranked teams across both blocks must equal P (typically 25). If your count is off, go back and find the missing team before sending. IF the PRIOR-WEEK TOP 25 block above is EMPTY ("(no prior-week Top 25 stored)"), emit an EMPTY bye block — do NOT invent bye entries from real-world poll knowledge or memory. The dynasty's stored picture is the only source of truth here.
 [ ] BYE BLOCK COL D EMPTY: every bye row's column D (4th tab-separated cell) is BLANK. If you accidentally put a team name in col D of a bye row, the importer treats it as a game.
@@ -1227,7 +1227,7 @@ Don't just glance at this list. Physically execute each check on your draft.
                 comboboxColumns={weeklyComboboxColumns}
                 comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
                 normalizeRows={normalizeWeeklyScoreRows}
-                instructions={"Screenshot this week's full scoreboard — every game and its final score. It doesn't have to be perfect, just clear and complete. The AI reads the scores AND derives the Top 25 from them, so there's no separate rankings screenshot."}
+                instructions={"Screenshot — or record a video of — this week's full scoreboard, every game and its final score. It doesn't have to be perfect, just clear and complete. The AI reads the scores AND derives the Top 25 from them, so there's no separate rankings screenshot."}
               >
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <label htmlFor="weekly-rank-week" className="label-xs text-txt-tertiary">

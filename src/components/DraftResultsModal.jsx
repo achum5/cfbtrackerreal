@@ -97,8 +97,8 @@ Row 1 (header) is PRE-FILLED. You output TWO columns per drafted player: the Pla
 CRITICAL RULES — read before anything else
 ═══════════════════════════════════════════════════════════
 1. Output TWO tab-separated values per line: Player Name then Draft Round.
-2. Read BOTH the player name AND their draft round directly from the screenshots.
-3. OMIT any player whose draft round is not visible — never guess. Only include players you can clearly see in the screenshots.
+2. Read BOTH the player name AND their draft round directly from the screenshots or video.
+3. OMIT any player whose draft round is not visible — never guess. Only include players you can clearly see in the screenshots or video.
 4. Column B is a STRICT DROPDOWN. Use EXACTLY one of the 8 literal values listed below — case-sensitive, with the space between number and "Round".
 5. No header row, no totals, no commentary INSIDE the data block.
 
@@ -132,7 +132,7 @@ REQUIRED OUTPUT FORMAT
 <Player Name>\t<Draft Round>
 <Player Name>\t<Draft Round>
 ...
-(one line per drafted player visible in screenshots; tab-separated; omit unknowns entirely)
+(one line per drafted player visible in the screenshots or video; tab-separated; omit unknowns entirely)
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
@@ -140,7 +140,7 @@ FINAL CHECK before you send
 [ ] Each line has exactly TWO tab-separated values: player name and draft round
 [ ] Every draft round value is EXACTLY one of: 1st Round, 2nd Round, 3rd Round, 4th Round, 5th Round, 6th Round, 7th Round, Undrafted
 [ ] Exact capitalization: "1st Round" (capital R), "Undrafted" (capital U)
-[ ] Only players clearly visible in the screenshots — did not invent or guess any entries
+[ ] Only players clearly visible in the screenshots or video — did not invent or guess any entries
 [ ] NO tabs within names, NO extra text, NO commentary INSIDE the data block`,
     includeTeamMap: false,
   }), [currentYear, userRoster])

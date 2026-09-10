@@ -146,7 +146,7 @@ Col | Header (row 1, protected) | Pre-filled / protected?          | Your value
 COLUMN B — New Team — Allowed values:
 Any team name from the TEAM NAMES list provided at the bottom of this prompt. Use the team name exactly as shown (e.g. Alabama, Ohio State, Miami (FL), Miami (OH)).
 
-Leave the line BLANK if the destination is not visible/known in the screenshots — a blank is the correct answer for unknown.
+Leave the line BLANK if the destination is not visible/known in the screenshots or video — a blank is the correct answer for unknown.
 
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
@@ -155,12 +155,12 @@ REQUIRED OUTPUT FORMAT
 <team name or blank>
 <team name or blank>
 <team name or blank>
-…one line per pre-filled player, in the EXACT order shown in the screenshots
+…one line per pre-filled player, in the EXACT order shown in the screenshots or video or video
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
-[ ] Exactly N lines, where N = number of pre-filled Player Name rows visible in the screenshots
+[ ] Exactly N lines, where N = number of pre-filled Player Name rows visible in the screenshots or video
 [ ] Every non-blank value is an exact team name in the TEAM NAMES list (case-sensitive)
 [ ] No full team names, nicknames, mascots, cities, conferences
 [ ] No tabs, no commas, no other columns
@@ -177,7 +177,7 @@ FINAL CHECK before you send
   const localAiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Transfer Destinations`,
     roster: userRoster,
-    structure: `Output ONE line per outgoing transfer whose NEW TEAM you can see in the screenshots. Each line is SELF-DESCRIBING — it carries the player's own name, so there is NO pre-filled column to line up against and NO fixed row order.
+    structure: `Output ONE line per outgoing transfer whose NEW TEAM you can see in the screenshots or video. Each line is SELF-DESCRIBING — it carries the player's own name, so there is NO pre-filled column to line up against and NO fixed row order.
 
 ═══════════════════════════════════════════════════════════
 CRITICAL RULES — read before anything else

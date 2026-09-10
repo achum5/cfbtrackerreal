@@ -114,7 +114,7 @@ CRITICAL RULES — read before anything else
 2. ONE ROW PER PLAYER in the YOUR TEAM ROSTER block. Include every roster player, even if their OVR is unknown. The roster block has ALREADY been filtered to exclude incoming HS recruits — they do NOT receive training results. If a name appears in EA's training screenshots but is NOT in the YOUR TEAM ROSTER block, DO NOT output a row for them.
 3. Column 1 (Player) MUST use the FULL name from the YOUR TEAM ROSTER block — never abbreviated ("A. Guess"). EA CFB screenshots show abbreviated names; match them to full names using the roster.
 4. Column 2 (Position) MUST match the roster's position string exactly (QB, HB, WR, TE, LT, LG, C, RG, RT, LEDG, REDG, DT, SAM, MIKE, WILL, CB, FS, SS, K, P).
-5. Column 3 (Past OVR) = New OVR − OVR delta. The OVR column in the screenshot shows the post-training overall alongside a green gain. Example: OVR reads "83 (+2)" → New OVR = 83, Past OVR = 83 − 2 = 81. When no delta is shown (player's overall did not change), delta = 0, so Past OVR = New OVR. Leave BLANK only when the player does not appear in any screenshot at all.
+5. Column 3 (Past OVR) = New OVR − OVR delta. The OVR column in the screenshot shows the post-training overall alongside a green gain. Example: OVR reads "83 (+2)" → New OVR = 83, Past OVR = 83 − 2 = 81. When no delta is shown (player's overall did not change), delta = 0, so Past OVR = New OVR. Leave BLANK only when the player does not appear in any screenshot or video at all.
 6. Column 4 (New OVR) = the OVR number shown in the training results screenshot for this player. Integer 40–99. Leave BLANK only if the player does not appear on any screenshot.
 7. NO header row INSIDE the data. NO commentary INSIDE the data. NO blank lines between rows. Each row has exactly 3 tab characters.
 8. INTEGERS only in columns C and D. No decimals, no commas, no quotes, no units, no "+/-" signs, no color coding.
@@ -132,7 +132,7 @@ Marcus Porter	WR
 \`\`\`
 
 (Column 3 = New OVR − OVR delta; when no delta shown, delta = 0 so Past OVR = New OVR.
- Column 4 blank only if the player does not appear in any screenshot.)
+ Column 4 blank only if the player does not appear in any screenshot or video.)
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
@@ -142,7 +142,7 @@ FINAL CHECK before you send
 [ ] Column 1 names match the FULL names in the roster block (no initials)
 [ ] Column 2 positions use canonical abbreviations
 [ ] Column 3 (Past OVR): integer 40–99, computed as New OVR − OVR delta (use 0 when no delta shown → Past OVR = New OVR); blank only when player absent from all screenshots
-[ ] Column 4 (New OVR): integer 40–99 for every player visible in any screenshot; blank only for players absent from all screenshots
+[ ] Column 4 (New OVR): integer 40–99 for every player visible in any screenshot or video; blank only for players absent from all screenshots
 [ ] No header row, no prose INSIDE the data, no commas, no +/- signs
 [ ] Output wrapped in a single \`\`\`tsv ... \`\`\` fence`,
     includeTeamMap: false,

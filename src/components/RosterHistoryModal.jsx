@@ -138,7 +138,7 @@ FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
 [ ] Every line has exactly ${2 + years.length} tab-separated columns (${1 + years.length} tab characters)
 [ ] No header row, no commentary INSIDE the data
-[ ] PID column is either an integer from the screenshot, or BLANK — never invented
+[ ] PID column is either an integer from the screenshot or video, or BLANK — never invented
 [ ] No commas in any cell
 [ ] All team values are exact names from the list below
 [ ] Blank cell for every year a player was NOT on a roster — no "-", "N/A", "FA"

@@ -704,10 +704,10 @@ Your output is CHRONOLOGICAL (earliest first):
 ═══════════════════════════════════════════════════════════
 MULTI-SCREENSHOT MERGE — this is what bit the last run
 ═══════════════════════════════════════════════════════════
-The user almost always pastes MORE THAN ONE screenshot per game, because the Highlights screen scrolls. Each screenshot is a WINDOW into the same Q1/Q2/Q3/Q4 list — and consecutive screenshots typically OVERLAP by a few rows as the user scrolls.
+The user almost always sends MORE THAN ONE screenshot per game (or a video scrolling the list), because the Highlights screen scrolls. Each screenshot is a WINDOW into the same Q1/Q2/Q3/Q4 list — and consecutive screenshots typically OVERLAP by a few rows as the user scrolls.
 
 Treat all screenshots as ONE POOL of plays — do NOT emit them screenshot-by-screenshot:
-  1. Collect every play visible across ALL screenshots into one list.
+  1. Collect every play visible across ALL screenshots or video into one list.
   2. DEDUPE: if (quarter, time-left, play-text) match between two screenshots (overlap during scroll), keep ONE copy.
   3. SORT globally: first by quarter ascending (1 → OT…), then within each quarter by time-left DESCENDING (12:00 → 00:00).
   4. Emit the sorted, deduped list in one continuous TSV block.
@@ -883,7 +883,7 @@ EVERY SCORING PLAY THAT APPEARS ON THE SCREENSHOT MUST HAVE COLUMN B FILLED. Fie
 ═══════════════════════════════════════════════════════════
 HOW TO READ THE SCORING-SUMMARY SCREENSHOT
 ═══════════════════════════════════════════════════════════
-The user pastes a screenshot of CFB26's post-game Scoring Summary page. Each entry on that page is ONE scoring play. Before writing any row:
+The user attaches a screenshot or video of CFB26's post-game Scoring Summary page. Each entry on that page is ONE scoring play. Before writing any row:
 
 1. EACH ENTRY ON THE SCREENSHOT = ONE ROW. The PAT attempt listed in parentheses inside a TD entry is NOT a separate row — it collapses into that TD's row via column F (PAT Result).
 
@@ -931,7 +931,7 @@ CRITICAL RULES — read before anything else
 5. INTEGERS ONLY for Yards and Quarter.
 6. Use ONLY the literal dropdown values listed below for columns A, E, F, G. Strict dropdowns — wrong value is rejected.
 7. BLANK CELLS only for genuinely missing/illegible data. NEVER use "N/A". This sheet uses empty string, NOT "N/A", for plays without a PAT.
-8. EVERY scoring play in the screenshot must produce one row, and that row's column B (Scorer) MUST be filled with the name from the screenshot — for BOTH teams equally. Output is rejected if it skips opponent scorers.
+8. EVERY scoring play in the screenshot must produce one row, and that row's column B (Scorer) MUST be filled with the name from the screenshot or video — for BOTH teams equally. Output is rejected if it skips opponent scorers.
 9. No header row, no commentary or explanation INSIDE the data. ONE TSV block.
 
 ═══════════════════════════════════════════════════════════
@@ -1015,7 +1015,7 @@ FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
 WHAT YOU ARE LOOKING AT
 ═══════════════════════════════════════════════════════════
-The user is uploading screenshots of EA College Football 26's post-game "Team Stats" screen. The screen has the AWAY team's values down the LEFT, the HOME team's values down the RIGHT, and the stat label centered between them. The list is longer than fits on one screen, so the user typically uploads 2-3 screenshots scrolled to different positions. Some lines OVERLAP between screenshots — that's fine, treat them as confirmations, not duplicates.
+The user is uploading screenshots or a video of EA College Football 26's post-game "Team Stats" screen. The screen has the AWAY team's values down the LEFT, the HOME team's values down the RIGHT, and the stat label centered between them. The list is longer than fits on one screen, so the user typically uploads 2-3 screenshots scrolled to different positions. Some lines OVERLAP between screenshots — that's fine, treat them as confirmations, not duplicates.
 
 ⚠️ The two teams in this game are:
    • AWAY = "${awayTeamAbbr}" → your output column B (LEFT in your TSV row)
@@ -1030,7 +1030,7 @@ CRITICAL RULES — non-negotiable
 3. Row order is FIXED — see the 30-row table below. Row 1 = First Downs, row 2 = Total Offense, …, row 30 = Poss Seconds. Never reorder, skip, or add.
 4. Use INTEGERS everywhere EXCEPT row 26 (Punt Avg), which is a one-decimal number like 42.7.
 5. NO COMMAS in numbers ("1234", never "1,234"). NO percent signs. NO units.
-6. Use "0" for a stat that is genuinely zero on the screenshot. Use a BLANK cell (empty between the tabs) ONLY when the stat is not visible anywhere in any provided screenshot. Never substitute "N/A", "—", "?", or another team's value.
+6. Use "0" for a stat that is genuinely zero on the screenshot. Use a BLANK cell (empty between the tabs) ONLY when the stat is not visible anywhere in any provided screenshot or video. Never substitute "N/A", "—", "?", or another team's value.
 7. Column B is ${awayTeamAbbr} (AWAY); Column C is ${homeTeamAbbr} (HOME). Never swap.
 
 ═══════════════════════════════════════════════════════════
@@ -1073,7 +1073,7 @@ SPECIAL CASES — read carefully
 
 • TOTAL OFFENSE (row 2) vs TOTAL YARDS (row 25): CFB26 shows BOTH. Total Offense = offensive yards only (rushing + passing). Total Yards = Total Offense + return yards. They are DIFFERENT rows. Copy each from its own line — do not derive one from the other.
 
-• ZEROS: CFB26 displays a true zero as "0" or "0.0". Treat any visible zero as a real value (output 0 or 0.0, not blank). Blank is reserved for stats not displayed in any screenshot.
+• ZEROS: CFB26 displays a true zero as "0" or "0.0". Treat any visible zero as a real value (output 0 or 0.0, not blank). Blank is reserved for stats not displayed in any screenshot or video.
 
 ═══════════════════════════════════════════════════════════
 THE 30 ROWS — exact order, exact format
@@ -1193,7 +1193,7 @@ SELF-CHECK BEFORE YOU SEND — run every line
 [ ] Row 26 (Punt Avg) is the decimal next to "Punts" (e.g. 42.7 or 0.0) — not a count, not blank.
 [ ] No commas, no percent signs, no units, no "N/A", no "—".
 [ ] I did NOT include rows for "Score", "Yards Per Play", "Yards Per Rush", or "Yards Per Pass" — those are not in this sheet.
-[ ] Genuine zeros are output as "0" (or "0.0" for Punt Avg). Blank cells only when the stat is truly not visible anywhere in any screenshot.`,
+[ ] Genuine zeros are output as "0" (or "0.0" for Punt Avg). Blank cells only when the stat is truly not visible anywhere in any screenshot or video.`,
         includeTeamMap: true,
         dynastyTeams: currentDynasty?.teams,
       })
@@ -1226,7 +1226,7 @@ Each section is exactly three kinds of line:
   3. DATA rows: ONE row per ${teamAbbr} player who actually has a stat in that category.
 
 This is the whole trick, and why it now works reliably:
-  - Output ONLY players you actually see in the screenshots. No blank rows, no padding, no placeholder lines, no zero-filled rows.
+  - Output ONLY players you actually see in the screenshots or video. No blank rows, no padding, no placeholder lines, no zero-filled rows.
   - Do NOT count lines and do NOT pad to any total. A section has as many data rows as it has players, and that is all.
   - If NO ${teamAbbr} player has a stat for a section, still output that section's BANNER and HEADER line, then go straight to the next banner.
   - The next banner comes immediately after the previous section's last data row. No blank separator rows anywhere.
@@ -1237,7 +1237,7 @@ Output the entire block once (a fenced code block is fine so the tab characters 
 ════════════════════════════════════════════════════════════
 HOW TO READ THE GAME SCREENSHOTS
 ════════════════════════════════════════════════════════════
-The user pastes screenshots from EA College Football 26's post-game stats screens. Each screenshot shows ONE stat category for BOTH teams side by side. Before writing any row:
+The user attaches screenshots or a video from EA College Football 26's post-game stats screens. Each screenshot shows ONE stat category for BOTH teams side by side. Before writing any row:
 
 1. IDENTIFY THE TEAM COLUMN. Each screenshot shows the two team helmets/names as column headers. "${teamAbbr}" is the team you are writing stats for. Use ONLY rows from the ${teamAbbr} column. Never mix in opponent (${opponentAbbrLabel}) rows.
 2. TACKLES SPLIT: the defense screen shows TOTAL tackles as one number. The sheet needs SOLO and ASSISTS as SEPARATE columns. CFB26 shows them as "SOLO/AST" like "6/2". If only a combined total is shown with no split, put the total under Solo and leave Assists blank. NEVER invent a split.
@@ -1246,7 +1246,7 @@ The user pastes screenshots from EA College Football 26's post-game stats screen
 5. KICKING RANGE SPLITS: CFB26 shows FG attempts per distance range. Map to FGA 29/FGM 29 (0-29), FGA 39/FGM 39 (30-39), FGA 49/FGM 49 (40-49), FGA 50+/FGM 50+ (50+). If only one combined FG line is shown, fill FGM and FGA and leave the range columns BLANK.
 6. JERSEY NUMBERS: CFB26 shows "#12 J. Smith" style entries. Output the full roster name, NEVER "#12" or "J. Smith".
 7. FIRST NAMES: CFB26 tables show "F.Last" initials. The right-hand sidebar in each screenshot shows the highlighted player's full first name; check it before falling back to "F. Last".${hasRoster ? ` For ${teamAbbr} players, the roster block above is authoritative.` : ''}
-8. BLANKS, NOT ZEROS: a player not shown in a screenshot gets NO row. Do not invent zero-filled rows.
+8. BLANKS, NOT ZEROS: a player not shown in a screenshot or video gets NO row. Do not invent zero-filled rows.
 
 ════════════════════════════════════════════════════════════
 COLUMN SPEC PER SECTION
@@ -1971,7 +1971,7 @@ FINAL CHECK before you send
             importLabel="Import Scoring Summary"
             columns={SCORING_SUMMARY.headers}
             initialText={scoringInitialText}
-            instructions={"Screenshot the play-by-play (or just the scoring summary) for this game. The prompt already carries this game's teams and rosters — no need to be exact, just clear."}
+            instructions={"Screenshot — or record a video of — the play-by-play (or just the scoring summary) for this game. The prompt already carries this game's teams and rosters — no need to be exact, just clear."}
           >
             <button
               type="button"
@@ -1996,7 +1996,7 @@ FINAL CHECK before you send
               onPaste={pasteFromClipboard}
               showText={showRaw}
               onToggleText={() => setShowRaw((v) => !v)}
-              hints={{ screenshot: "Take screenshots of the team stats you want to enter. It doesn't have to be exact, just clear and fully showing. Then tap Copy Prompt." }}
+              hints={{ screenshot: "Take screenshots (or record a video) of the team stats you want to enter. It doesn't have to be exact, just clear and fully showing. Then tap Copy Prompt." }}
             />
 
             {showRaw && (

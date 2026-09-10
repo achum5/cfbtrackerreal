@@ -175,7 +175,7 @@ export default function StaffMovesModal({ isOpen, onClose, currentYear }) {
                 normalizeRows={normalizeStaffMoveRows}
                 comboboxColumns={comboboxColumns}
                 comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
-                instructions={`Take a screenshot of the Staff Moves board (scroll to catch every row). Upload it with the copied prompt to your AI of choice — it returns a TSV of coach moves. Paste that below. Schools use team names; leave "New School" blank for coaches who retired or left for the NFL.`}
+                instructions={`Take a screenshot (or record a video) of the Staff Moves board (scroll to catch every row). Upload it with the copied prompt to your AI of choice — it returns a TSV of coach moves. Paste that below. Schools use team names; leave "New School" blank for coaches who retired or left for the NFL.`}
               />
             </div>
           ) : (

@@ -9,8 +9,8 @@ import { AI_TOOLS } from '../../data/aiTools'
 // toggles a one-line explanation beneath the row.
 
 const STEP_HINTS = {
-  screenshot: 'Take screenshots of the data you want to enter (they don\'t have to be perfect, just clear and fully showing). Then tap Copy Prompt to copy the instructions.',
-  ai: 'Open your AI, paste the copied prompt, and upload your screenshot(s). It replies with a block of data.',
+  screenshot: 'Take screenshots of the data you want to enter — or record a short video scrolling through it (either way it doesn\'t have to be perfect, just clear and fully showing). Then tap Copy Prompt to copy the instructions.',
+  ai: 'Open your AI, paste the copied prompt, and upload your screenshots or video. It replies with a block of data.',
   paste: 'Copy the AI\'s reply, then tap Paste. The grid fills in automatically. Tap the arrow to open a text box if the normal paste doesn\'t work.',
 }
 

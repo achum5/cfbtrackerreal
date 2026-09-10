@@ -149,7 +149,7 @@ Row 1 (header: Player | Games Played | Snaps Played) is pre-filled and PROTECTED
 ═══════════════════════════════════════════════════════════
 ABOUT THE SCREENSHOTS — CFB 26 stats UI, this is what you're reading
 ═══════════════════════════════════════════════════════════
-The screenshots come from EA Sports College Football 26's team stats
+The screenshots or video come from EA Sports College Football 26's team stats
 screen. The user navigates between CATEGORY tabs (Passing, Rushing,
 Receiving, Defense, Blocking, Kicking, Punting, Returns) and can
 press a button to toggle between the default stats view and a
@@ -230,7 +230,7 @@ number shown in the GP column; do not guess or round.
 CRITICAL OUTPUT RULES
 ═══════════════════════════════════════════════════════════
 1. Output data rows ONLY (starting at row 2). NEVER output the header row.
-2. One line per UNIQUE player who appears in any screenshot. Even if a
+2. One line per UNIQUE player who appears in any screenshot or video. Even if a
    player is shown in five different category views, emit ONE row.
 3. EXACTLY 3 tab-separated values per row: <Player>\\t<Games Played>\\t<Snaps Played>.
 4. Column A (Player) is a STRICT DROPDOWN of roster names. Use the
@@ -239,7 +239,7 @@ CRITICAL OUTPUT RULES
    sometimes abbreviates first names ("R. Gideon" instead of
    "Raekwon Gideon") — the user-team roster section below maps
    abbreviated forms to full names so you can resolve them.
-5. Only include players who actually appear in the screenshots. Do
+5. Only include players who actually appear in the screenshots or video. Do
    NOT invent rows for other roster players.
 6. Games Played: integer 0–17. NO commas, NO decimals.
 7. Snaps Played: integer. NO commas, NO decimals, NO "snaps" suffix.
@@ -271,10 +271,10 @@ REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
-[ ] One line per UNIQUE player from the screenshots — players who appear
+[ ] One line per UNIQUE player from the screenshots or video — players who appear
     in multiple category views still get ONE row, not several.
 [ ] Every line has EXACTLY 2 tab characters (3 values)
-[ ] Player name is copied character-for-character from the screenshot
+[ ] Player name is copied character-for-character from the screenshot or video
     (case, punctuation, suffix), and matches a roster dropdown entry
 [ ] Snaps Played is taken from the ONE correct category for that
     player's position (OL → Blocking, defenders → Defense, HB → Rushing,

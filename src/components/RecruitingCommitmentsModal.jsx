@@ -170,7 +170,7 @@ COLS = [
     'gem_bust', 'dev_trait', 'prev_team', 'commitment', 'attributes'
 ]  # 17 fields → csv.writer always emits 16 tabs
 
-Step 1 — parse every NEW recruit from the screenshots into a Python list of
+Step 1 — parse every NEW recruit from the screenshots or video into a Python list of
 dicts. EVERY dict must have ALL 17 keys; use '' (empty string) for any blank
 field. A typical HS recruit has dev_trait='' and prev_team='' — the code still
 emits the tabs. 'attributes' is '' unless this is a player-page Attributes tab.
@@ -603,7 +603,7 @@ FINAL CHECK
         ) : sheetId ? (
           <div className="flex-1 flex flex-col overflow-hidden gap-3">
             <SheetModalAIHero
-              tagline="Skip the typing. Let AI read your recruiting screenshots (board, commit list, or a recruit's Attributes tab) and fill the sheet."
+              tagline="Skip the typing. Let AI read your recruiting screenshots or video (board, commit list, or a recruit's Attributes tab) and fill the sheet."
               buttons={[
                 { label: 'Fill with AI', prompt: recruitingPrompt },
               ]}

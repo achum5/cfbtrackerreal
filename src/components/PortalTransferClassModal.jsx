@@ -143,7 +143,7 @@ FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
 [ ] Exactly ${n} line${n !== 1 ? 's' : ''} — one per player listed above
 [ ] Each line has EXACTLY ONE tab character (separating class and jersey)
-[ ] Every non-blank class is a direct translation of the YEAR column from the screenshots
+[ ] Every non-blank class is a direct translation of the YEAR column from the screenshots or video
 [ ] Jersey #s are integers 0-99 or blank — no decimals, no "#", no commas
 [ ] Exact casing: "RS Fr" not "RSFr" or "Rs Fr"
 [ ] No extra columns beyond D and E, no commentary INSIDE the data`,

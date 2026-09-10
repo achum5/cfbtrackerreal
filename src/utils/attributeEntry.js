@@ -48,7 +48,7 @@ OUTPUT 4 TAB-SEPARATED COLUMNS per row:
 • OVR       — ${ovrSource}. Integer 40–99. Blank only if not visible anywhere.
 • Attributes — the player's ENTIRE rating set as ONE cell: comma-separated
               "CODE value" pairs using the codes below, in this order. Include
-              EVERY rating the player has a value for in the screenshots; skip a
+              EVERY rating the player has a value for in the screenshots or video; skip a
               rating only when it is genuinely not shown. Example cell:
               "AWR 84, SPD 91, ACC 92, STR 70, AGI 90, COD 88, CTH 95, …"
 

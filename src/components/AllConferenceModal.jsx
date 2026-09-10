@@ -67,7 +67,7 @@ default list above does NOT apply. In that case:
   • Output ONE block per tab that actually exists, in left-to-right tab
     order.
   • Label each block with the tab's EXACT name, copied character-for-
-    character from the screenshot.
+    character from the screenshot or video.
   • NEVER invent a "Big Ten" / "SEC" / etc. block if those tabs don't
     exist in the user's sheet — pasting into a missing tab fails.
 
@@ -209,7 +209,7 @@ CRITICAL RULES — read before anything else
 ═══════════════════════════════════════════════════════════
 FIELD FORMATS
 ═══════════════════════════════════════════════════════════
-- Conference — the EXACT conference this honoree belongs to (e.g. "Big Ten", "SEC", "Conference USA", "Mountain West"). Copy the name as shown in your screenshots. The Player's Team MUST be a member of this conference.
+- Conference — the EXACT conference this honoree belongs to (e.g. "Big Ten", "SEC", "Conference USA", "Mountain West"). Copy the name as shown in your screenshots or video. The Player's Team MUST be a member of this conference.
 - Designation — EXACTLY one of (case-insensitive): first | second | freshman
     "first" = First-Team All-Conference. "second" = Second-Team. "freshman" = Freshman Team.
 - Position — EXACTLY one of, case-sensitive:

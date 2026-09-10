@@ -80,7 +80,7 @@ export default function AIPromptModal({ isOpen, onClose, title, prompt, pasteTar
 
         <div className="flex-1 overflow-hidden flex flex-col px-5 sm:px-7 py-5 gap-4">
           <p className="text-sm text-txt-secondary leading-relaxed">
-            Copy this prompt into your AI chat tool along with screenshots of the source data. The AI returns a tab-separated block you paste directly into the Google Sheet.
+            Copy this prompt into your AI chat tool along with screenshots or a video of the source data. The AI returns a tab-separated block you paste directly into the Google Sheet.
           </p>
 
           {pasteTarget && (

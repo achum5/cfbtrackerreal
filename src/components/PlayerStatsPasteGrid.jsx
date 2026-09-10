@@ -189,7 +189,7 @@ export default function PlayerStatsPasteGrid({
         onPaste={pasteFromClipboard}
         showText={showRaw}
         onToggleText={() => setShowRaw((v) => !v)}
-        hints={{ screenshot: "Take screenshots of the stats you want to enter. It doesn't have to be exact, just clear and fully showing. Then tap Copy Prompt." }}
+        hints={{ screenshot: "Take screenshots (or record a video) of the stats you want to enter. It doesn't have to be exact, just clear and fully showing. Then tap Copy Prompt." }}
       />
       <div className="flex-shrink-0 flex items-center gap-1.5 text-xs tabular text-txt-tertiary">
         <span>Entering stats for</span>

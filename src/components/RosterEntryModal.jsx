@@ -173,10 +173,10 @@ RULES:
 - Produce ONE unified TSV — never a second table.
 - The SCREENSHOT always wins on any field it shows; known data only fills the
   blanks the screenshots leave. This applies per-attribute inside column O too:
-  a rating visible in a screenshot overrides the known-data value.
+  a rating visible in a screenshot or video overrides the known-data value.
 - A player with no match in the known data is still output in full from the
   screenshots — extract everything visible for them.
-- Never invent: if a field is blank in the screenshots AND blank/absent in the
+- Never invent: if a field is blank in the screenshots or video AND blank/absent in the
   known data, leave it blank.
 
 KNOWN DATA (tab-separated, same ${attrColCount} columns as the output, no header):

@@ -112,7 +112,7 @@ export default function ScoutingReport({ setView, players, setPlayers }) {
 const copyPrompt = () => {
   const prompt = `Act as an advanced OCR and data entry assistant for my Google Sheets "Scout Staff" tracker. 
 
-I am going to provide you with screenshots of fully scouted recruits. Your job is to extract the data and format it exactly to match the vertical layout of column C (Rows 2 through 17) in my spreadsheet. 
+I am going to provide you with screenshots or video of fully scouted recruits. Your job is to extract the data and format it exactly to match the vertical layout of column C (Rows 2 through 17) in my spreadsheet. 
 
 Extract and format the data using these strict rules:
 1. Row 2 (Player Name): First and Last name capitalized (Title Case).

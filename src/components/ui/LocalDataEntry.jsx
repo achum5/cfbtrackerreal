@@ -57,7 +57,7 @@ import PasteEntrySteps from './PasteEntrySteps'
  * Grid keyboard nav is Excel-like: Tab moves right (native), Enter moves down.
  */
 
-const DEFAULT_INSTRUCTIONS = `Take screenshots of the data you want to enter here. It doesn't have to be exact, just clear and fully showing. Upload those along with the copied prompt to your AI platform of choice. It will return a TSV output — copy that, then paste it below.`
+const DEFAULT_INSTRUCTIONS = `Take screenshots of the data you want to enter here, or record a short video scrolling through it. It doesn't have to be exact, just clear and fully showing. Upload that along with the copied prompt to your AI platform of choice. It will return a TSV output — copy that, then paste it below.`
 
 export default function LocalDataEntry({
   aiPrompt,

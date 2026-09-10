@@ -75,12 +75,12 @@ export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYe
     roster: userRoster,
     structure: `This sheet has ONE tab: "Players Leaving". It has 2 columns total (A = Player, B = Transfer Reason) and up to ~60 data rows. Row 1 is the protected header row.
 
-Your job: output EVERY SINGLE PLAYER from the uploaded screenshots. Every departing player — graduating seniors, early pro-draft declarations, voluntary transfers, medicals, dismissals, everyone — one player per line. Do not skip anyone. Do not assume anything is already filled in. Output them all.
+Your job: output EVERY SINGLE PLAYER from the uploaded screenshots or video. Every departing player — graduating seniors, early pro-draft declarations, voluntary transfers, medicals, dismissals, everyone — one player per line. Do not skip anyone. Do not assume anything is already filled in. Output them all.
 
 ═══════════════════════════════════════════════════════════
 CRITICAL RULES — read before anything else
 ═══════════════════════════════════════════════════════════
-1. OUTPUT EVERY PLAYER shown in the screenshots. No skipping, no filtering, no assumptions about pre-filled rows. If the user screenshotted 38 players, output 38 rows.
+1. OUTPUT EVERY PLAYER shown in the screenshots or video or video. No skipping, no filtering, no assumptions about pre-filled rows. If the user screenshotted 38 players, output 38 rows.
 2. Every line has EXACTLY 2 tab-separated columns (1 tab character): Player<TAB>Transfer Reason.
 3. Column A (Player) must EXACTLY match a player name from the current roster — the Player column is a strict dropdown. Match capitalisation, spacing, and suffixes (Jr./II) character-for-character. A mismatch will silently drop the row.
 4. Column B (Transfer Reason) MUST be one of the 16 literal values listed below — exact case, exact spacing. No free text.
@@ -113,17 +113,17 @@ REQUIRED OUTPUT FORMAT
 === PLAYERS LEAVING ===
 <Roster Name 1>\t<Reason 1>
 <Roster Name 2>\t<Reason 2>
-…one line per departing player, every player from the screenshots
+…one line per departing player, every player from the screenshots or video
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
 [ ] COUNT FIRST: before writing any output, scroll through every
-    screenshot the user provided and count the visible departing
+    screenshot or video the user provided and count the visible departing
     players. Write that number down. Your output line count MUST
     equal that number — not "every player I noticed", that count.
     Players cut off at the edge of a screenshot still count.
-[ ] One row per player in the uploaded screenshots — every single one, no skipping
+[ ] One row per player in the uploaded screenshots or video or video — every single one, no skipping
 [ ] Every line has exactly 2 tab-separated columns (1 tab character)
 [ ] No header row, no commentary INSIDE the data, no totals
 [ ] Every Player value matches a current roster name exactly (case + spacing)

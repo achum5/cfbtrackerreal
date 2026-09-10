@@ -121,12 +121,12 @@ REQUIRED OUTPUT FORMAT
 <allowed value or blank>
 <allowed value or blank>
 <allowed value or blank>
-…one line per pre-filled player, in the EXACT order shown in the screenshots
+…one line per pre-filled player, in the EXACT order shown in the screenshots or video or video
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
-[ ] Exactly N lines, where N = number of pre-filled player rows visible in the screenshots
+[ ] Exactly N lines, where N = number of pre-filled player rows visible in the screenshots or video
 [ ] Every non-blank line is one of that row's allowed values based on Column C (per the table above)
 [ ] No "Fr (RS)" / "So (RS)" / "Jr (RS)" — use the "RS Fr" / "RS So" / "RS Jr" forms only
 [ ] Exact casing: "Fr", "So", "Jr", "Sr", "RS Fr", "RS So", "RS Jr", "RS Sr" (single space, "RS" uppercase)
