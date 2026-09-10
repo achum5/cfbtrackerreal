@@ -13,7 +13,7 @@ import { TEAMS, resolveTid, getCurrentTeamAbbr, getTidFromAbbr } from '../../dat
 import AwardsModal from '../../components/AwardsModal'
 import { normalizePlayerName as normalizePlayerNameUtil } from '../../utils/playerMatching'
 import { preserveHeismanVideo, stripVideoUrl, normalizeVideoUrl } from '../../utils/heismanVideo'
-import { HeismanPlayButton, HeismanVideoUrlModal } from '../../components/HeismanVideo'
+import { HeismanPlayButton } from '../../components/HeismanVideo'
 import {
   PageHero,
   Card,
@@ -146,10 +146,6 @@ export default function Awards() {
   // same as isViewOnly.
   const canEdit = !isViewOnly && !isPcAutoDynasty(currentDynasty)
   const [showAwardsModal, setShowAwardsModal] = useState(false)
-  // Heisman presentation video editor (Awards page affordance — works for
-  // PC dynasties too, whose awards sync from the save and never open the
-  // paste modal). Gated on read-only only, not on canEdit.
-  const [showHeismanVideoEdit, setShowHeismanVideoEdit] = useState(false)
 
   const teamColors = useTeamColors(currentDynasty?.teamName, currentDynasty?.teams || currentDynasty?.customTeams)
 
@@ -316,29 +312,18 @@ export default function Awards() {
             borderColor: isHeisman ? undefined : 'rgba(255,255,255,0.12)',
           }}
         >
-          {/* Heisman presentation video — play button top-right when a link is
-              saved; a small "Add video" / "Edit video" affordance top-left for
-              anyone who can write. Both swallow the click so the card link
-              underneath doesn't fire. */}
-          {isHeisman && heismanVideoUrl && (
+          {/* Heisman presentation video — ONE affordance, the play button in
+              the corner. It shows even with no video saved (a writer taps it
+              to paste the link); the modal itself carries the edit pencil.
+              Swallows the click so the card link underneath doesn't fire. */}
+          {isHeisman && (
             <HeismanPlayButton
               url={heismanVideoUrl}
               year={displayYear}
+              onSave={isViewOnly ? undefined : handleHeismanVideoSave}
               size="sm"
               className="absolute top-2 right-2"
             />
-          )}
-          {isHeisman && !isViewOnly && (
-            <button
-              type="button"
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowHeismanVideoEdit(true) }}
-              onMouseDown={(e) => e.stopPropagation()}
-              className="absolute top-2.5 left-2.5 text-[9px] font-bold uppercase tracking-wide transition-opacity opacity-60 hover:opacity-100"
-              style={{ color: heismanVideoUrl ? '#fbbf24' : 'rgba(255,255,255,0.75)', letterSpacing: '1px' }}
-              title={heismanVideoUrl ? 'Change the presentation video' : 'Add the presentation video'}
-            >
-              {heismanVideoUrl ? 'Edit video' : 'Add video'}
-            </button>
           )}
 
           {/* Award name */}
@@ -445,21 +430,6 @@ export default function Awards() {
         onSave={handleAwardsSave}
         currentYear={displayYear}
         teamColors={teamColors}
-      />
-
-
-      <HeismanVideoUrlModal
-
-        isOpen={showHeismanVideoEdit}
-
-        onClose={() => setShowHeismanVideoEdit(false)}
-
-        initialUrl={normalizeVideoUrl(yearAwards?.heisman?.videoUrl)}
-
-        year={displayYear}
-
-        onSave={handleHeismanVideoSave}
-
       />
     </div>
   )
