@@ -152,51 +152,47 @@ FINAL CHECK before you send
 
   // LOCAL-PASTE prompt: self-describing rows, no pre-filled column to align
   // against. The AI emits ONE line per portal transfer, as
-  // PlayerName<TAB>Class<TAB>Jersey — so a paste carries its own identity and
-  // the save matches by name (omitted players are unchanged).
+  // PlayerName<TAB>Class — so a paste carries its own identity and the save
+  // matches by name (omitted players are unchanged).
   const localAiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Portal Transfer Class Assignment`,
     structure: `Output ONE line per portal transfer whose updated ${currentYear + 1} class you can read. Each line is SELF-DESCRIBING — it carries the player's own name — so there is NO pre-filled column to line up against and NO fixed row order.
 
-For each portal transfer, read TWO things from the roster screenshots:
+For each portal transfer, read the YEAR column value from the roster
+screenshots and translate it using this mapping:
 
-  1) The YEAR column value — translate using this mapping:
-
-       Game shows → Output
-       FR         → Fr
-       FR(RS)     → RS Fr
-       SO         → So
-       SO(RS)     → RS So
-       JR         → Jr
-       JR(RS)     → RS Jr
-       SR         → Sr
-       SR(RS)     → RS Sr
-
-  2) The JERSEY # (the number on their jersey / next to their name) — an
-     integer 0-99. This is OPTIONAL: leave it blank if you can't see it.
+     Game shows → Output
+     FR         → Fr
+     FR(RS)     → RS Fr
+     SO         → So
+     SO(RS)     → RS So
+     JR         → Jr
+     JR(RS)     → RS Jr
+     SR         → Sr
+     SR(RS)     → RS Sr
 
 ═══════════════════════════════════════════════════════════
 CRITICAL RULES — read before anything else
 ═══════════════════════════════════════════════════════════
-1. Each line has EXACTLY 3 tab-separated fields: PlayerName<TAB>Class<TAB>Jersey.
+1. Each line has EXACTLY 2 tab-separated fields: PlayerName<TAB>Class.
 2. NO header row. NO blank lines. NO commentary, totals, or labels INSIDE the data.
 3. OMIT any portal transfer whose class you cannot read — do NOT pad, do NOT guess. A player with no line is left unchanged.
 4. The order does not matter — each line stands on its own.
 5. PlayerName: the full player name exactly as it should appear.
 6. Class MUST be one of these EXACT strings: Fr | So | Jr | Sr | RS Fr | RS So | RS Jr | RS Sr — Title Case, "RS" uppercase, exactly one space. NOT "RSFr", NOT "Rs Fr".
-7. Jersey: an integer 0-99 (no "#", no decimals, no commas) OR blank. If blank, still emit the trailing tab so the line has 3 fields (PlayerName<TAB>Class<TAB>).
+7. Do NOT output jersey numbers or any other column.
 
 ═══════════════════════════════════════════════════════════
-PER-LINE OUTPUT (3 tab-separated fields)
+PER-LINE OUTPUT (2 tab-separated fields)
 ═══════════════════════════════════════════════════════════
-<Player Name><TAB><Class><TAB><Jersey #>
+<Player Name><TAB><Class>
 
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
 === PORTAL TRANSFERS ===
-<Player Name>\\t<Class>\\t<Jersey #>
-<Player Name>\\t<Class>\\t<Jersey #>
+<Player Name>\\t<Class>
+<Player Name>\\t<Class>
 …one line per portal transfer; omit any you cannot read
 
 (Each \\t represents a LITERAL TAB character — use actual tabs, not the text "\\t".)
@@ -204,20 +200,21 @@ REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
-[ ] Every line has exactly 3 tab-separated fields (two tabs)
+[ ] Every line has exactly 2 tab-separated fields (one tab)
 [ ] Every Class value is one of: Fr, So, Jr, Sr, RS Fr, RS So, RS Jr, RS Sr (exact casing, single space)
-[ ] Jersey #s are integers 0-99 or blank — no decimals, no "#", no commas
+[ ] No jersey numbers, no extra columns
 [ ] No blank lines, no header row, no commentary INSIDE the data`,
   }), [currentYear])
 
-  // Pre-fill the local grid with each portal transfer's existing class + jersey
-  // so the modal opens ready to edit. The local import reshapes each pasted
-  // row as [name, '', '', class, jersey], and the parser requires a name and a
-  // class — so we emit "PlayerName<TAB>Class<TAB>Jersey" per transfer.
+  // Pre-fill the local grid with each portal transfer's existing class so the
+  // modal opens ready to edit. The local import reshapes each pasted row as
+  // [name, '', '', class, ''], and the parser requires a name and a class — so
+  // we emit "PlayerName<TAB>Class" per transfer. Jersey numbers are NOT part
+  // of this screen: the third column pushed the table wider than the modal on
+  // a phone, and a portal transfer's number is entered on the player anyway.
   // Prefer any already-saved selection for this year; otherwise fall back to
-  // the transfer's incoming class + roster jersey (the same values the Google
-  // sheet pre-fills). Round-trip safe: re-importing unchanged reproduces the
-  // saved selections.
+  // the transfer's incoming class (the same value the Google sheet pre-fills).
+  // Round-trip safe: re-importing unchanged reproduces the saved selections.
   // The `currentYear` prop is ALREADY the data year — Dashboard passes
   // offseasonDataYear, which has applied the post-Signing-Day flip
   // adjustment, and handlePortalTransferClassSave saves under that same
@@ -235,10 +232,8 @@ FINAL CHECK before you send
       .map(t => {
         const match = savedByName.get((t.name || '').toLowerCase().trim())
         const cls = match?.selectedClass || t.incomingClass || ''
-        const jerseyRaw = match?.jerseyNumber ?? t.jerseyNumber
-        const jersey = (jerseyRaw != null && jerseyRaw !== '') ? String(jerseyRaw) : ''
         if (!t.name || !cls) return null
-        return `${t.name}\t${cls}\t${jersey}`
+        return `${t.name}\t${cls}`
       })
       .filter(Boolean)
       .join('\n')
@@ -358,12 +353,14 @@ FINAL CHECK before you send
     }
   }, [isOpen])
 
-  // Local paste import: the AI emits PlayerName<TAB>Class<TAB>Jersey rows. The
-  // parser reads name=row[0], class=row[3], jersey=row[4], so reshape each
-  // pasted [name, class, jersey] triple into the parser's 5-column layout.
+  // Local paste import: the AI emits PlayerName<TAB>Class rows. The parser
+  // reads name=row[0], class=row[3], jersey=row[4], so reshape each pasted
+  // [name, class] pair into the parser's 5-column layout with the jersey slot
+  // left blank — blank parses to null and the save then leaves the player's
+  // existing number alone.
   // Downstream save matches by name, so omitting unchanged players is correct.
   const handleLocalImport = async (text) => {
-    const rows = splitTsv(text).map(c => [c[0], '', '', (c[1] ?? ''), (c[2] ?? '')])
+    const rows = splitTsv(text).map(c => [c[0], '', '', (c[1] ?? ''), ''])
     const classSelections = await readPortalTransferClassFromSheet(null, (currentDynasty?.teams || currentDynasty?.customTeams), { rows })
     await onSave(classSelections)
     onClose()
@@ -499,7 +496,7 @@ FINAL CHECK before you send
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}
             importLabel="Import Portal Transfer Classes"
-            columns={['Player', 'Class', 'Jersey #']}
+            columns={['Player', 'Class']}
             initialText={initialText}
           />
         ) : isLoading ? (

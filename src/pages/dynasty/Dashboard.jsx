@@ -9773,7 +9773,7 @@ export default function Dashboard() {
         onClose={() => setShowNationalCommitsModal(false)}
         onSave={handleNationalCommitsSave}
         existingCommits={currentDynasty?.nationalCommitsByYear?.[offseasonDataYear] || []}
-        teamColors={teamColors}
+        currentYear={offseasonDataYear}
       />
 
       {/* Recruiting Class Rank Modal (National Signing Day) */}
