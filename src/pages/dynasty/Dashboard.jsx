@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { proxyImageUrl } from '../../utils/imageProxy'
+import { LAST_REGULAR_SEASON_WEEK, regularSeasonWeekOptions } from '../../utils/seasonCalendar'
 import { saveWeeklyGamesChanges } from '../../services/dynastyService'
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useDynasty, getCurrentSchedule, getScheduleWithGameData, getCurrentRoster, getCurrentPreseasonSetup, getCurrentTeamRatings, getCurrentCoachingStaff, getCurrentGoogleSheet, findCurrentTeamGame, getCurrentTeamGames, GAME_TYPES, getGamesByType, getCurrentCustomConferences, MOVEMENT_TYPES, createMovement, getUserGamePerspective, isTeamInGame, getTeamGamePerspective, isFirstYearOnTeam, getCurrentTeamRecord, getTeamRecord, getCurrentTeamRanking, getTeamRanking, getEncourageTransfers, getRecruitingCommitments, buildRecruitingCommitmentUpdate, getConferenceChampionshipData, createOrUpdateCFPGameShells, createOrUpdateBowlGameShell, getUserCFPGameStatus, getCFPRoundDisplayName, propagateCFPWinner, findUserCFPGameShell, isPlayerOnRoster, getPlayerClassForYear, lookupByTeamYear, getTeamConferenceForDynasty, CLASS_PROGRESSION } from '../../context/DynastyContext'
@@ -4075,7 +4076,7 @@ export default function Dashboard() {
             // since CCG week itself is unnumbered.
             {
               const yearNum = Number(currentDynasty.currentYear)
-              const prevWeek = 15
+              const prevWeek = LAST_REGULAR_SEASON_WEEK
               const weeklyEntered = currentDynasty.weeklyScoresEntered?.[yearNum]?.[prevWeek]
               const allGames = currentDynasty.games || []
               const forWeek = (g) => g && Number(g.year) === yearNum && Number(g.week) === prevWeek && g.gameType === 'regular'
@@ -4098,13 +4099,13 @@ export default function Dashboard() {
               // sidebar nav — this row is manual-entry only.
               if (!isCfb27Auto) {
                 todos.push({
-                  key: 'cc-week15-scores',
+                  key: 'cc-final-week-scores',
                   done,
                   title: done
                     ? `${savedCount} Week ${prevWeek} Game${savedCount === 1 ? '' : 's'} Logged`
                     : `Enter Week ${prevWeek} Scores`,
                   subtitle: done
-                    ? 'Across-the-country Week 15 results saved'
+                    ? `Across-the-country Week ${prevWeek} results saved`
                     : 'Log results to update records & rankings',
                   viewTo: `${pathPrefix}/weekly-scores/${yearNum}/${prevWeek}`,
                   onAction: () => setWeeklyScoresModalWeek(prevWeek),
@@ -4116,15 +4117,15 @@ export default function Dashboard() {
             // Task: Generate Week 14 Recap.
             {
               const yearNum = Number(currentDynasty.currentYear)
-              const prevWeek = 15
+              const prevWeek = LAST_REGULAR_SEASON_WEEK
               const recap = currentDynasty.weekRecapsByYear?.[yearNum]?.[prevWeek]
               const done = !!recap?.text
               if (!done) {
                 todos.push({
-                  key: 'cc-week15-recap',
+                  key: 'cc-final-week-recap',
                   done: false,
                   title: `Generate Week ${prevWeek} Recap`,
-                  subtitle: 'Generate the AI recap of Week 15',
+                  subtitle: `Generate the AI recap of Week ${prevWeek}`,
                   onAction: () => setRecapModalContext({ year: yearNum, week: prevWeek }),
                   actionLabel: 'Generate',
                 })
@@ -7509,10 +7510,11 @@ export default function Dashboard() {
         <div className="divide-y divide-surface-4 stagger-reveal">
           {teamSchedule && teamSchedule.length > 0 ? (
             <>
-              {/* Render all weeks 0-15 (16 regular-season weeks), showing
-                  bye weeks for missing entries. Conference championships
-                  live in their own phase, not in the regular schedule. */}
-              {Array.from({ length: 16 }, (_, weekNum) => {
+              {/* Render every regular-season week (0-14), showing bye weeks
+                  for missing entries; a legacy Week 15 row is shown only if
+                  this schedule still has one. Conference championships live
+                  in their own phase, not in the regular schedule. */}
+              {regularSeasonWeekOptions(teamSchedule.map(e => e?.week)).map((weekNum) => {
                 const entry = teamSchedule.find(e => Number(e.week) === weekNum)
 
                 // Handle BYE weeks - explicit bye, missing entry, or no opponent

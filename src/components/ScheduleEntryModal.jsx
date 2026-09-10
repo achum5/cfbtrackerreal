@@ -24,10 +24,11 @@ import SheetLoadingHint from './SheetLoadingHint'
 import ScheduleSaveConfirmModal from './ScheduleSaveConfirmModal'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+import { REGULAR_SEASON_WEEKS, LAST_REGULAR_SEASON_WEEK } from '../utils/seasonCalendar'
 
-// The schedule is a fixed 16-week grid (Week 0 through Week 15), mirroring the
-// Google Sheet's protected week column.
-const WEEK_LABELS = Array.from({ length: 16 }, (_, i) => `Week ${i}`)
+// The schedule is a fixed 15-week grid (Week 0 through Week 14 — Army-Navy
+// is Week 14, then Conference Championship week). There is no Week 15.
+const WEEK_LABELS = REGULAR_SEASON_WEEKS.map((i) => `Week ${i}`)
 
 export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYear, teamColors, teamTid, teamName }) {
   const { currentDynasty, updateDynasty } = useDynasty()
@@ -76,14 +77,14 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
 
   const aiPrompt = useMemo(() => buildAIPrompt({
     title: `${targetTeamName} ${currentYear} Schedule`,
-    structure: `This sheet has ONE tab: "Schedule". It contains 16 rows, one per week for Week 0 through Week 15 of the ${currentYear} season for ${targetTeamName}. Conference championships are entered separately (they're not in the regular-season schedule).
+    structure: `This sheet has ONE tab: "Schedule". It contains 15 rows, one per week for Week 0 through Week 14 of the ${currentYear} season for ${targetTeamName}. There is NO Week 15 — the Army-Navy Game is Week 14, the last regular-season week. Conference championships are entered separately (they're not in the regular-season schedule).
 
 ═══════════════════════════════════════════════════════════
 CRITICAL RULES — read before anything else
 ═══════════════════════════════════════════════════════════
 1. OUTPUT 3 VALUES PER ROW: the week number, then column C (CPU Team), then column D (Site). Nothing else — column B (User Team) is pre-filled and never output (rule 9).
-2. ROW ORDER IS FIXED: row 1 = Week 0, row 2 = Week 1, ..., row 16 = Week 15 — never reorder. Every row also LEADS with its own week number, so a dropped or shifted row can't silently slide the rest of the season by one.
-3. Output EXACTLY 16 data rows, each with EXACTLY 3 tab-separated values (2 tab characters).
+2. ROW ORDER IS FIXED: row 1 = Week 0, row 2 = Week 1, ..., row 15 = Week 14 — never reorder. Every row also LEADS with its own week number, so a dropped or shifted row can't silently slide the rest of the season by one.
+3. Output EXACTLY 15 data rows, each with EXACTLY 3 tab-separated values (2 tab characters).
 4. There are NO score columns. Do NOT output scores. This sheet is the pre-game schedule, not the results.
 5. TEAM NAMES ONLY (column C) — use values from the TEAM NAMES list below, OR the literal word "BYE" for a bye week. Column C is a strict dropdown.
 6. SITE (column D) must be EXACTLY one of these 3 literal values, case-sensitive: "Home", "Road", "Neutral". Do NOT use "Away" — the sheet's dropdown uses "Road" instead. Do NOT invent other values.
@@ -147,14 +148,13 @@ REQUIRED OUTPUT FORMAT
 12\\t<week 12 CPU Team>\\t<week 12 Site>
 13\\t<week 13 CPU Team>\\t<week 13 Site>
 14\\t<week 14 CPU Team>\\t<week 14 Site>
-15\\t<week 15 CPU Team>\\t<week 15 Site>
 
 (Each \\t above represents a LITERAL TAB character — use actual tab characters in your output, not the text "\\t".)
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send the answer
 ═══════════════════════════════════════════════════════════
-[ ] Exactly 16 data rows (Weeks 0 through 15), each LEADING with its week number 0-15 in order
+[ ] Exactly 15 data rows (Weeks 0 through 14), each LEADING with its week number 0-14 in order — there is NO Week 15
 [ ] Exactly 3 tab-separated values per row (2 tab characters): Week number, then CPU Team, then Site
 [ ] Field 2 (CPU Team): team name from the list, or the literal "BYE", or blank
 [ ] Field 3 (Site): EXACTLY "Home", "Road", or "Neutral" — not "Away", not any other value; blank on bye weeks
@@ -190,9 +190,9 @@ FINAL CHECK before you send the answer
       return ''
     }
     // Week-index-led rows (<week>\t<opponent>\t<site>) so LocalDataEntry's
-    // fixed 16-row grid places each week correctly and no blank week collapses.
+    // fixed 15-row grid places each week correctly and no blank week collapses.
     const rows = []
-    for (let wk = 0; wk <= 15; wk++) {
+    for (let wk = 0; wk <= LAST_REGULAR_SEASON_WEEK; wk++) {
       const e = byWeek.get(wk)
       if (!e) { rows.push(`${wk}\t\t`); continue }
       const isBye = e.isBye || (!e.opponent && !e.opponentTid)
@@ -441,25 +441,25 @@ FINAL CHECK before you send the answer
   }
 
   // Local paste import: the AI emits 2 columns per week (CPU Team, Site) in the
-  // FIXED order Week 0 → Week 15. Columns A (Week) and B (User Team) are
+  // FIXED order Week 0 → Week 14. Columns A (Week) and B (User Team) are
   // pre-filled on the sheet and never output. The parser reads week at row[0]
   // and the user team at row[1], so we prepend [weekNum, userTeamAbbr] by row
   // position. Rows are week-index-led (<week>\t<opponent>\t<site>) from the
-  // fixed 16-row grid, so the WEEK comes from the row itself — never from the
+  // fixed 15-row grid, so the WEEK comes from the row itself — never from the
   // surviving line index (a blank week no longer shifts every later week).
   const handleLocalImport = async (text) => {
     const raw = splitTsv(text)
     // Accept BOTH shapes so a paste "just works":
     //   • week-led  <week>\t<opponent>\t<site>   (what our AI prompt emits)
     //   • positional <opponent>\t<site>          (natural copy from the game —
-    //     one row per week in order 0→15, BYE lines included, no week column)
-    // Detect by the first column: if EVERY row leads with a 0–15 integer it's
+    //     one row per week in order 0→14, BYE lines included, no week column)
+    // Detect by the first column: if EVERY row leads with a 0–14 integer it's
     // week-led; otherwise treat each row's position as its week. Without this,
     // a positional paste slides the opponent into the site column and the week
-    // falls back to the row index, so nothing but "0–15" lands.
+    // falls back to the row index, so nothing but "0–14" lands.
     const weekLed = raw.length > 0 && raw.every((c) => {
       const first = String(c[0] ?? '').trim()
-      return /^\d{1,2}$/.test(first) && Number(first) <= 15
+      return /^\d{1,2}$/.test(first) && Number(first) <= LAST_REGULAR_SEASON_WEEK
     })
     const rows = weekLed
       ? raw.map((c) => [String(c[0] ?? ''), targetTeamAbbr, (c[1] ?? ''), (c[2] ?? '')])

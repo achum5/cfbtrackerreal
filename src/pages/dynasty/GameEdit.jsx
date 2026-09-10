@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
+import { regularSeasonWeekOptions } from '../../utils/seasonCalendar'
 import { Link, useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { getTeamLogo, getMascotName as getMascotNameFromTeams, stripMascotFromName } from '../../data/teams'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
@@ -2461,7 +2462,8 @@ export default function GameEdit() {
       {(() => {
         const WEEK_OPTIONS = [
           { value: '', label: '— Select week —' },
-          ...Array.from({ length: 16 }, (_, i) => ({ value: String(i), label: `Week ${i}` })),
+          // Week 0-14; a legacy Week 15 stays selectable only for a game already filed there.
+          ...regularSeasonWeekOptions([editWeek]).map((i) => ({ value: String(i), label: `Week ${i}` })),
           { value: 'CCG', label: 'Conference Championship' },
           { value: 'BW1', label: 'Bowl Week 1' },
           { value: 'BW2', label: 'Bowl Week 2' },

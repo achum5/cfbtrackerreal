@@ -88,6 +88,7 @@ import { normalizeLeavingReason } from '../utils/leavingReason'
 import { runMigrations } from '../migrations'
 import { nextFreePid } from '../api/pids'
 import { rollOverRosterAtYearFlip, appendAutoGraduatedToLeavingStores, advanceSeasonPlayers, revertRosterYearFlip } from '../api/seasonRollover'
+import { LAST_REGULAR_SEASON_WEEK } from '../utils/seasonCalendar'
 import { hasExhaustedEligibility } from '../utils/graduatingSeniors'
 import { indexedDBStorage, storageService } from '../services/storage'
 import { doc, updateDoc } from 'firebase/firestore'
@@ -8490,9 +8491,10 @@ export function DynastyProvider({ children }) {
         let touched = false
         const next = { ...migrated }
 
-        // Regular season is now 0–15 (16 weeks). Only weeks BEYOND 15 are
-        // invalid; bump those into the Conference Championship phase. A real
-        // Week 15 is left in place.
+        // Only weeks BEYOND 15 are bumped into the Conference Championship
+        // phase here. A dynasty parked at the legacy Week 15 is left where it
+        // is; advanceWeek moves it into CCG week on its next advance (the
+        // regular season ends at Week 14 — see utils/seasonCalendar.js).
         if (next.currentPhase === 'regular_season' && Number(next.currentWeek) > 15) {
           next.currentPhase = 'conference_championship'
           next.currentWeek = 1
@@ -15768,13 +15770,13 @@ export function DynastyProvider({ children }) {
       additionalUpdates.scheduleSheetId = null
       additionalUpdates.rosterSheetId = null
       additionalUpdates.rosterEditSheetId = null
-    } else if (dynasty.currentPhase === 'regular_season' && nextWeek > 15) {
+    } else if (dynasty.currentPhase === 'regular_season' && nextWeek > LAST_REGULAR_SEASON_WEEK) {
       // After Week 14, move to Conference Championship Week. EA's calendar
-      // is 15 regular-season weeks (0-14), then a dedicated CCG week, then
-      // bowls/CFP. The earlier `nextWeek > 15` cap was off-by-one and let
-      // a phantom Week 15 exist as a regular-season slot — that's the
-      // bug being fixed. CCG week itself isn't numbered; it just lives
-      // under the conference_championship phase with currentWeek=1.
+      // is 15 regular-season weeks (0-14, Army-Navy in Week 14), then a
+      // dedicated CCG week, then bowls/CFP. There is no Week 15; a dynasty
+      // that an earlier build parked there advances into CCG week from
+      // here too. CCG week itself isn't numbered; it just lives under the
+      // conference_championship phase with currentWeek=1.
       nextPhase = 'conference_championship'
       nextWeek = 1
 
@@ -17140,7 +17142,7 @@ export function DynastyProvider({ children }) {
       // slot would land the user in a state the migration would just
       // bump back into CCG on next load.)
       prevPhase = 'regular_season'
-      prevWeek = 15
+      prevWeek = LAST_REGULAR_SEASON_WEEK
     } else if (currentPhase === 'postseason') {
       if (currentWeek <= 1) {
         // Postseason Week 1 → Conference Championship Week 1

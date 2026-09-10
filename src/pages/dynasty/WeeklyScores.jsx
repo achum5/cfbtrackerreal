@@ -23,14 +23,16 @@ import SocialFeed from '../../components/SocialFeed'
 import { DEFAULT_SOCIAL_PLATFORM, getEffectiveCharacters } from '../../data/socialModel'
 import buildRecapLinks from '../../utils/buildRecapLinks'
 import { getRivalryTrophyForTeams } from '../../utils/trophyEngine'
+import { regularSeasonWeekOptions, weeksInUse } from '../../utils/seasonCalendar'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import SportsbookPanel, { SPORTSBOOK_TABS, isChampConference } from '../../components/SportsbookPanel'
 
-const REGULAR_SEASON_WEEKS = Array.from({ length: 16 }, (_, i) => i)  // 0-15
-
-// -1 = preseason preview (before week 0 games). Post-season: 16 = Conference
-// Championship, 17-20 = Bowl Weeks 1-4 (incl. CFP bracket).
-const ALL_WEEKS = [-1, ...REGULAR_SEASON_WEEKS, 16, 17, 18, 19, 20]
+// -1 = preseason preview (before week 0 games). Regular season is Week 0-14
+// (Week 15 appears only when this year's data still uses it — see
+// utils/seasonCalendar.js). Post-season: 16 = Conference Championship,
+// 17-20 = Bowl Weeks 1-4 (incl. CFP bracket).
+const POSTSEASON_WEEKS = [16, 17, 18, 19, 20]
+const allWeeksFor = (regularWeeks) => [-1, ...regularWeeks, ...POSTSEASON_WEEKS]
 
 const WEEK_LABELS = {
   [-1]: 'Preseason',
@@ -927,7 +929,7 @@ export default function WeeklyScores() {
               {displayWeek >= 0 && displayWeek < 16 && <span>Week</span>}
               <InlineYearSelect
                 value={displayWeek}
-                years={ALL_WEEKS}
+                years={allWeeksFor(regularSeasonWeekOptions([displayWeek, ...weeksInUse(currentDynasty?.games, displayYear)]))}
                 labels={WEEK_LABELS}
                 onChange={handleWeekChange}
                 ariaLabel="Select week"

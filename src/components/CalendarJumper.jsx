@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { REGULAR_SEASON_WEEKS } from '../utils/seasonCalendar'
 import { Link } from 'react-router-dom'
 import { useDynasty } from '../context/DynastyContext'
 import { usePathPrefix } from '../hooks/usePathPrefix'
@@ -21,7 +22,7 @@ const PHASES = [
 
 function weekOptions(phase) {
   switch (phase) {
-    case 'regular_season': return Array.from({ length: 16 }, (_, i) => i) // 0–15
+    case 'regular_season': return [...REGULAR_SEASON_WEEKS] // 0–14; there is no Week 15
     case 'postseason': return [1, 2, 3, 4, 5]
     case 'offseason': return [1, 2, 3, 4, 5, 6, 7, 8]
     default: return [0]
