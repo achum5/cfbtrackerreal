@@ -104,10 +104,14 @@ const normalizePlayerName = (name) => {
 // Shared todo-row renderer used by both the in-season weekly todo
 // block and the bowl-week branches. Each item in `todos`:
 //   { key, done, title, subtitle?, viewTo?, onAction?, actionLabel?,
-//     extraTools?, extraLeading?, inlineAction? }
+//     secondaryAction?, extraTools?, extraLeading?, inlineAction? }
 // - done: bool → green vs red status dot
 // - viewTo: nav target for the "View" link (or omitted to suppress)
 // - actionLabel + onAction: primary action button text + handler
+// - secondaryAction: { label, onClick } — an outline button in the SAME
+//   right-hand column as the primary (e.g. the "No" of a Yes/No row).
+//   Never put row actions in extraTools: that slot sits beside the title,
+//   which is where the "No" buttons used to end up.
 // - extraTools / extraLeading: optional adornments (e.g. recruiting-row
 //   icons, status text below the title)
 function renderTodoList({ todos, isViewOnly }) {
@@ -155,8 +159,13 @@ function renderTodoList({ todos, isViewOnly }) {
                 )}
               </div>
             </div>
-            {!isViewOnly && (todo.actionLabel || todo.viewTo) && (
+            {!isViewOnly && (todo.actionLabel || todo.viewTo || todo.secondaryAction) && (
               <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 [&_.btn-refined]:min-w-[4.5rem]">
+                {todo.secondaryAction && (
+                  <button onClick={todo.secondaryAction.onClick} className="btn-refined text-center">
+                    {todo.secondaryAction.label}
+                  </button>
+                )}
                 {todo.viewTo && (
                   <Link to={todo.viewTo} className="btn-refined text-center">
                     View
@@ -3397,7 +3406,7 @@ export default function Dashboard() {
                         )}
                       </div>
                     </div>
-                    {!isViewOnly && todo.actionLabel && (
+                    {!isViewOnly && (todo.actionLabel || todo.secondaryAction) && (
                       <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 [&_.btn-refined]:min-w-[4.5rem]">
                         {todo.editing ? (
                           <button
@@ -3411,17 +3420,24 @@ export default function Dashboard() {
                           </button>
                         ) : (
                           <>
+                            {todo.secondaryAction && (
+                              <button onClick={todo.secondaryAction.onClick} className="btn-refined text-center">
+                                {todo.secondaryAction.label}
+                              </button>
+                            )}
                             {todo.viewTo && (
                               <Link to={todo.viewTo} className="btn-refined text-center">
                                 View
                               </Link>
                             )}
-                            <button
-                              onClick={todo.onAction}
-                              className="btn-refined btn-refined--solid text-center"
-                            >
-                              {todo.actionLabel}
-                            </button>
+                            {todo.actionLabel && (
+                              <button
+                                onClick={todo.onAction}
+                                className="btn-refined btn-refined--solid text-center"
+                              >
+                                {todo.actionLabel}
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
@@ -3817,19 +3833,26 @@ export default function Dashboard() {
                           )}
                         </div>
                       </div>
-                      {!isViewOnly && todo.actionLabel && (
+                      {!isViewOnly && (todo.actionLabel || todo.secondaryAction) && (
                         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 [&_.btn-refined]:min-w-[4.5rem]">
+                          {todo.secondaryAction && (
+                            <button onClick={todo.secondaryAction.onClick} className="btn-refined text-center">
+                              {todo.secondaryAction.label}
+                            </button>
+                          )}
                           {todo.viewTo && (
                             <Link to={todo.viewTo} className="btn-refined text-center">
                               View
                             </Link>
                           )}
-                          <button
-                            onClick={todo.onAction}
-                            className="btn-refined btn-refined--solid text-center"
-                          >
-                            {todo.actionLabel}
-                          </button>
+                          {todo.actionLabel && (
+                            <button
+                              onClick={todo.onAction}
+                              className="btn-refined btn-refined--solid text-center"
+                            >
+                              {todo.actionLabel}
+                            </button>
+                          )}
                         </div>
                       )}
                      </div>
@@ -4866,20 +4889,13 @@ export default function Dashboard() {
                       })
                     } : (bowlEligible !== null ? resetBowl : undefined),
                     actionLabel: askingBowlEligibility ? 'Yes' : (bowlEligible !== null ? 'Edit' : undefined),
-                    extraTools: askingBowlEligibility ? (
-                      <button
-                        onClick={async () => {
+                    secondaryAction: askingBowlEligibility ? { label: 'No', onClick: async () => {
                           setBowlEligible(false)
                           const existingByYear = currentDynasty.bowlEligibilityDataByYear || {}
                           await updateDynasty(currentDynasty.id, {
                             bowlEligibilityDataByYear: { ...existingByYear, [bowlYear]: { eligible: false, bowlGame: null, opponentTid: null } },
                           })
-                        }}
-                        className="btn-refined text-center"
-                      >
-                        No
-                      </button>
-                    ) : null,
+                        } } : null,
                     belowContent: bowlEligible === true && !selectedBowl ? (
                       <div className="max-w-xs">
                         <p className="mb-2 text-xs sm:text-sm text-txt-secondary">Which bowl game?</p>
@@ -5036,9 +5052,7 @@ export default function Dashboard() {
                   })
                 } : undefined,
                 actionLabel: askingNewJobBW1 ? 'Yes' : newJobDone ? 'Edit' : undefined,
-                extraTools: askingNewJobBW1 ? (
-                  <button
-                    onClick={async () => {
+                secondaryAction: askingNewJobBW1 ? { label: 'No', onClick: async () => {
                       setTakingNewJob(false)
                       // Clear any pending-team marker set while the user was
                       // mid-selection, so declining a job can't still flip teams
@@ -5048,12 +5062,7 @@ export default function Dashboard() {
                         ...buildNewJobUpdate({ takingNewJob: false, team: null, position: null, declinedInWeek: currentDynasty.currentWeek }),
                         teams: updatedTeams,
                       })
-                    }}
-                    className="btn-refined text-center"
-                  >
-                    No
-                  </button>
-                ) : null,
+                    } } : null,
               })
               }
 
@@ -5406,9 +5415,7 @@ export default function Dashboard() {
                   })
                 } : undefined,
                 actionLabel: askingNewJobBW2 ? 'Yes' : newJobDone ? 'Edit' : undefined,
-                extraTools: askingNewJobBW2 ? (
-                  <button
-                    onClick={async () => {
+                secondaryAction: askingNewJobBW2 ? { label: 'No', onClick: async () => {
                       setTakingNewJob(false)
                       // Clear any pending-team marker set while the user was
                       // mid-selection, so declining a job can't still flip teams
@@ -5418,12 +5425,7 @@ export default function Dashboard() {
                         ...buildNewJobUpdate({ takingNewJob: false, team: null, position: null, declinedInWeek: currentDynasty.currentWeek }),
                         teams: updatedTeams,
                       })
-                    }}
-                    className="btn-refined text-center"
-                  >
-                    No
-                  </button>
-                ) : null,
+                    } } : null,
               })
               }
 
@@ -5487,9 +5489,7 @@ export default function Dashboard() {
                             }
                           : undefined,
                     actionLabel: askingPos ? 'Yes' : coordAllAnswered ? 'Edit' : undefined,
-                    extraTools: askingPos ? (
-                      <button
-                        onClick={async () => {
+                    secondaryAction: askingPos ? { label: 'Not Yet', onClick: async () => {
                           if (askingOC) {
                             setFilledOCVacancy(false)
                             await updateDynasty(currentDynasty.id, {
@@ -5509,12 +5509,7 @@ export default function Dashboard() {
                               },
                             })
                           }
-                        }}
-                        className="btn-refined text-center"
-                      >
-                        Not Yet
-                      </button>
-                    ) : null,
+                        } } : null,
                   })
                 }
               }
@@ -6347,9 +6342,7 @@ export default function Dashboard() {
                   })
                 } : undefined,
                 actionLabel: askingNewJobBW34 ? 'Yes' : w34NewJobDone ? 'Edit' : undefined,
-                extraTools: askingNewJobBW34 ? (
-                  <button
-                    onClick={async () => {
+                secondaryAction: askingNewJobBW34 ? { label: 'No', onClick: async () => {
                       setTakingNewJob(false)
                       // Clear any pending-team marker set while the user was
                       // mid-selection, so declining a job can't still flip teams
@@ -6359,12 +6352,7 @@ export default function Dashboard() {
                         ...buildNewJobUpdate({ takingNewJob: false, team: null, position: null, declinedInWeek: currentDynasty.currentWeek }),
                         teams: updatedTeams,
                       })
-                    }}
-                    className="btn-refined text-center"
-                  >
-                    No
-                  </button>
-                ) : null,
+                    } } : null,
               })
             }
 
@@ -6426,9 +6414,7 @@ export default function Dashboard() {
                           }
                         : undefined,
                   actionLabel: w34AskingPos ? 'Yes' : w34CoordAllAnswered ? 'Edit' : undefined,
-                  extraTools: w34AskingPos ? (
-                    <button
-                      onClick={async () => {
+                  secondaryAction: w34AskingPos ? { label: 'Not Yet', onClick: async () => {
                         if (w34AskingOC) {
                           setFilledOCVacancy(false)
                           await updateDynasty(currentDynasty.id, {
@@ -6448,12 +6434,7 @@ export default function Dashboard() {
                             },
                           })
                         }
-                      }}
-                      className="btn-refined text-center"
-                    >
-                      Not Yet
-                    </button>
-                  ) : null,
+                      } } : null,
                 })
               }
             }
