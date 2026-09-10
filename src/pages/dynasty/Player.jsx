@@ -43,6 +43,7 @@ import { getPlayerNil } from '../../data/playerNilModel'
 import nilIcon from '../../assets/blueprint/points.png'
 import { latestHeismanVideo } from '../../utils/heismanVideo'
 import { HeismanPlayButton } from '../../components/HeismanVideo'
+import { PORTAL_REASONS } from '../../utils/leavingReason'
 
 // Team-captain patch, shown beside the name in the hero when player.isCaptain.
 const CAPTAIN_PATCH_URL = 'https://i.imgur.com/wPIRWdW.png'
@@ -2137,10 +2138,7 @@ function PlayerInner() {
                     ? `Graduated (${year})`
                     : reason === 'Encouraged Transfer'
                     ? `Transferred (${year})`
-                    : ['Playing Style', 'Proximity to Home', 'Championship Contender', 'Program Tradition',
-                       'Campus Lifestyle', 'Stadium Atmosphere', 'Pro Potential', 'Brand Exposure',
-                       'Academic Prestige', 'Conference Prestige', 'Coach Stability', 'Coach Prestige',
-                       'Athletic Facilities'].includes(reason)
+                    : PORTAL_REASONS.includes(reason)
                     ? `Transfer: ${reason} (${year})`
                     : reason
                     ? `${reason} (${year})`

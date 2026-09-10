@@ -25,6 +25,7 @@ import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
 import { pickAutoGraduatingSeniors } from '../utils/graduatingSeniors'
 import { normalizePlayerName } from '../utils/playerMatching'
+import { LEAVING_REASONS } from '../utils/leavingReason'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -75,7 +76,7 @@ export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYe
     roster: userRoster,
     structure: `This sheet has ONE tab: "Players Leaving". It has 2 columns total (A = Player, B = Transfer Reason) and up to ~60 data rows. Row 1 is the protected header row.
 
-Your job: output EVERY SINGLE PLAYER from the uploaded screenshots or video. Every departing player — graduating seniors, early pro-draft declarations, voluntary transfers, medicals, dismissals, everyone — one player per line. Do not skip anyone. Do not assume anything is already filled in. Output them all.
+Your job: output EVERY SINGLE PLAYER who is actually LEAVING, from the uploaded screenshots or video. Every departing player — graduating seniors, early pro-draft declarations, voluntary transfers, medicals, dismissals, everyone — one player per line. Do not skip anyone who is leaving. Do not assume anything is already filled in. The ONE exception: a player marked "Staying" has been persuaded to return and is NOT leaving — leave them off entirely (see the Staying rule below).
 
 ═══════════════════════════════════════════════════════════
 CRITICAL RULES — read before anything else
@@ -83,7 +84,7 @@ CRITICAL RULES — read before anything else
 1. OUTPUT EVERY PLAYER shown in the screenshots or video or video. No skipping, no filtering, no assumptions about pre-filled rows. If the user screenshotted 38 players, output 38 rows.
 2. Every line has EXACTLY 2 tab-separated columns (1 tab character): Player<TAB>Transfer Reason.
 3. Column A (Player) must EXACTLY match a player name from the current roster — the Player column is a strict dropdown. Match capitalisation, spacing, and suffixes (Jr./II) character-for-character. A mismatch will silently drop the row.
-4. Column B (Transfer Reason) MUST be one of the 16 literal values listed below — exact case, exact spacing. No free text.
+4. Column B (Transfer Reason) MUST be one of the ${LEAVING_REASONS.length} literal values listed below — exact case, exact spacing. No free text.
 5. No header row, no blank lines, no commentary INSIDE the data, no totals.
 6. No commas anywhere.
 
@@ -96,16 +97,31 @@ Column layout, tab-separated:
 Col | Header (row 1, protected) | Your value                          | Format
 ----+---------------------------+-------------------------------------+---------------------------------
  A  | Player                    | Exact roster name                   | DROPDOWN — must match a roster player name exactly
- B  | Transfer Reason           | Reason for leaving                  | DROPDOWN — one of 16 literals (see list)
+ B  | Transfer Reason           | Reason for leaving                  | DROPDOWN — one of ${LEAVING_REASONS.length} literals (see list)
 
 ───────────────────────────────────────────────────────────
-COLUMN B — Transfer Reason — MUST be one of these 16 values EXACTLY (case + spacing matter):
-Graduating | Pro Draft | Playing Style | Proximity to Home | Championship Contender | Program Tradition | Campus Lifestyle | Stadium Atmosphere | Pro Potential | Brand Exposure | Academic Prestige | Conference Prestige | Coach Stability | Coach Prestige | Athletic Facilities | Playing Time
+COLUMN B — Transfer Reason — MUST be one of these ${LEAVING_REASONS.length} values EXACTLY (case + spacing matter):
+${LEAVING_REASONS.join(' | ')}
 
 Notes on reason selection:
 - "Graduating" = a senior whose eligibility ended (use for every Sr / RS Sr whose time is up).
 - "Pro Draft" = underclassman declaring early for the pro draft.
 - All other values are transfer-portal reasons — pick the one the screenshot / game context implies.
+- "NIL" = the player left over name/image/likeness money.
+
+───────────────────────────────────────────────────────────
+LEAVE OUT ANYONE MARKED "STAYING"
+───────────────────────────────────────────────────────────
+The Players Leaving screen also lists players the coach has already
+persuaded to STAY. They appear with a "Staying" prefix on their reason —
+e.g. "Staying: Transfer (NIL)", "Staying: Transfer (Playing Time)" — often
+alongside a persuasion chance like "Very High".
+
+Those players are NOT leaving. Do NOT output a row for them. Skip them
+entirely: no row, no blank row, no row with a blank reason. They do not
+count toward your line total either.
+
+Only output a player whose reason has NO "Staying" marker.
 
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
@@ -120,14 +136,16 @@ FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
 [ ] COUNT FIRST: before writing any output, scroll through every
     screenshot or video the user provided and count the visible departing
-    players. Write that number down. Your output line count MUST
-    equal that number — not "every player I noticed", that count.
-    Players cut off at the edge of a screenshot still count.
+    players, SKIPPING anyone marked "Staying". Write that number down.
+    Your output line count MUST equal that number — not "every player I
+    noticed", that count. Players cut off at the edge of a screenshot
+    still count.
 [ ] One row per player in the uploaded screenshots or video or video — every single one, no skipping
 [ ] Every line has exactly 2 tab-separated columns (1 tab character)
 [ ] No header row, no commentary INSIDE the data, no totals
 [ ] Every Player value matches a current roster name exactly (case + spacing)
-[ ] Every Transfer Reason is one of the 16 literal values listed (exact case)
+[ ] NO player marked "Staying" (e.g. "Staying: Transfer (NIL)") is in the output — they were persuaded to stay
+[ ] Every Transfer Reason is one of the ${LEAVING_REASONS.length} literal values listed (exact case)
 [ ] No commas in any cell
 [ ] If uncertain about a player, leave the Transfer Reason blank — but still include the row`,
     includeTeamMap: false,

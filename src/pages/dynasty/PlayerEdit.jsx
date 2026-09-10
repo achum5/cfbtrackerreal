@@ -17,6 +17,7 @@ import { getPlayerCards } from '../../utils/playerCards'
 import { uploadImage } from '../../utils/imageUpload'
 import { healPlayer, PLAYER_HEAL_VERSION } from '../../utils/playerHeal'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR, attributeNamesFor, ratingsGroups, displayLabel } from '../../utils/recruitAttributes'
+import { PORTAL_REASONS } from '../../utils/leavingReason'
 
 // Year input with a local draft state. Controlled <input type="number">
 // + an onChange that gates on `value > 1900 && < 2100` would reject
@@ -78,25 +79,14 @@ const CLASSES = ['Fr', 'RS Fr', 'So', 'RS So', 'Jr', 'RS Jr', 'Sr', 'RS Sr']
 // Dev trait options
 const DEV_TRAITS = ['Elite', 'Star', 'Impact', 'Normal']
 
-// Transfer portal reasons — the 16 in-game reasons a player can enter the portal.
-// Used for both "entered portal, transferred out" and "entered portal, returned (recommit)"
-// as well as "encouraged to transfer". Kept in sync with LEAVING_REASONS in sheetsService.js.
-const TRANSFER_REASONS = [
-  'Playing Time',
-  'Playing Style',
-  'Proximity to Home',
-  'Championship Contender',
-  'Program Tradition',
-  'Campus Lifestyle',
-  'Stadium Atmosphere',
-  'Pro Potential',
-  'Brand Exposure',
-  'Academic Prestige',
-  'Conference Prestige',
-  'Coach Stability',
-  'Coach Prestige',
-  'Athletic Facilities'
-]
+// Transfer portal reasons — the in-game reasons a player can enter the portal.
+// Used for both "entered portal, transferred out" and "entered portal, returned
+// (recommit)" as well as "encouraged to transfer". DERIVED from the canonical
+// list (utils/leavingReason) so a new reason only has to be added there; the
+// hand-maintained copy that used to live here had already drifted.
+// "Playing Time" stays first — it's the common pick — and the rest follow the
+// canonical order.
+const TRANSFER_REASONS = ['Playing Time', ...PORTAL_REASONS.filter(r => r !== 'Playing Time')]
 
 // States
 const STATES = ['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC', 'Non-US']
