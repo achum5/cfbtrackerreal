@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { LAST_REGULAR_SEASON_WEEK, CONF_CHAMP_WEEK_SLOT, regularSeasonWeekOptions, lastCompletedWeekSlot } from '../../utils/seasonCalendar'
+import { preserveHeismanVideo, stripVideoUrl } from '../../utils/heismanVideo'
 import { saveWeeklyGamesChanges } from '../../services/dynastyService'
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useDynasty, getCurrentSchedule, getScheduleWithGameData, getCurrentRoster, getCurrentPreseasonSetup, getCurrentTeamRatings, getCurrentCoachingStaff, getCurrentGoogleSheet, findCurrentTeamGame, getCurrentTeamGames, GAME_TYPES, getGamesByType, getCurrentCustomConferences, MOVEMENT_TYPES, createMovement, getUserGamePerspective, isTeamInGame, getTeamGamePerspective, isFirstYearOnTeam, getCurrentTeamRecord, getTeamRecord, getCurrentTeamRanking, getTeamRanking, getEncourageTransfers, getRecruitingCommitments, buildRecruitingCommitmentUpdate, getConferenceChampionshipData, createOrUpdateCFPGameShells, createOrUpdateBowlGameShell, getUserCFPGameStatus, getCFPRoundDisplayName, propagateCFPWinner, findUserCFPGameShell, isPlayerOnRoster, getPlayerClassForYear, lookupByTeamYear, getTeamConferenceForDynasty, CLASS_PROGRESSION } from '../../context/DynastyContext'
@@ -1515,12 +1516,15 @@ export default function Dashboard() {
   }
 
   // Handle awards data save with player matching
-  const handleAwardsSave = async (awards) => {
+  const handleAwardsSave = async (rawAwards) => {
     const year = currentDynasty.currentYear
+    // Keep a saved Heisman presentation video across a re-save that didn't
+    // mention one (Google-sheet sync). The modal's own field always does.
+    const awards = preserveHeismanVideo(rawAwards, (currentDynasty.awardsByYear || {})[year])
 
     // Convert awards object to array format for processing
     const entries = Object.entries(awards).map(([awardKey, data]) => ({
-      ...data,
+      ...stripVideoUrl(data),
       award: awardKey,
       name: data.player
     })).filter(e => e.player) // Only entries with a player name

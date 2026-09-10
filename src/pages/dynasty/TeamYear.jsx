@@ -1,5 +1,7 @@
 import { useState, useRef, useMemo, useLayoutEffect, useEffect } from 'react'
 import { normalizeLeavingReason } from '../../utils/leavingReason'
+import { normalizeVideoUrl } from '../../utils/heismanVideo'
+import { HeismanPlayButton } from '../../components/HeismanVideo'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { createPortal } from 'react-dom'
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
@@ -3591,6 +3593,9 @@ export default function TeamYear() {
                           <span className="text-xs" style={{ color: accentColorMuted }}>
                             ({award.position})
                           </span>
+                        )}
+                        {award.awardKey === 'heisman' && normalizeVideoUrl(award.videoUrl) && (
+                          <HeismanPlayButton url={award.videoUrl} year={selectedYear} size="xs" />
                         )}
                       </div>
                     )

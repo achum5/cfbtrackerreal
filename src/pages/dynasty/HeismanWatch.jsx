@@ -11,6 +11,8 @@ import { currentPollRank } from '../../utils/teamRanking'
 import { HonorPlayerTile } from '../../components/HonorsUI'
 import { PageHero, Card, EmptyState, TitleWithYear, Select } from '../../components/ui'
 import { APP_PRESEASON_WEEK } from '../../data/cfb27SaveImport'
+import { getHeismanVideoUrl } from '../../utils/heismanVideo'
+import { HeismanPlayButton } from '../../components/HeismanVideo'
 
 // This candidate's most recent played game AT OR BEFORE the week being
 // viewed (not just "most recent in the whole season" — viewing an older
@@ -174,6 +176,7 @@ export default function HeismanWatch() {
   // player here too if they're still showing in this week's watch list.
   const heismanWinner = currentDynasty.awardsByYear?.[displayYear]?.heisman
   const winnerName = heismanWinner?.player ? normalizePlayerName(heismanWinner.player) : null
+  const heismanVideoUrl = getHeismanVideoUrl(currentDynasty, displayYear)
   const isWinner = (c) => winnerName != null && normalizePlayerName(c.name || '') === winnerName
 
   return (
@@ -190,6 +193,9 @@ export default function HeismanWatch() {
               />
             )}
             <TitleWithYear year={displayYear} years={availableYears} onChange={handleYearChange} label="Heisman Watch" />
+            {heismanVideoUrl && (
+              <HeismanPlayButton url={heismanVideoUrl} year={displayYear} size="md" className="flex-shrink-0" />
+            )}
           </div>
         }
         right={hasWeeks && (

@@ -12,6 +12,8 @@ import { AWARD_IMAGES } from '../../data/awardImages'
 import { TEAMS, resolveTid, getCurrentTeamAbbr, getTidFromAbbr } from '../../data/teamRegistry'
 import AwardsModal from '../../components/AwardsModal'
 import { normalizePlayerName as normalizePlayerNameUtil } from '../../utils/playerMatching'
+import { preserveHeismanVideo, stripVideoUrl, normalizeVideoUrl } from '../../utils/heismanVideo'
+import { HeismanPlayButton, HeismanVideoUrlModal } from '../../components/HeismanVideo'
 import {
   PageHero,
   Card,
@@ -144,6 +146,10 @@ export default function Awards() {
   // same as isViewOnly.
   const canEdit = !isViewOnly && !isPcAutoDynasty(currentDynasty)
   const [showAwardsModal, setShowAwardsModal] = useState(false)
+  // Heisman presentation video editor (Awards page affordance — works for
+  // PC dynasties too, whose awards sync from the save and never open the
+  // paste modal). Gated on read-only only, not on canEdit.
+  const [showHeismanVideoEdit, setShowHeismanVideoEdit] = useState(false)
 
   const teamColors = useTeamColors(currentDynasty?.teamName, currentDynasty?.teams || currentDynasty?.customTeams)
 
@@ -179,10 +185,11 @@ export default function Awards() {
     navigate(`${pathPrefix}/awards/${year}`)
   }
 
-  const handleAwardsSave = async (awards) => {
+  const handleAwardsSave = async (rawAwards) => {
     const year = displayYear
+    const awards = preserveHeismanVideo(rawAwards, (currentDynasty.awardsByYear || {})[year])
     const entries = Object.entries(awards).map(([awardKey, data]) => ({
-      ...data,
+      ...stripVideoUrl(data),
       award: awardKey,
       name: data.player
     })).filter(e => e.player)
@@ -219,6 +226,20 @@ export default function Awards() {
     })
 
     setShowAwardsModal(false)
+  }
+
+  // Attach / replace / remove the presentation video on this year's Heisman row.
+  const handleHeismanVideoSave = async (url) => {
+    const existingByYear = currentDynasty.awardsByYear || {}
+    const yearAwardsNow = existingByYear[displayYear] || existingByYear[String(displayYear)] || {}
+    if (!yearAwardsNow.heisman) return
+    const clean = normalizeVideoUrl(url)
+    const heisman = { ...yearAwardsNow.heisman }
+    if (clean) heisman.videoUrl = clean
+    else delete heisman.videoUrl
+    await updateDynasty(currentDynasty.id, {
+      awardsByYear: { ...existingByYear, [displayYear]: { ...yearAwardsNow, heisman } },
+    })
   }
 
   const findPlayerByName = (playerName, teamAbbrVal = null, awardYear = null) => {
@@ -279,6 +300,7 @@ export default function Awards() {
     const schoolName = getSchoolName(mascotName) || teamAbbrLive
     const teamAbbrVal = teamAbbrLive
     const isHeisman = awardKey === 'heisman'
+    const heismanVideoUrl = isHeisman ? normalizeVideoUrl(awardData.videoUrl) : ''
     const to = (matchingPlayer && !isCoachAward)
       ? `${pathPrefix}/player/${matchingPlayer.pid}`
       : `${pathPrefix}/team/${teamTid}/${displayYear}`
@@ -294,6 +316,31 @@ export default function Awards() {
             borderColor: isHeisman ? undefined : 'rgba(255,255,255,0.12)',
           }}
         >
+          {/* Heisman presentation video — play button top-right when a link is
+              saved; a small "Add video" / "Edit video" affordance top-left for
+              anyone who can write. Both swallow the click so the card link
+              underneath doesn't fire. */}
+          {isHeisman && heismanVideoUrl && (
+            <HeismanPlayButton
+              url={heismanVideoUrl}
+              year={displayYear}
+              size="sm"
+              className="absolute top-2 right-2"
+            />
+          )}
+          {isHeisman && !isViewOnly && (
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowHeismanVideoEdit(true) }}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="absolute top-2.5 left-2.5 text-[9px] font-bold uppercase tracking-wide transition-opacity opacity-60 hover:opacity-100"
+              style={{ color: heismanVideoUrl ? '#fbbf24' : 'rgba(255,255,255,0.75)', letterSpacing: '1px' }}
+              title={heismanVideoUrl ? 'Change the presentation video' : 'Add the presentation video'}
+            >
+              {heismanVideoUrl ? 'Edit video' : 'Add video'}
+            </button>
+          )}
+
           {/* Award name */}
           <div
             className="mb-3 leading-tight line-clamp-2 w-full font-display font-bold uppercase text-white"
@@ -398,6 +445,21 @@ export default function Awards() {
         onSave={handleAwardsSave}
         currentYear={displayYear}
         teamColors={teamColors}
+      />
+
+
+      <HeismanVideoUrlModal
+
+        isOpen={showHeismanVideoEdit}
+
+        onClose={() => setShowHeismanVideoEdit(false)}
+
+        initialUrl={normalizeVideoUrl(yearAwards?.heisman?.videoUrl)}
+
+        year={displayYear}
+
+        onSave={handleHeismanVideoSave}
+
       />
     </div>
   )

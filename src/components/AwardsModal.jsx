@@ -25,6 +25,7 @@ import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
 import { getTeamNameOptions, getTeamNameAliases } from '../data/teamRegistry'
+import { getHeismanVideoUrl, withHeismanVideoUrl } from '../utils/heismanVideo'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -56,6 +57,13 @@ export default function AwardsModal({ isOpen, onClose, onSave, currentYear, team
   })
   const [highlightSave, setHighlightSave] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
+  // Optional Heisman presentation video. Pre-filled with the saved link so a
+  // re-paste keeps it; clearing the field removes it on save.
+  const [heismanVideoUrl, setHeismanVideoUrl] = useState('')
+  useEffect(() => {
+    if (!isOpen) return
+    setHeismanVideoUrl(getHeismanVideoUrl(currentDynasty, currentYear) || '')
+  }, [isOpen, currentYear, currentDynasty])
 
   const aiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Season Awards`,
@@ -293,7 +301,7 @@ FINAL CHECK before you send
       return [Number.isInteger(i) ? (AWARDS_LIST[i] ?? '') : '', ...cells.slice(1)]
     })
     const awards = await readAwardsFromSheet(null, currentYear, (currentDynasty?.teams || currentDynasty?.customTeams), { rows })
-    await onSave(awards)
+    await onSave(withHeismanVideoUrl(awards, heismanVideoUrl))
     onClose()
   }
 
@@ -425,7 +433,23 @@ FINAL CHECK before you send
             columns={['Player', 'Position', 'Team', 'Class']}
             comboboxColumns={{ Team: teamAbbrs }}
             comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
-          />
+          >
+            {/* Optional Heisman presentation video — saved on the Heisman row
+                (awardsByYear[year].heisman.videoUrl); a play button then shows
+                wherever the winner is displayed. Ignored if no Heisman winner
+                is entered. */}
+            <label className="block mb-3">
+              <span className="text-xs font-semibold text-txt-secondary">Heisman presentation video</span>
+              <span className="ml-1.5 text-xs text-txt-tertiary">optional</span>
+              <input
+                type="url"
+                value={heismanVideoUrl}
+                onChange={(e) => setHeismanVideoUrl(e.target.value)}
+                placeholder="YouTube link to the ceremony"
+                className="mt-1 w-full rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-surface-5"
+              />
+            </label>
+          </LocalDataEntry>
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">

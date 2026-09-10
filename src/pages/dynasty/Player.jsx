@@ -41,6 +41,8 @@ import { predictRecruitOverall } from '../../utils/scoutScore'
 import { getEditionConfig, isPcAutoDynasty, areRatingsHiddenForDisplay } from '../../editions'
 import { getPlayerNil } from '../../data/playerNilModel'
 import nilIcon from '../../assets/blueprint/points.png'
+import { latestHeismanVideo } from '../../utils/heismanVideo'
+import { HeismanPlayButton } from '../../components/HeismanVideo'
 
 // Team-captain patch, shown beside the name in the hero when player.isCaptain.
 const CAPTAIN_PATCH_URL = 'https://i.imgur.com/wPIRWdW.png'
@@ -1857,7 +1859,7 @@ function PlayerInner() {
 
     // Prestige tier — gold
     if (heismanCount > 0) {
-      tiers.push({ label: plateLabel(heismanCount, 'Heisman', heismanYears), variant: 'gold', img: getAwardImage('heisman') })
+      tiers.push({ label: plateLabel(heismanCount, 'Heisman', heismanYears), variant: 'gold', img: getAwardImage('heisman'), video: latestHeismanVideo(currentDynasty, heismanYears) })
     }
     // Silver tier — finalist-only seasons (winner years filtered out above).
     if (finalistCount > 0) {
@@ -2293,6 +2295,9 @@ function PlayerInner() {
                 <span key={i} className={`${base} ${cls}`} style={style}>
                   {p.img && <img src={p.img} alt="" className="h-3.5 w-3.5 sm:h-5 sm:w-5 object-contain flex-shrink-0 -ml-0.5 sm:-ml-1" />}
                   {p.label}
+                  {p.video && (
+                    <HeismanPlayButton url={p.video.url} year={p.video.year} size="xs" tone="muted" className="-mr-1" style={{ color: '#78350f' }} />
+                  )}
                 </span>
               )
             })}
@@ -5180,12 +5185,16 @@ function PlayerInner() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {trophies.map(t => {
                     const isHeisman = t.key === 'heisman'
+                    const heismanVideo = isHeisman ? latestHeismanVideo(currentDynasty, t.years) : null
                     const tileStyle = isHeisman
                       ? { borderColor: 'rgba(212,175,55,0.6)', boxShadow: '0 0 0 1px rgba(212,175,55,0.25), 0 0 18px rgba(212,175,55,0.15)' }
                       : { borderColor: 'var(--surface-4)' }
                     const tileClass = "relative rounded-xl bg-surface-2 border p-3 flex flex-col items-center text-center transition-colors hover:bg-surface-3"
                     const body = (
                       <>
+                        {heismanVideo && (
+                          <HeismanPlayButton url={heismanVideo.url} year={heismanVideo.year} size="sm" className="absolute top-1.5 right-1.5" />
+                        )}
                         <div className="h-20 flex items-center justify-center mb-2">
                           <img src={t.img} alt={t.label} loading="lazy" className="max-h-full w-auto object-contain" style={{ filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.5))' }} />
                         </div>
