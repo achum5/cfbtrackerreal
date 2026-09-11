@@ -144,7 +144,7 @@ import { CFB27_NIL_BUDGETS } from '../data/cfb27NilBudgets'
 import { normalizeAwardName } from '../utils/playerHeal'
 import { getFirstRoundSlotId, getSlotIdFromBowlName, getCFPGameId, CFP_BRACKET_SLOTS, DEFAULT_BOWL_CONFIG, getBowlForSlot, CFP_BRACKET_FLOW, getBracketFlowConfig } from '../data/cfpConstants'
 import { migrateDynastyToEditors, needsEditorsMigration, getMemberTeams, snapshotAllMembersForYear, getCoachNameForUid, canManageMembers, getMemberPhoto, setMemberPhotoValue } from '../data/leagueModel'
-import { migrateDynastyToCoaches, makeCoach, deriveMemberTeamsIndex, getCoaches, getCoachesControlledBy, getCurrentTeamsForControlledCoaches, getActiveCoachForTeam, setCoachSeason, carryForwardControlledCoaches, applyStaffMovesToCoaches, syncCoordinatorCoachesForTeamYear } from '../data/coachModel'
+import { migrateDynastyToCoaches, makeCoach, deriveMemberTeamsIndex, getCoaches, getCoachesControlledBy, getCurrentTeamsForControlledCoaches, getActiveCoachForTeam, setCoachSeason, carryForwardControlledCoaches, applyStaffMovesToCoaches, syncCoordinatorCoachesForTeamYear, assignCoachToRole, deriveCoachingStaffNames } from '../data/coachModel'
 import { migrateTeamNameParts } from '../data/teams'
 import { isSameWeek, isSameYear } from '../utils/compareUtils'
 import { shapeTargetForDatabase } from '../utils/recruitAttributes'
@@ -19259,6 +19259,52 @@ export function DynastyProvider({ children }) {
     await updateDynasty(dynastyId, coachingStaffUpdates)
   }
 
+  // Inline edit of ONE staff slot (HC/OC/DC) on ANY team-year, from the team
+  // page's coaching-staff popover. Unlike saveCoachingStaff (the acting user's
+  // own team, current year, whole staff) this targets an arbitrary tid + year
+  // and one role, so CPU teams and past seasons are editable in place. The
+  // coach entity is the source of truth (assignCoachToRole); every legacy
+  // name mirror that getLockedCoachingStaff might read for that team-year —
+  // teams[tid].byYear[year].coachingStaff, its lockedCoachingStaff snapshot,
+  // and the abbr/tid-keyed *ByTeamYear stores — is re-bridged only where it
+  // already exists, so nothing new is minted for a team-year that had none.
+  // Dot-path writes throughout: updateDynasty expands them for local storage
+  // and merges them field-by-field on Firestore.
+  const saveTeamYearCoach = async (dynastyId, { tid, year, role, name, reuseCid = null }) => {
+    if (blockIfReadOnly(dynastyId, 'edit coaching staff')) return null
+    const dynasty = await findDynastyById(dynastyId)
+    if (!dynasty) return null
+    const tidNum = Number(tid)
+    const yearNum = Number(year)
+    const result = assignCoachToRole(dynasty.coaches, { tid: tidNum, year: yearNum, role, name, reuseCid })
+    if (!result.changed) return result
+
+    const updates = { coaches: result.coaches }
+    const bridge = (bTid, bYear, clearRoles) => {
+      const names = deriveCoachingStaffNames(result.coaches, bTid, bYear, { clearRoles })
+      const yearData = dynasty.teams?.[bTid]?.byYear?.[bYear] || dynasty.teams?.[bTid]?.byYear?.[String(bYear)]
+      updates[`teams.${bTid}.byYear.${bYear}.coachingStaff`] = { ...(yearData?.coachingStaff || {}), ...names }
+      if (yearData?.lockedCoachingStaff) {
+        updates[`teams.${bTid}.byYear.${bYear}.lockedCoachingStaff`] = { ...yearData.lockedCoachingStaff, ...names }
+      }
+      const legacyLocked = lookupByTeamYear(dynasty.lockedCoachingStaffByYear, dynasty, bTid, bYear)
+      if (legacyLocked) {
+        Object.assign(updates, buildByTeamYearUpdates('lockedCoachingStaffByYear', dynasty, bTid, bYear, { ...legacyLocked, ...names }))
+      }
+      const legacyStaff = lookupByTeamYear(dynasty.coachingStaffByTeamYear, dynasty, bTid, bYear)
+      if (legacyStaff) {
+        Object.assign(updates, buildByTeamYearUpdates('coachingStaffByTeamYear', dynasty, bTid, bYear, { ...legacyStaff, ...names }))
+      }
+    }
+    bridge(tidNum, yearNum, [])
+    for (const v of result.vacated) {
+      if (v.tid === tidNum && v.year === yearNum) continue
+      bridge(v.tid, v.year, [v.role])
+    }
+    await updateDynasty(dynastyId, updates)
+    return result
+  }
+
   const updatePlayer = async (dynastyId, updatedPlayer, yearStats = null) => {
     if (blockIfReadOnly(dynastyId, 'update player')) return
     // Use helper functions for consistent storage routing based on dynasty.storageType
@@ -22444,6 +22490,7 @@ export function DynastyProvider({ children }) {
     saveTeamYearInfo,
     saveAllTeamRatings,
     saveCoachingStaff,
+    saveTeamYearCoach,
     saveStaffMoves,
     updatePlayer,
     updateRecruitingDatabasePlayers,

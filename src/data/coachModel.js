@@ -780,3 +780,79 @@ export function makeCoach({ name, year, teamTid, role, level, salary, hiredVia, 
     },
   }
 }
+
+// ── inline staff edit (team page popover) ────────────────────────────
+
+// Tracked coaches whose name matches `name` (case/whitespace-insensitive),
+// excluding `excludeCid` and every user-controlled coach — a controlled
+// career is never rewritten by a staff edit. Powers the "is this the same
+// coach?" prompt when a name typed into a slot already belongs to someone.
+export function findCoachesByName(coaches, name, { excludeCid = null } = {}) {
+  const key = normName(name)
+  if (!key) return []
+  return Object.values(coaches || {}).filter((c) =>
+    c && c.cid !== excludeCid && c.controlledBy == null && normName(c.name) === key
+  )
+}
+
+// Put `name` into `role` on team `tid` for `year`, the single-slot cousin of
+// syncCoordinatorCoachesForTeamYear (which is what the preseason staff modal
+// runs for the user's own team). Whoever holds the slot is vacated the same
+// way — season removed, entity deleted if that empties an NPC — and the new
+// name either reuses the coach at `reuseCid` (the user confirmed it is the
+// same person) or mints a brand-new NPC coach. A reused coach already placed
+// somewhere else that year moves; that old placement comes back in `vacated`
+// so the caller can bridge its legacy name mirror too.
+//
+// Refuses (changed: false) when the slot is held by a controlled coach, when
+// the name is blank, or when nothing would change. Pure — returns the next
+// coaches map; the caller persists it.
+export function assignCoachToRole(coaches, { tid, year, role, name, reuseCid = null }) {
+  const base = coaches || {}
+  const tidNum = Number(tid)
+  const yearNum = Number(year)
+  const yearKey = String(year)
+  const clean = (name || '').trim()
+  const noop = (cid = null) => ({ coaches: base, cid, changed: false, vacated: [] })
+  if (!clean || !Number.isFinite(tidNum) || !Number.isFinite(yearNum) || !COACH_ROLES.includes(role)) return noop()
+
+  const next = { ...base }
+  const existing = Object.values(next).find((c) => {
+    const r = c?.byYear?.[yearKey]
+    return r && Number(r.teamTid) === tidNum && r.role === role
+  })
+  if (existing && existing.controlledBy != null) return noop(existing.cid)
+
+  const reuse = reuseCid && next[reuseCid] && next[reuseCid].controlledBy == null ? next[reuseCid] : null
+  if (existing && normName(existing.name) === normName(clean) && (!reuse || reuse.cid === existing.cid)) {
+    return noop(existing.cid)
+  }
+
+  const vacated = []
+  if (existing) {
+    const trimmed = removeCoachSeason(existing, yearNum)
+    next[existing.cid] = trimmed
+    if (existing.controlledBy == null && Object.keys(trimmed.byYear || {}).length === 0) {
+      delete next[existing.cid]
+    }
+  }
+
+  let cid
+  if (reuse) {
+    const prior = reuse.byYear?.[yearKey]
+    if (prior && prior.teamTid != null && (Number(prior.teamTid) !== tidNum || prior.role !== role)) {
+      vacated.push({ tid: Number(prior.teamTid), year: yearNum, role: prior.role })
+    }
+    next[reuse.cid] = {
+      ...setCoachSeason(reuse, yearNum, { teamTid: tidNum, role }),
+      status: 'active',
+      departedYear: null,
+    }
+    cid = reuse.cid
+  } else {
+    const coach = makeCoach({ name: clean, year: yearNum, teamTid: tidNum, role, level: null, salary: null })
+    next[coach.cid] = coach
+    cid = coach.cid
+  }
+  return { coaches: next, cid, changed: true, vacated }
+}

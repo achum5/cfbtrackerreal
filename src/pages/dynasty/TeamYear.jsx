@@ -8,7 +8,7 @@ import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { getEditionConfig, isDynastyBlueprintEnabled, isPcAutoDynasty } from '../../editions'
 import DynastyBlueprintPanel from '../../components/DynastyBlueprintPanel'
 import { ProgramGradesBody } from '../../components/ProgramGradesBody'
-import { getCoachByRole } from '../../data/coachModel'
+import CoachingStaffPopover from '../../components/CoachingStaffPopover'
 import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES, getCustomConferencesForYear, getGamesByType, isPlayerOnRoster, getUserGamePerspective, getTeamConferenceForDynasty, getTeamConferenceLabel, calculateTeamRecordFromGames, getTeamRecord, getTeamRanking, getRecruitingCommitments, getPlayerPositionForYear, getPlayerOverallForYear, lookupByTeamYear, getPlayersLeaving, getTeamRatingsForYear } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useCompareSelection, buildCompareUrl, COMPARE_ICON_PATH } from '../../hooks/useCompareSelection'
@@ -2991,45 +2991,15 @@ export default function TeamYear() {
                         className="fixed inset-0 z-[9998]"
                         onClick={() => setShowCoachingStaffPopup(false)}
                       />
-                      <div
-                        className="fixed z-[9999] w-64 max-w-[calc(100vw-1.5rem)] rounded-lg overflow-hidden"
-                        style={{
-                          top: coachingStaffPopupPosition.top,
-                          right: coachingStaffPopupPosition.right,
-                          backgroundColor: 'var(--surface-1)',
-                          border: '1px solid var(--surface-4)',
-                          boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
-                        }}
-                      >
-                        <div className="px-4 py-2.5 border-b border-surface-3">
-                          <p className="label-xs text-txt-tertiary" style={{ letterSpacing: '1px' }}>Coaching Staff</p>
-                        </div>
-                        <div>
-                          {[
-                            { role: 'HC', label: 'Head Coach', name: teamCoachingStaff?.hcName, cid: getCoachByRole(currentDynasty, tid, year, 'HC')?.coach?.cid },
-                            { role: 'OC', label: 'Offensive Coordinator', name: teamCoachingStaff?.ocName, cid: getCoachByRole(currentDynasty, tid, year, 'OC')?.coach?.cid },
-                            { role: 'DC', label: 'Defensive Coordinator', name: teamCoachingStaff?.dcName, cid: getCoachByRole(currentDynasty, tid, year, 'DC')?.coach?.cid },
-                          ].filter((r) => r.name).map((r) => (
-                            <div key={r.role} className="flex items-center gap-3 px-4 py-2.5 border-b border-surface-3 last:border-b-0">
-                              <span className="w-8 flex-shrink-0 text-xs font-bold text-txt-tertiary">{r.role}</span>
-                              <div className="min-w-0 flex-1">
-                                <div className="label-xs text-txt-tertiary">{r.label}</div>
-                                {r.cid ? (
-                                  <Link
-                                    to={`/dynasty/${id}/coach/${r.cid}`}
-                                    onClick={() => setShowCoachingStaffPopup(false)}
-                                    className="text-sm font-semibold text-txt-primary hover:underline truncate block"
-                                  >
-                                    {r.name}
-                                  </Link>
-                                ) : (
-                                  <div className="text-sm font-semibold text-txt-primary truncate">{r.name}</div>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                      <CoachingStaffPopover
+                        tid={tid}
+                        year={selectedYear}
+                        staff={teamCoachingStaff}
+                        isUserTeam={isUserTeam}
+                        canEdit={!isViewOnly && !isPcAutoDynasty(currentDynasty)}
+                        position={coachingStaffPopupPosition}
+                        onClose={() => setShowCoachingStaffPopup(false)}
+                      />
                     </>,
                     document.body
                   )}

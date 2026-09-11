@@ -16,6 +16,9 @@ import Button from './Button'
  *   })
  *   if (!ok) return
  *
+ * An optional third button (`extraLabel`, styled by `extraVariant`, default
+ * 'danger') resolves with the string 'extra'.
+ *
  * Returns a Promise<boolean>. Only one dialog shows at a time; a second
  * call resolves the first with `false` and replaces it.
  */
@@ -61,7 +64,7 @@ export function ConfirmProvider({ children }) {
                 {state.cancelLabel || 'Cancel'}
               </Button>
               {state.extraLabel && (
-                <Button variant="danger" onClick={() => close('extra')}>
+                <Button variant={state.extraVariant || 'danger'} onClick={() => close('extra')}>
                   {state.extraLabel}
                 </Button>
               )}
