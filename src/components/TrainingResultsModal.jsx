@@ -531,7 +531,8 @@ FINAL CHECK before you send
             aiPrompt={attributesPrompt}
             onImport={async (entries) => { await onImportAttributes?.(entries) }}
             onClose={handleClose}
-            hint="Paste the AI reply: one line per player — name, position, OVR, then the ratings cell (AWR 88, SPD 90, …)."
+            pastOverallColumn
+            hint="Paste the AI reply: one line per player — name, position, OVR, Past OVR (OVR minus the +N shown), jersey #, dev trait, archetype, NIL, then the ratings cell (AWR 88, SPD 90, …)."
           />
         ) : useLocal && !showDeletedNote ? (
           <LocalDataEntry

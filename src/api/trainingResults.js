@@ -116,6 +116,17 @@ export function buildTrainingResultsAttributesSave(dynasty, entries) {
       next.overall = entry.overall
       next.overallByYear = { ...(player.overallByYear || {}), [year]: entry.overall }
     }
+    // Past OVR (the overall before the "+N") back-fills the prior year only
+    // when empty — same rule as the overall-only path: fills a portal
+    // arrival's old-team overall, never overwrites a recorded one.
+    const prevYear = year - 1
+    const past = Number(entry.pastOverall)
+    if (Number.isFinite(past) && entry.pastOverall != null && entry.pastOverall !== '') {
+      const oby = next.overallByYear || player.overallByYear || {}
+      if (oby[prevYear] == null && oby[String(prevYear)] == null) {
+        next.overallByYear = { ...oby, [prevYear]: past }
+      }
+    }
     if (hasAttrs) {
       const existingAttrs = player.attributesByYear?.[year] || player.attributesByYear?.[String(year)] || {}
       next.attributesByYear = { ...(player.attributesByYear || {}), [year]: { ...existingAttrs, ...entry.attributes } }
@@ -128,6 +139,7 @@ export function buildTrainingResultsAttributesSave(dynasty, entries) {
       playerName: entry.playerName ?? entry.name ?? player.name,
       position: entry.position ?? player.position ?? '',
       newOverall: entry.overall ?? null,
+      ...(Number.isFinite(past) && entry.pastOverall != null && entry.pastOverall !== '' ? { pastOverall: past } : {}),
     }, player))
   }
   const updates = { players: updatedPlayers }

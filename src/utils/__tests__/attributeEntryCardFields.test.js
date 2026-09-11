@@ -82,13 +82,16 @@ describe('serializeAttributeRows', () => {
 })
 
 describe('buildAttributesStructure', () => {
-  it('asks for eight columns and says where the card fields come from', () => {
+  it('training asks for nine columns (Past OVR after OVR) and says where the card fields come from', () => {
     const out = buildAttributesStructure('training')
-    expect(out).toContain('OUTPUT 8 TAB-SEPARATED COLUMNS')
-    expect(out).toContain('Player<TAB>Position<TAB>OVR<TAB>Jersey #<TAB>Dev Trait<TAB>Archetype<TAB>NIL<TAB>Attributes')
+    expect(out).toContain('OUTPUT 9 TAB-SEPARATED COLUMNS')
+    expect(out).toContain('Player<TAB>Position<TAB>OVR<TAB>Past OVR<TAB>Jersey #<TAB>Dev Trait<TAB>Archetype<TAB>NIL<TAB>Attributes')
     expect(out).toContain('RIGHT-HAND PLAYER\n              CARD')
     expect(out).toContain('BLUE DIAMOND')
-    expect(out).toContain('Exactly 7 tab characters per row')
+    expect(out).toContain('Exactly 8 tab characters per row')
+    const recruits = buildAttributesStructure('recruits')
+    expect(recruits).toContain('OUTPUT 8 TAB-SEPARATED COLUMNS')
+    expect(recruits).toContain('Exactly 7 tab characters per row')
   })
 
   it('lists the archetype vocabulary, and says the grouping is not a restriction', () => {

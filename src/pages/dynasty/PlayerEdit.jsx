@@ -1018,7 +1018,7 @@ export default function PlayerEdit() {
       // before the first one recorded here — put it on the timeline so the
       // class page, the team pages and the player's own history all read the
       // same origin.
-      const withOrigin = materializeTransferOrigin(updatedPlayer, { teams: dynasty?.teams, currentYear: dynasty?.currentYear })
+      const withOrigin = materializeTransferOrigin(updatedPlayer, { teams: dynasty?.teams, currentYear: dynasty?.currentYear, trainingLedger: dynasty?.trainingResultsByYear })
       await updatePlayer(targetDynastyId, withOrigin)
       navigate(navigateTo || `${pathPrefix}/player/${pid}`)
     } catch (error) {

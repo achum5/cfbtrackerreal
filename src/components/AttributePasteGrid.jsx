@@ -30,7 +30,13 @@ export default function AttributePasteGrid({
   onClose,
   onUseGoogle,
   hint = 'Paste the AI reply here. One line per player: name, position, OVR, jersey #, dev trait, archetype, NIL, then the ratings cell.',
+  // Training Results only: a Past OVR column (the overall before the "+N")
+  // right after OVR, so a transfer's pre-arrival overall lands on the season
+  // they played elsewhere.
+  pastOverallColumn = false,
 }) {
+  const fmt = { pastOverall: pastOverallColumn }
+  const attrsStart = pastOverallColumn ? 8 : 7
   const { toast } = useToast()
   const [grid, setGrid] = useState([])
   const [rawText, setRawText] = useState('')
@@ -46,11 +52,13 @@ export default function AttributePasteGrid({
     const y = Number(year)
     const entries = (players || []).map((p) => {
       const ovr = p?.overallByYear?.[y] ?? p?.overallByYear?.[String(y)] ?? p?.overall ?? null
+      const past = p?.overallByYear?.[y - 1] ?? p?.overallByYear?.[String(y - 1)] ?? null
       const attrs = p?.attributesByYear?.[y] || p?.attributesByYear?.[String(y)] || {}
       return {
         playerName: p?.name || '',
         position: p?.position || '',
         overall: ovr,
+        ...(pastOverallColumn ? { pastOverall: past } : {}),
         jerseyNumber: p?.jerseyNumber ?? '',
         devTrait: p?.devTrait || '',
         archetype: p?.archetype || '',
@@ -59,33 +67,33 @@ export default function AttributePasteGrid({
       }
     }).filter((e) => e.playerName)
     setGrid(entries)
-    setRawText(serializeAttributeRows(entries))
+    setRawText(serializeAttributeRows(entries, fmt))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const syncFromGrid = (g) => {
     setGrid(g)
-    setRawText(serializeAttributeRows(g))
+    setRawText(serializeAttributeRows(g, fmt))
   }
 
   const applyRawText = (text) => {
     setRawText(text)
-    setGrid(parseAttributeRows(splitTsv(text)))
+    setGrid(parseAttributeRows(splitTsv(text), fmt))
   }
 
   const editCell = (rowIdx, field, value) => {
     const g = grid.map((row, i) => (i === rowIdx ? { ...row, [field]: value } : row))
     setGrid(g)
-    setRawText(serializeAttributeRows(g))
+    setRawText(serializeAttributeRows(g, fmt))
   }
 
   // Edit the raw attributes cell for one row -> reparse just that cell.
   const editAttrsCell = (rowIdx, cellText) => {
-    const parsed = parseAttributeRows(splitTsv(`x\t\t\t\t\t\t\t${cellText}`))
+    const parsed = parseAttributeRows(splitTsv(`x${'\t'.repeat(attrsStart)}${cellText}`), fmt)
     const attributes = parsed[0]?.attributes || {}
     const g = grid.map((row, i) => (i === rowIdx ? { ...row, attributes, _attrsText: cellText } : row))
     setGrid(g)
-    setRawText(serializeAttributeRows(g))
+    setRawText(serializeAttributeRows(g, fmt))
   }
 
   const pasteFromClipboard = async () => {
@@ -110,7 +118,7 @@ export default function AttributePasteGrid({
   const attrCount = (attrs) => (attrs ? Object.keys(attrs).length : 0)
   // The ratings are the LAST column, so take everything past the seven ahead
   // of it — slicing a fixed index would silently truncate the cell.
-  const attrsCellText = (row) => row._attrsText ?? serializeAttributeRows([row]).split('\t').slice(7).join('\t')
+  const attrsCellText = (row) => row._attrsText ?? serializeAttributeRows([row], fmt).split('\t').slice(attrsStart).join('\t')
 
   // Keep rows that carry real data (OVR or at least one attribute).
   const buildEntries = () =>
@@ -119,6 +127,9 @@ export default function AttributePasteGrid({
         playerName: (r.playerName ?? '').toString().trim(),
         position: (r.position ?? '').toString().trim(),
         overall: r.overall === '' || r.overall == null ? null : Number(r.overall),
+        ...(pastOverallColumn
+          ? { pastOverall: r.pastOverall === '' || r.pastOverall == null ? null : Number(r.pastOverall) }
+          : {}),
         jerseyNumber: parseJerseyNumber(r.jerseyNumber),
         devTrait: normalizeDevTrait(r.devTrait),
         archetype: normalizeArchetype(r.archetype),
@@ -181,6 +192,9 @@ export default function AttributePasteGrid({
               <th className="px-2 py-1 text-left font-semibold whitespace-nowrap border border-surface-5">Player</th>
               <th className="px-2 py-1 text-left font-semibold whitespace-nowrap border border-surface-5">Pos</th>
               <th className="px-2 py-1 text-right font-semibold whitespace-nowrap border border-surface-5">OVR</th>
+              {pastOverallColumn && (
+                <th className="px-2 py-1 text-right font-semibold whitespace-nowrap border border-surface-5" title="Overall before training (OVR minus the +N shown)">Past OVR</th>
+              )}
               <th className="px-2 py-1 text-right font-semibold whitespace-nowrap border border-surface-5">Jersey #</th>
               <th className="px-2 py-1 text-left font-semibold whitespace-nowrap border border-surface-5">Dev Trait</th>
               <th className="px-2 py-1 text-left font-semibold whitespace-nowrap border border-surface-5">Archetype</th>
@@ -219,6 +233,18 @@ export default function AttributePasteGrid({
                     className="w-full bg-transparent text-right tabular text-txt-primary px-2 py-0.5 focus:outline-none focus:bg-surface-3"
                   />
                 </td>
+                {pastOverallColumn && (
+                  <td className="w-16 border border-surface-5">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={row.pastOverall ?? ''}
+                      onChange={(e) => editCell(i, 'pastOverall', e.target.value)}
+                      aria-label={`Past overall ${i + 1}`}
+                      className="w-full bg-transparent text-right tabular text-txt-primary px-2 py-0.5 focus:outline-none focus:bg-surface-3"
+                    />
+                  </td>
+                )}
                 <td className="w-16 border border-surface-5">
                   <input
                     type="text"
@@ -281,7 +307,7 @@ export default function AttributePasteGrid({
             ))}
             {grid.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-2 py-4 text-center text-txt-tertiary border border-surface-5">
+                <td colSpan={pastOverallColumn ? 9 : 8} className="px-2 py-4 text-center text-txt-tertiary border border-surface-5">
                   Paste the AI reply to fill ratings.
                 </td>
               </tr>

@@ -53,11 +53,13 @@ export function resolvePreviousSchoolTid(value, teams, { joiningTid = null } = {
  *     school's roster when the player has no season that year or earlier —
  *     the timeline is the source of truth for where a player was, so a
  *     transfer "from Washington State" means a 2026 season at Washington
- *     State, exactly as if the user had added that row by hand.
+ *     State, exactly as if the user had added that row by hand — carrying
+ *     the previous class, the same dev trait, and the pre-gain overall when
+ *     Training Results supplied one (`pastOverall`).
  *
  * Pure; returns the next player object (the same object when nothing changes).
  */
-export function applyPreviousSchool(player, { previousTeam, classYear, teams, joiningTid = null }) {
+export function applyPreviousSchool(player, { previousTeam, classYear, teams, joiningTid = null, pastOverall = null }) {
   if (!player) return player
   const yearNum = Number(classYear)
   const rowText = typeof previousTeam === 'string' ? previousTeam.trim() : previousTeam
@@ -76,7 +78,7 @@ export function applyPreviousSchool(player, { previousTeam, classYear, teams, jo
   if (next.isPortal !== true) next = { ...next, isPortal: true }
 
   if (Number.isFinite(yearNum) && tid != null) {
-    next = placeOriginSeason(next, yearNum, tid)
+    next = placeOriginSeason(next, yearNum, tid, { pastOverall })
   }
 
   if (Number.isFinite(yearNum)) {
@@ -113,16 +115,67 @@ function firstSeasonYear(player) {
   return years.length ? Math.min(...years) : null
 }
 
-// Put `originYear` on `tid`'s roster when nothing earlier is recorded. Never
-// overwrites a season already there, never touches a player whose history
-// already reaches back past originYear (their origin is on the timeline).
-function placeOriginSeason(player, originYear, tid) {
-  const tby = player.teamsByYear || {}
-  const existing = tby[originYear] ?? tby[String(originYear)]
-  if (existing != null && existing !== '') return player
-  const first = firstSeasonYear(player)
-  if (first != null && first <= originYear) return player
-  return { ...player, teamsByYear: { ...tby, [originYear]: Number(tid) } }
+// The class a player held the season BEFORE the one they hold now. A
+// redshirt tag means the redshirt was taken that prior season — an RS So was
+// a (true) So the year before — so the tag simply comes off; otherwise the
+// class steps back one year. Null when there is no prior college season
+// (Fr, HS, JUCO) or the class is unknown.
+export function previousSeasonClass(cls) {
+  const c = String(cls ?? '').trim()
+  if (!c) return null
+  if (/^RS\s+/i.test(c)) return c.replace(/^RS\s+/i, '')
+  return { So: 'Fr', Jr: 'So', Sr: 'Jr' }[c] || null
+}
+
+const readYear = (map, y) => (map ? (map[y] ?? map[String(y)]) : undefined)
+const isBlank = (v) => v == null || v === ''
+
+// Put `originYear` on `tid`'s roster when nothing earlier is recorded, then
+// fill in what that season must have looked like from the season after it:
+// the previous class, the same dev trait, and (when Training Results
+// captured a "+N" for the player) the overall before the gain. Never
+// overwrites a season, class, trait or overall already there, and never
+// touches a player whose history already reaches back past originYear.
+function placeOriginSeason(player, originYear, tid, { pastOverall = null } = {}) {
+  let next = player
+  const tby = next.teamsByYear || {}
+  const existing = readYear(tby, originYear)
+  if (isBlank(existing)) {
+    const first = firstSeasonYear(next)
+    if (first != null && first <= originYear) return next
+    next = { ...next, teamsByYear: { ...tby, [originYear]: Number(tid) } }
+  } else if (Number(existing) !== Number(tid)) {
+    return next
+  }
+
+  const nextYear = originYear + 1
+  if (isBlank(readYear(next.classByYear, originYear))) {
+    const cls = previousSeasonClass(readYear(next.classByYear, nextYear) ?? next.year)
+    if (cls) next = { ...next, classByYear: { ...(next.classByYear || {}), [originYear]: cls } }
+  }
+  if (isBlank(readYear(next.devTraitByYear, originYear))) {
+    const dev = readYear(next.devTraitByYear, nextYear) ?? next.devTrait
+    if (dev) next = { ...next, devTraitByYear: { ...(next.devTraitByYear || {}), [originYear]: dev } }
+  }
+  const past = Number(pastOverall)
+  if (Number.isFinite(past) && past >= 40 && past <= 99 && isBlank(readYear(next.overallByYear, originYear))) {
+    next = { ...next, overallByYear: { ...(next.overallByYear || {}), [originYear]: past } }
+  }
+  return next
+}
+
+// The Past OVR Training Results recorded for this player in `year`, if any —
+// the ledger row is what holds the "+N" the game showed.
+function ledgerPastOverall(trainingLedger, year, player) {
+  const rows = trainingLedger?.[year] ?? trainingLedger?.[String(year)]
+  if (!Array.isArray(rows) || !player) return null
+  const norm = (n) => String(n ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+  const row = rows.find((r) => r && (
+    (r.pid != null && player.pid != null && String(r.pid) === String(player.pid)) ||
+    (r.playerName && norm(r.playerName) === norm(player.name))
+  ))
+  const v = Number(row?.pastOverall)
+  return Number.isFinite(v) ? v : null
 }
 
 /**
@@ -133,7 +186,7 @@ function placeOriginSeason(player, originYear, tid) {
  * `team` mirror). No-op unless the school resolves and differs from the first
  * season's team.
  */
-export function materializeTransferOrigin(player, { teams, currentYear = null } = {}) {
+export function materializeTransferOrigin(player, { teams, currentYear = null, trainingLedger = null } = {}) {
   if (!player || player.isPortal !== true) return player
   const tid = resolvePreviousSchoolTid(player.previousTeam, teams)
   if (tid == null) return player
@@ -143,6 +196,15 @@ export function materializeTransferOrigin(player, { teams, currentYear = null } 
   }
   if (first == null || !Number.isFinite(first)) return player
   const firstTid = player.teamsByYear?.[first] ?? player.teamsByYear?.[String(first)] ?? player.team
-  if (firstTid != null && Number(firstTid) === Number(tid)) return player
-  return applyPreviousSchool(player, { previousTeam: tid, classYear: first - 1, teams, joiningTid: firstTid })
+  // Either the origin season is still missing (first − 1), or it was already
+  // added and is the earliest season on record — in which case only its
+  // blanks (class, dev trait, pre-gain overall) are filled in.
+  const originAlreadyFirst = firstTid != null && Number(firstTid) === Number(tid)
+  const originYear = originAlreadyFirst ? first : first - 1
+  const joiningYear = originYear + 1
+  const joiningTid = player.teamsByYear?.[joiningYear] ?? player.teamsByYear?.[String(joiningYear)] ?? player.team
+  // A "previous team" that is simply the team they're on is not an origin.
+  if (originAlreadyFirst && (joiningTid == null || Number(joiningTid) === Number(tid))) return player
+  const pastOverall = ledgerPastOverall(trainingLedger, joiningYear, player)
+  return applyPreviousSchool(player, { previousTeam: tid, classYear: originYear, teams, joiningTid, pastOverall })
 }
