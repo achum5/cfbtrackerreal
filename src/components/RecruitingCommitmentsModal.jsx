@@ -29,6 +29,7 @@ import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt, commitmentScopeBlock } from '../utils/aiPrompt'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../utils/recruitAttributes'
 import { normalizeRecruitRows } from '../utils/recruitSheetParse'
+import { recruitPrefillTsv, commitTeamNames } from '../utils/recruitPrefillRows'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
@@ -181,6 +182,29 @@ export default function RecruitingCommitmentsModal({
       || currentDynasty?.teamName
       || 'your team'
   ), [currentDynasty?.teams, currentDynasty?.currentTid, currentDynasty?.teamName])
+
+  // Every spelling of the user's own team, handed to the row parser. A portal
+  // recruit whose Prev Team the AI left blank arrives with exactly ONE team
+  // cell in the tail — this team, in the Commitment column — and without this
+  // the parser read it as the recruit's PREVIOUS school. See realignTail.
+  const ownTeamNames = useMemo(
+    () => commitTeamNames(currentDynasty?.teams, Number(currentDynasty?.currentTid)),
+    [currentDynasty?.teams, currentDynasty?.currentTid],
+  )
+  const parseOpts = useMemo(() => ({ commitTeamNames: ownTeamNames }), [ownTeamNames])
+  const normalizeRows = useMemo(
+    () => (rows) => normalizeRecruitRows(rows, parseOpts),
+    [parseOpts],
+  )
+
+  // Seed the paste grid with the class the dynasty already has, so opening
+  // Edit lands on the existing commitments + tracked targets and the user can
+  // change one cell instead of re-entering everyone. Same records, same column
+  // order the Google Sheet is prefilled with.
+  const prefillText = useMemo(
+    () => recruitPrefillTsv(prefillRecruits, currentDynasty?.teams),
+    [prefillRecruits, currentDynasty?.teams],
+  )
   const recruitingPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Recruiting: ${recruitingLabel || ''}`.trim(),
     structure: `This sheet has ONE tab: "Commitments". Row 1 is a PROTECTED header. Output ONLY the NEW rows visible in THIS request's screenshots, pasted BELOW the rows already entered; never re-output existing rows.
@@ -267,7 +291,7 @@ COLUMNS A–P
  I Height     | Dropdown: 5'5" … 7'0" (straight quotes)      J Weight | integer lbs
  K Hometown   | text           L State | 2-letter code        M Gem/Bust | Gem, Bust, or blank
  N Dev Trait  | Elite, Star, Impact, Normal, Hidden (Hidden = trait not yet revealed; do not guess — use Hidden when trait is unknown)
- O Prev Team  | team ABBR (transfers only; blank for HS/JUCO or unknown)
+ O Prev Team  | The school a TRANSFER is coming FROM — the logo/name shown beside a portal recruit, NOT the school they committed to. Use the team's name from the TEAM NAMES list below (an abbr is accepted too). ALWAYS blank for HS and JUCO recruits, and blank if the previous school genuinely isn't visible. NEVER put "${userTeamName}" here — that is the school they are joining and belongs in column P.
  P Commitment | "${userTeamName}" for a recruit who signed with you, or "Uncommitted" for one you are still pursuing on your own board. Those are the only two values — a recruit who committed ELSEWHERE gets no row at all (see "WHOSE RECRUITS TO ENTER" above). Use the ${userTeamName} entry exactly as it appears in the TEAM NAMES list below.
 
 ═══════════════════════════════════════════════════════════
@@ -319,11 +343,12 @@ FINAL CHECK
 [ ] No header row; no commas in numbers; Stars use ☆ symbols
 [ ] B/C/D/E/I/L/M/N/O/P are literal dropdown values
 [ ] Column P is "${userTeamName}" or "Uncommitted" — no other school appears in it
+[ ] Column O is the transfer's FORMER school, never "${userTeamName}"; blank on every HS/JUCO row
 [ ] No row belongs to a recruit who signed with another school, or with nobody
 [ ] The Q cell holds ONLY "<name> <rating>" pairs where a NUMBER was shown (bar-only attributes omitted); blank when not scouted; pid/NIL never output`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
-    notes: `Column P (Commitment): "${userTeamName}" for a recruit who signed with ${userTeamName}, "Uncommitted" for one still being pursued on ${userTeamName}'s own board. A recruit who committed to any OTHER school is left out of the output entirely. The single Attributes cell (Q) is filled ONLY from a recruit's player-page "Attributes" tab, never from the recruiting board — leave it blank if the recruit has not been scouted.`,
+    notes: `Column O (Prev Team) and column P (Commitment) are DIFFERENT schools: O is where a transfer came FROM, P is where they are going. "${userTeamName}" never appears in column O. Column P (Commitment): "${userTeamName}" for a recruit who signed with ${userTeamName}, "Uncommitted" for one still being pursued on ${userTeamName}'s own board. A recruit who committed to any OTHER school is left out of the output entirely. The single Attributes cell (Q) is filled ONLY from a recruit's player-page "Attributes" tab, never from the recruiting board — leave it blank if the recruit has not been scouted.`,
   }), [currentYear, recruitingLabel, currentDynasty?.teams, startRow, prefillRecruits, userTeamName])
 
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
@@ -460,9 +485,12 @@ FINAL CHECK
   // matches the prompt ("output ONLY the NEW rows"). No pre-filled columns and
   // no positional alignment, so no normalization.
   const handleLocalImport = async (text) => {
-    const recruits = await readRecruitingFromSheet(null, (currentDynasty?.teams || currentDynasty?.customTeams), { rows: splitTsv(text) })
-    // Paste sends ONLY the new rows — merge them onto the existing class.
-    await onSave(recruits, { mode: 'append' })
+    const recruits = await readRecruitingFromSheet(null, (currentDynasty?.teams || currentDynasty?.customTeams), { rows: splitTsv(text), ...parseOpts })
+    // When the grid was seeded with the existing class it is authoritative
+    // (same as the prefilled Google Sheet), so a row the user deleted should
+    // delete. With nothing to seed from, the paste is still just the AI's new
+    // rows and has to MERGE onto whatever is already stored.
+    await onSave(recruits, { mode: prefillText ? 'replace' : 'append' })
     onClose()
   }
 
@@ -471,7 +499,7 @@ FINAL CHECK
 
     setSyncing(true)
     try {
-      const recruits = await readRecruitingFromSheet(sheetId, (currentDynasty?.teams || currentDynasty?.customTeams))
+      const recruits = await readRecruitingFromSheet(sheetId, (currentDynasty?.teams || currentDynasty?.customTeams), parseOpts)
       // The sheet is prefilled with the full class, so it's authoritative.
       await onSave(recruits, { mode: 'replace' })
       onClose()
@@ -490,7 +518,7 @@ FINAL CHECK
 
     setDeletingSheet(true)
     try {
-      const recruits = await readRecruitingFromSheet(sheetId, (currentDynasty?.teams || currentDynasty?.customTeams))
+      const recruits = await readRecruitingFromSheet(sheetId, (currentDynasty?.teams || currentDynasty?.customTeams), parseOpts)
       // The sheet is prefilled with the full class, so it's authoritative.
       await onSave(recruits, { mode: 'replace' })
 
@@ -598,7 +626,7 @@ FINAL CHECK
             <strong>Note:</strong> Weekly commitment entry is optional. You can also enter all commitments during Signing Day in the offseason.
             {prefillRecruits.length > 0 && (
               <span className="block mt-1">
-                Your existing commitments and tracked targets ({prefillRecruits.length}) are pre-filled in the sheet.
+                Your existing commitments and tracked targets ({prefillRecruits.length}) are already filled in below — edit any cell, or paste new rows underneath.
               </span>
             )}
           </div>
@@ -615,7 +643,8 @@ FINAL CHECK
             columnOptions={RECRUIT_COLUMN_OPTIONS}
             comboboxColumns={{ 'Prev Team': teamNameOptions, 'Commit': commitOptions }}
             comboboxAliases={teamNameAliases}
-            normalizeRows={normalizeRecruitRows}
+            normalizeRows={normalizeRows}
+            initialText={prefillText}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

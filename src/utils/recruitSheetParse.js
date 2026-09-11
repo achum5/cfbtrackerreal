@@ -118,6 +118,27 @@ const GEM_BUST_CANON = { gem: 'Gem', bust: 'Bust' }
 const DEV_TRAIT_CANON = { elite: 'Elite', star: 'Star', impact: 'Impact', normal: 'Normal', hidden: 'Hidden' }
 const hasLetter = (s) => /[A-Za-z]/.test(s)
 const isUncommitted = (s) => /^uncommitted$/i.test(s)
+
+// Squashed identity key for a team-ish cell, so "Massachusetts Minutemen",
+// "UMass" and "MASS" each compare as themselves regardless of spacing/case.
+const teamKey = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
+// The set of keys that name the team a sheet is BEING FILLED FOR — its label,
+// full name, short name and abbr, supplied by the caller (the parser stays
+// free of the team registry). Used only to disambiguate the tail; an empty set
+// restores the pre-existing behavior exactly.
+const EMPTY_KEYS = new Set()
+
+function commitKeysFrom(opts) {
+  const names = opts?.commitTeamNames
+  const out = new Set()
+  if (!Array.isArray(names)) return out
+  for (const n of names) {
+    const k = teamKey(n)
+    if (k) out.add(k)
+  }
+  return out
+}
 // An Attributes cell holds recognized "<name> <rating>" pairs — parseAttributes
 // only returns non-null for real attribute vocabulary, so a team name / dev
 // trait / "Uncommitted" (no digit-bearing recognized attr) never matches.
@@ -143,7 +164,7 @@ const HEIGHT_RE = /^\d+'\d+(?:\.\d+)?"/
 // reproduces its own values), so it is safe to run on every row. Only indices
 // 12–16 are touched; the wider sheet columns (legacy attr slots, pid, NIL,
 // updatedAt) are preserved untouched.
-function realignTail(r, isPortal) {
+function realignTail(r, isPortal, commitKeys = EMPTY_KEYS) {
   const vals = []
   for (let i = 12; i <= 16; i++) {
     const v = trim(r[i])
@@ -183,12 +204,26 @@ function realignTail(r, isPortal) {
     prevTeam = teams[0]
     commit = teams[teams.length - 1]
   } else if (teams.length === 1) {
-    // A single team-ish cell is ambiguous. On a transfer it's the Prev Team
-    // (a transfer always has one; Commitment may be blank); on an HS/JUCO
-    // recruit Prev Team is always blank, so it must be the Commitment.
-    if (isPortal) prevTeam = teams[0]
+    // A single team-ish cell is ambiguous. If it NAMES THE TEAM THIS SHEET IS
+    // FOR, it is the Commitment — a transfer never arrives from the school
+    // they are committing to. That check has to come first: the prompt tells
+    // the AI to leave Prev Team blank when the origin school isn't shown, and
+    // a portal recruit's row then carries exactly one team cell (the user's
+    // own team, in Commitment). Without this, every such transfer imported
+    // with previousTeam = the user's own team and an empty Commitment, so the
+    // recruit card read "FROM <your school>" and the real origin was lost.
+    // Otherwise the old rule stands: a transfer's lone team cell is the Prev
+    // Team (Commitment may be blank = committed to you), and an HS/JUCO
+    // recruit has no Prev Team at all, so it must be the Commitment.
+    if (commitKeys.has(teamKey(teams[0]))) commit = teams[0]
+    else if (isPortal) prevTeam = teams[0]
     else commit = teams[0]
   }
+
+  // Same school in both slots is a contradiction however it got there — a
+  // transfer cannot come from the team they are committing to. Keep the
+  // Commitment (the column with only two legal values) and drop the echo.
+  if (prevTeam && commit && teamKey(prevTeam) === teamKey(commit)) prevTeam = ''
 
   const out = r.slice()
   out[12] = gemBust
@@ -207,7 +242,7 @@ function realignTail(r, isPortal) {
 //     first so the tail indices line up before realignTail runs.
 //  2. Any blank Gem/Bust / Dev Trait / Prev Team dropped → Commitment +
 //     Attributes slide left. Fixed by realignTail (content-based).
-function fixMisalignedRow(row) {
+function fixMisalignedRow(row, commitKeys = EMPTY_KEYS) {
   let r = row
 
   // Fix #1: State Rank and/or Pos Rank dropped — detected by Height ending up
@@ -226,14 +261,14 @@ function fixMisalignedRow(row) {
   // slid Commitment + Attributes into the wrong columns).
   const recruitClass = trim(r[1]) || 'HS'
   const isPortal = !NON_PORTAL_CLASSES.includes(recruitClass)
-  r = realignTail(r, isPortal)
+  r = realignTail(r, isPortal, commitKeys)
 
   return r
 }
 
-export function parseRecruitingRow(row) {
+export function parseRecruitingRow(row, opts = null) {
   if (!row || !trim(row[0])) return null
-  const r = fixMisalignedRow(row)
+  const r = fixMisalignedRow(row, commitKeysFrom(opts))
   const recruitClass = trim(r[1]) || 'HS'
   const pidRaw = r[PID_COL]
   return {
@@ -272,11 +307,12 @@ export function parseRecruitingRow(row) {
 // shows the corrected columns immediately, and the serialized import matches
 // what the user sees. Idempotent (realignTail is a no-op on aligned rows), so
 // parseRecruitingRow re-running it at import is harmless.
-export function normalizeRecruitRows(rows) {
+export function normalizeRecruitRows(rows, opts = null) {
   if (!Array.isArray(rows)) return rows
-  return rows.map((row) => (Array.isArray(row) && trim(row[0]) ? fixMisalignedRow(row) : row))
+  const commitKeys = commitKeysFrom(opts)
+  return rows.map((row) => (Array.isArray(row) && trim(row[0]) ? fixMisalignedRow(row, commitKeys) : row))
 }
 
-export function parseRecruitingRows(rows) {
-  return (rows || []).map(parseRecruitingRow).filter(Boolean)
+export function parseRecruitingRows(rows, opts = null) {
+  return (rows || []).map((row) => parseRecruitingRow(row, opts)).filter(Boolean)
 }

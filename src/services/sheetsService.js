@@ -12306,7 +12306,9 @@ export async function readRecruitingFromSheet(spreadsheetId, dynastyTeams = null
       rows = data.values || []
     }
 
-    return parseRecruitingRows(rows)
+    // opts.commitTeamNames (when the caller knows whose sheet this is) lets the
+    // row parser tell a lone Commitment cell apart from a Prev Team cell.
+    return parseRecruitingRows(rows, { commitTeamNames: opts.commitTeamNames })
   } catch (error) {
     console.error('Error reading recruiting data:', error)
     throw error

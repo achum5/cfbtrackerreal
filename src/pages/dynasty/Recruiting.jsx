@@ -532,7 +532,16 @@ export default function Recruiting() {
         const playerIndex = updatedPlayers.findIndex(p => p.pid === anyTeamPlayer.pid)
         if (playerIndex !== -1) {
           const existingPlayer = updatedPlayers[playerIndex]
-          const previousTeamTid = existingPlayer.team
+          // The school they came FROM. A player whose record already points at
+          // the team they're committing to has no origin school to record —
+          // storing it anyway is what made every transfer read "FROM <your
+          // own school>" on the recruit card. Compared numerically because
+          // `team` has landed as both a number and a numeric string.
+          const rawPreviousTeamTid = existingPlayer.team
+          const previousTeamTid =
+            rawPreviousTeamTid != null && Number(rawPreviousTeamTid) !== Number(selectedTid)
+              ? rawPreviousTeamTid
+              : null
 
           // Canonical v2 movement — write straight to movementByYear.
           // The legacy movements[] write was being stripped by
@@ -911,12 +920,26 @@ export default function Recruiting() {
   const allCommitmentsUnfiltered = useMemo(() => {
     const commitments = []
 
+    // A recruit can never have transferred FROM the team they committed to, so
+    // an origin school that resolves to this team is bad data (older imports
+    // mistook the Commitment cell for Prev Team). Drop it rather than render
+    // "FROM <this school>" on the card; the recruit falls back to the generic
+    // portal label until the user enters the real school.
+    const isCommitTeam = (v) => {
+      if (v == null || v === '') return false
+      const tid = resolveTid(v, currentDynasty?.teams) ?? getTidFromAbbr(v, currentDynasty)
+      return tid != null && Number(tid) === Number(selectedTid)
+    }
     const ensurePortalStatus = (merged) => {
-      if (merged.previousTeam) return merged
-      if (merged.isPortal === true) {
-        return { ...merged, previousTeam: 'Transfer Portal' }
+      let out = merged
+      if (isCommitTeam(out.previousTeamTid) || isCommitTeam(out.previousTeam)) {
+        out = { ...out, previousTeam: '', previousTeamTid: null }
       }
-      return merged
+      if (out.previousTeam) return out
+      if (out.isPortal === true) {
+        return { ...out, previousTeam: 'Transfer Portal' }
+      }
+      return out
     }
 
     if (isAllSeasons) {

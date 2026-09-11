@@ -2266,7 +2266,12 @@ export default function Dashboard() {
           const playerTeamsByYear = p.teamsByYear || {}
           const mostRecentTeamTid = Object.entries(playerTeamsByYear)
             .sort(([a], [b]) => Number(b) - Number(a))[0]?.[1] || playerPreviousTeamTid
-          const isFromDifferentTeam = mostRecentTeamTid && mostRecentTeamTid !== teamTid
+          // Numeric compare: teamsByYear values and `team` have both landed as
+          // numbers and as numeric strings, and a strict !== on a string vs a
+          // number read a player's OWN team as a different school — which then
+          // got stamped on as their previousTeam.
+          const isFromDifferentTeam = mostRecentTeamTid != null && mostRecentTeamTid !== '' &&
+            Number(mostRecentTeamTid) !== Number(teamTid)
 
           // Create appropriate movement based on whether same-team or different-team transfer
           let newMovement
