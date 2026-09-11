@@ -1,216 +1,157 @@
-import { useState, useMemo } from 'react'
-import { useDynasty, getTeamRatingsForYear, getCurrentCustomConferences } from '../context/DynastyContext'
-import { TEAMS } from '../data/teamRegistry'
-import { getTeamConference } from '../data/conferenceTeams'
+import { useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useDynasty, getTeamRatingsForYear } from '../context/DynastyContext'
+import { getTeamNameOptions, getTeamNameAliases, TEAMS } from '../data/teamRegistry'
 import { useToast } from './ui/Toast'
+import SheetModalHeader from './ui/SheetModalHeader'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { buildAIPrompt } from '../utils/aiPrompt'
+import { splitTsv } from '../utils/tsvParse'
+import { teamOverallRows, parseTeamOverallRows } from '../utils/teamOverallsRows'
 
 /**
- * TeamOverallsSheetModal — a single sheet for entering EVERY team's
- * OVR / OFF / DEF for one season, instead of opening each school from
- * All Teams one at a time. Preseason to-do "Enter All Team Overalls"
- * opens this. Grouped by conference (largest first, matching the All
- * Teams directory), with a search filter and one bulk save: only rows
- * the user actually changed are written, in a single updateDynasty call.
+ * TeamOverallsSheetModal — every school's OVR / OFF / DEF for one season, from
+ * the preseason to-do "Enter All Team Overalls".
+ *
+ * This used to be 138 schools of hand-typed number boxes, the longest piece of
+ * manual entry left in the app. It is now the same Copy Prompt → AI → Paste
+ * grid every other data-entry to-do uses, pre-filled with what is already
+ * stored so a re-open shows prior work and only real edits are written.
+ *
+ * No Google Sheets path: the list is fixed and self-describing (every row
+ * carries its own team name), so the sheet's one advantage — pre-filled,
+ * protected columns to align against — buys nothing here.
  */
+const COLUMNS = ['Team', 'OVR', 'OFF', 'DEF']
+
+const INSTRUCTIONS = `Screenshot the in-game team list showing each school's ratings — the Teams screen, or team rankings, wherever OVR / OFF / DEF are visible. Scroll through and capture them all; a screen recording works too. Upload that along with the copied prompt to your AI platform of choice. It will return a TSV output — copy that, then paste it below.`
+
 export default function TeamOverallsSheetModal({ isOpen, onClose, year }) {
   const { currentDynasty, saveAllTeamRatings, isViewOnly } = useDynasty()
   const { toast } = useToast()
-  const [search, setSearch] = useState('')
-  const [drafts, setDrafts] = useState({}) // { [tid]: { overall, offense, defense } } — strings while editing
   const [saving, setSaving] = useState(false)
 
   const teamsSource = currentDynasty?.teams || TEAMS
-  const customConferences = currentDynasty ? getCurrentCustomConferences(currentDynasty) : null
 
-  // All FBS teams with their existing ratings for the year, grouped by
-  // conference — same filter + ordering the All Teams directory uses.
-  const grouped = useMemo(() => {
-    if (!currentDynasty || !isOpen) return []
-    const rows = Object.values(teamsSource)
-      .filter(t => t && t.name && !t.isFCS)
-      .map(t => {
-        const existing = getTeamRatingsForYear(currentDynasty, t.tid, year) || {}
-        return {
-          tid: t.tid,
-          abbr: t.abbr,
-          name: t.name,
-          existing: {
-            overall: existing.overall ?? null,
-            offense: existing.offense ?? null,
-            defense: existing.defense ?? null,
-          },
-        }
-      })
-      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-    const groups = new Map()
-    rows.forEach(row => {
-      const conf = getTeamConference(row.abbr, customConferences, teamsSource) || 'Other'
-      if (!groups.has(conf)) groups.set(conf, [])
-      groups.get(conf).push(row)
-    })
-    return Array.from(groups.entries()).sort(([a, ax], [b, bx]) => {
-      if (a === 'Other') return 1
-      if (b === 'Other') return -1
-      return bx.length - ax.length
-    })
-  }, [currentDynasty, teamsSource, customConferences, year, isOpen])
+  // Ratings already stored for the season — used both to pre-fill the grid and,
+  // on import, to work out which teams actually changed.
+  const ratingsFor = useMemo(() => (tid) => (
+    (currentDynasty ? getTeamRatingsForYear(currentDynasty, tid, year) : null) || {}
+  ), [currentDynasty, year])
 
-  if (!isOpen || !currentDynasty) return null
+  const initialText = useMemo(() => (
+    isOpen
+      ? teamOverallRows(teamsSource, ratingsFor).map(r => r.cells.join('\t')).join('\n')
+      : ''
+  ), [isOpen, teamsSource, ratingsFor])
 
-  const filterMatch = (row) => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return row.name.toLowerCase().includes(q) || (row.abbr || '').toLowerCase().includes(q)
-  }
+  const teamNames = useMemo(
+    () => getTeamNameOptions(teamsSource, { includeFCS: false }),
+    [teamsSource],
+  )
 
-  const draftFor = (row) => drafts[row.tid] || {
-    overall: row.existing.overall ?? '',
-    offense: row.existing.offense ?? '',
-    defense: row.existing.defense ?? '',
-  }
+  const aiPrompt = useMemo(() => buildAIPrompt({
+    title: `${year} Team Overalls`,
+    structure: `Output ONE line per FBS team whose ratings you can read. Each line is SELF-DESCRIBING — it carries the team's own name — so there is NO fixed row order and NO pre-filled column to line up against. A partial list is fine: the app keeps whatever you leave out.
 
-  const setField = (row, field, value) => {
-    setDrafts(prev => ({
-      ...prev,
-      [row.tid]: { ...draftFor(row), [field]: value },
-    }))
-  }
+The three numbers are the team's ratings on the in-game team list: OVERALL, OFFENSE and DEFENSE. They are 0-99 integers, usually shown side by side on the same row as the school.
 
-  const parseVal = (v) => {
-    if (v === '' || v == null) return null
-    const n = Number(v)
-    return Number.isFinite(n) ? n : null
-  }
+═══════════════════════════════════════════════════════════
+CRITICAL RULES — read before anything else
+═══════════════════════════════════════════════════════════
+1. Each line has EXACTLY 4 tab-separated fields: Team<TAB>OVR<TAB>OFF<TAB>DEF.
+2. NO header row. NO blank lines. NO commentary, totals, conference labels, or rank numbers INSIDE the data.
+3. Team MUST be a name from the TEAM NAMES list at the bottom of this prompt, spelled exactly as it appears there. Never an abbreviation, a nickname, a mascot, or a city.
+4. OVR / OFF / DEF are integers 0-99 — no decimals, no commas, no "+/-", no letter grades ("A+" is not a rating). Leave a field BLANK if that number is not visible; the line still carries all 3 tabs.
+5. OMIT a team entirely if you cannot read ANY of its three numbers. Do NOT pad the list with blank rows and do NOT guess.
+6. Do not output the same team twice.
+7. Rank numbers and records ("12-1", "#4") are NOT ratings. If a screen shows a ranking rather than a rating, skip it.
 
-  // Only rows whose parsed values differ from what's stored get saved.
-  const collectChanged = () => {
-    const changed = {}
-    for (const [, rows] of grouped) {
-      for (const row of rows) {
-        const d = drafts[row.tid]
-        if (!d) continue
-        const next = {
-          overall: parseVal(d.overall),
-          offense: parseVal(d.offense),
-          defense: parseVal(d.defense),
-        }
-        if (next.overall == null && next.offense == null && next.defense == null) continue
-        if (next.overall === row.existing.overall
-            && next.offense === row.existing.offense
-            && next.defense === row.existing.defense) continue
-        changed[row.tid] = next
-      }
+═══════════════════════════════════════════════════════════
+PER-LINE OUTPUT (4 tab-separated fields)
+═══════════════════════════════════════════════════════════
+<Team Name><TAB><OVR><TAB><OFF><TAB><DEF>
+
+═══════════════════════════════════════════════════════════
+REQUIRED OUTPUT FORMAT
+═══════════════════════════════════════════════════════════
+=== TEAM OVERALLS ===
+Alabama\\t92\\t90\\t93
+Georgia\\t91\\t88\\t94
+Massachusetts\\t71\\t70\\t72
+…one line per team you can read
+
+(Each \\t represents a LITERAL TAB character — use actual tabs, not the text "\\t".)
+
+═══════════════════════════════════════════════════════════
+FINAL CHECK before you send
+═══════════════════════════════════════════════════════════
+[ ] Every line has exactly 3 tab characters (4 fields), trailing tabs included
+[ ] Every team name appears in the TEAM NAMES list, spelled the same way
+[ ] Every rating is an integer 0-99, or blank
+[ ] No rank numbers, no win-loss records, no letter grades
+[ ] No team listed twice
+[ ] No header row, no commentary INSIDE the data`,
+    includeTeamMap: true,
+    dynastyTeams: currentDynasty?.teams,
+  }), [year, currentDynasty?.teams])
+
+  const handleImport = async (text) => {
+    const { changed, unmatched } = parseTeamOverallRows(splitTsv(text), teamsSource, ratingsFor)
+    const count = Object.keys(changed).length
+    if (unmatched.length > 0) {
+      // Named, not counted: the user needs to know WHICH school to fix.
+      const shown = unmatched.slice(0, 5).join(', ')
+      toast.error(
+        `Could not match ${unmatched.length} team name${unmatched.length === 1 ? '' : 's'}: ` +
+        `${shown}${unmatched.length > 5 ? '…' : ''}. Fix ${unmatched.length === 1 ? 'it' : 'them'} in the grid and import again.`,
+      )
+      return
     }
-    return changed
-  }
-
-  const changedCount = Object.keys(collectChanged()).length
-
-  const handleSave = async () => {
-    const changed = collectChanged()
-    if (Object.keys(changed).length === 0) {
+    if (count === 0) {
+      toast.success('No rating changes to save.')
       onClose()
       return
     }
     setSaving(true)
     try {
       const result = await saveAllTeamRatings(currentDynasty.id, year, changed)
-      toast.success(`Saved ratings for ${result?.saved ?? Object.keys(changed).length} team(s).`)
-      setDrafts({})
+      toast.success(`Saved ratings for ${result?.saved ?? count} team${count === 1 ? '' : 's'}.`)
       onClose()
-    } catch (err) {
-      console.error('[TeamOverallsSheet] save failed:', err)
-      toast.error('Failed to save team ratings — try again.')
     } finally {
       setSaving(false)
     }
   }
 
-  return (
+  if (!isOpen || !currentDynasty) return null
+
+  return createPortal(
     <div
-      className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+      className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-70 flex items-center justify-center z-[9999] py-8 px-4 sm:p-4"
       style={{ margin: 0 }}
-      onClick={onClose}
+      onMouseDown={onClose}
     >
       <div
-        className="bg-surface-2 rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col border border-surface-4"
-        onClick={(e) => e.stopPropagation()}
+        className="card-elevated w-full max-h-[calc(100dvh-4rem)] flex flex-col overflow-hidden sm:max-w-[680px] sm:h-auto"
+        onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="p-4 border-b border-surface-4">
-          <h2 className="text-lg font-bold text-txt-primary m-0">Team Overalls — {year}</h2>
-          <p className="text-xs text-txt-secondary m-0 mt-1">
-            Enter OVR (and optionally OFF / DEF) for every school in one place. Only
-            rows you change are saved.
-          </p>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search teams…"
-            className="mt-3 w-full px-3 py-2 rounded-lg text-sm bg-surface-3 text-txt-primary border border-surface-5"
+        <SheetModalHeader eyebrow="Preseason" title={`Team Overalls — ${year}`} onClose={onClose} />
+        <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
+          <LocalDataEntry
+            aiPrompt={aiPrompt}
+            onImport={handleImport}
+            onCancel={onClose}
+            importLabel="Import Team Overalls"
+            instructions={INSTRUCTIONS}
+            columns={COLUMNS}
+            comboboxColumns={{ Team: teamNames }}
+            comboboxAliases={getTeamNameAliases(teamsSource)}
+            initialText={initialText}
+            busy={saving || isViewOnly}
           />
         </div>
-
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <div className="grid grid-cols-[1fr_3.5rem_3.5rem_3.5rem] gap-2 items-center text-[11px] uppercase tracking-wide text-txt-muted px-1">
-            <span>Team</span><span className="text-center">OVR</span><span className="text-center">OFF</span><span className="text-center">DEF</span>
-          </div>
-          {grouped.map(([conf, rows]) => {
-            const visible = rows.filter(filterMatch)
-            if (visible.length === 0) return null
-            return (
-              <div key={conf}>
-                <h3 className="text-xs font-semibold text-txt-secondary uppercase tracking-wide m-0 mb-1 px-1">{conf}</h3>
-                <div className="space-y-1">
-                  {visible.map(row => {
-                    const d = draftFor(row)
-                    return (
-                      <div key={row.tid} className="grid grid-cols-[1fr_3.5rem_3.5rem_3.5rem] gap-2 items-center">
-                        <span className="text-sm text-txt-primary truncate">{row.name}</span>
-                        {['overall', 'offense', 'defense'].map(field => (
-                          <input
-                            key={field}
-                            type="number"
-                            min="0"
-                            max="99"
-                            inputMode="numeric"
-                            value={d[field]}
-                            disabled={isViewOnly}
-                            onChange={(e) => setField(row, field, e.target.value)}
-                            className="px-1 py-1.5 rounded text-sm text-center bg-surface-3 text-txt-primary border border-surface-5"
-                          />
-                        ))}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-
-        <div className="p-4 border-t border-surface-4 flex items-center justify-between gap-3">
-          <span className="text-xs text-txt-secondary">
-            {changedCount > 0 ? `${changedCount} team(s) changed` : 'No changes yet'}
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              disabled={saving}
-              className="px-4 py-2 rounded-lg text-sm bg-surface-3 hover:bg-surface-4 text-txt-primary disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving || isViewOnly || changedCount === 0}
-              className="px-4 py-2 rounded-lg text-sm bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-50"
-            >
-              {saving ? 'Saving…' : 'Save All'}
-            </button>
-          </div>
-        </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
