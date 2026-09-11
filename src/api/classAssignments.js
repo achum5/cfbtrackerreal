@@ -5,6 +5,7 @@
 
 import { getUserTeamTid } from '../data/teamRegistry'
 import { normalizePlayerName, findRowPlayerIndex, withRowPid } from '../utils/playerMatching'
+import { getPortalTransferClassOptions, isKnownTransferClass } from '../utils/transferClassOptions'
 
 const nameEq = (a, b) => normalizePlayerName(a) === normalizePlayerName(b)
 
@@ -52,9 +53,17 @@ export function buildPortalTransferClassSave(dynasty, classSelections) {
     if (playerIndex === -1) continue
     storedRows[i] = withRowPid(selection, updatedPlayers[playerIndex])
     if (!selection.selectedClass) continue
-    const existingClassByYear = updatedPlayers[playerIndex].classByYear || {}
+    const player = updatedPlayers[playerIndex]
+    // The answer must be one this transfer could actually give. An AI paste
+    // that echoed the incoming class back ("Fr" for a Fr transfer) would
+    // otherwise be stamped as next season's class and freeze them a year
+    // behind — the dropdown never allows it, so neither does the save.
+    const incomingClass = player.classByYear?.[year] ?? player.classByYear?.[String(year)] ?? player.year
+    if (isKnownTransferClass(incomingClass) &&
+        !getPortalTransferClassOptions(incomingClass).includes(selection.selectedClass)) continue
+    const existingClassByYear = player.classByYear || {}
     const next = {
-      ...updatedPlayers[playerIndex],
+      ...player,
       year: selection.selectedClass,
       classByYear: { ...existingClassByYear, [joiningYear]: selection.selectedClass },
     }

@@ -21,6 +21,8 @@ import { STAT_TABS, STAT_TAB_ORDER, SCORING_SUMMARY, SCORE_TYPES, PAT_RESULTS, Q
 import { isPlayerOnRoster, getPlayerClassForYear } from '../context/DynastyContext'
 import { getExcludedBowlGames, getBowlWeekOverrides } from '../editions'
 import { OAuthError, RateLimitError } from '../utils/authErrors'
+export { getPortalTransferClassOptions, getPortalTransferDefaultClass } from '../utils/transferClassOptions'
+import { getPortalTransferClassOptions } from '../utils/transferClassOptions'
 import { parseRecruitingRows, parseAttributes, RECRUITING_READ_RANGE, TOTAL_COLS, PID_COL, NIL_COL, UPDATED_AT_COL, colLetter } from '../utils/recruitSheetParse'
 import { normalizeWeeklyScoreRow, normalizeWeeklyScoreRows } from '../utils/weeklyScoreRealign'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR, attributeNamesFor, serializeAttributes } from '../utils/recruitAttributes'
@@ -16005,25 +16007,6 @@ export async function createPortalTransferClassSheet(dynastyName, year, portalTr
   } catch (error) {
     console.error('Error creating portal transfer class sheet:', error)
     throw error
-  }
-}
-
-// Get class progression options for a given incoming class. Exported so the
-// local grid can offer the SAME per-row dropdown the sheet enforces.
-export function getPortalTransferClassOptions(incomingClass) {
-  // Portal transfers can come in as Fr, So, or Jr
-  // Each has options: stay same (with RS prefix), progress, or progress with RS
-  const baseClass = incomingClass?.replace('RS ', '') || 'Fr'
-
-  switch (baseClass) {
-    case 'Fr':
-      return ['RS Fr', 'So', 'RS So']
-    case 'So':
-      return ['RS So', 'Jr', 'RS Jr']
-    case 'Jr':
-      return ['RS Jr', 'Sr', 'RS Sr']
-    default:
-      return ['RS Fr', 'So', 'RS So'] // Default to Fr options
   }
 }
 

@@ -168,6 +168,10 @@ function applyStatus(record, { status, commitmentTid, classYear, weekKey, recrui
     r.commitWeekKey = weekKey ?? record.commitWeekKey ?? null
     r.team = tid
     r.teamsByYear = { ...(record.teamsByYear || {}), [classYear + 1]: tid }
+    // Class for the season they enroll, written the same way every other
+    // commit path writes it.
+    const enrollClass = CLASS_TO_YEAR[record.class] || record.year || 'Fr'
+    r.classByYear = { ...(record.classByYear || {}), [classYear + 1]: enrollClass }
     r.isRecruit = true
     r.recruitYear = classYear
     delete r.unresolvedCommitment

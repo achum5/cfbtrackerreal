@@ -348,3 +348,65 @@ describe('two-season walk', () => {
     expect(flip2.autoGraduated).toEqual([])
   })
 })
+
+describe('an incoming transfer with an origin season survives the year flip', () => {
+  // materializeTransferOrigin puts the season the transfer played at their old
+  // school on the record, so they now carry a teamsByYear entry at or before
+  // the season just played — the same shape a stale isRecruit flag has.
+  const OLD = 7
+  const input = { previousSeasonYear: PREV, currentSeasonYear: NEXT, teamTid: USER, teamAbbr: 'IU' }
+  const arrival = (over = {}) => ({
+    pid: 90, name: 'Wideout In', position: 'WR', isRecruit: true, isPortal: true,
+    recruitYear: PREV, team: USER, previousTeam: OLD,
+    teamsByYear: { [PREV]: OLD, [NEXT]: USER },
+    movementByYear: { [PREV]: { type: 'arrival', arrival: 'transfer_in', fromTid: OLD } },
+    ...over,
+  })
+
+  it('an RS Sr transfer joins the roster instead of being auto-graduated', () => {
+    const d = {
+      ...fixture(), currentYear: NEXT, currentWeek: 8,
+      players: [arrival({ year: 'RS Sr', classByYear: { [PREV]: 'Sr', [NEXT]: 'RS Sr' } })],
+    }
+    const p = advanceSeasonPlayers(d, input).players.find(x => x.pid === 90)
+    expect(p.movementByYear[PREV].type).toBe('arrival')
+    expect(p.isRecruit).toBe(false)
+    expect(p.teamsByYear[NEXT]).toBe(USER)
+    expect(p.classByYear[NEXT]).toBe('RS Sr')
+  })
+
+  it('keeps the class the Portal Transfer Class step assigned', () => {
+    const d = {
+      ...fixture(), currentYear: NEXT, currentWeek: 8,
+      players: [arrival({ year: 'RS So', classByYear: { [PREV]: 'Fr', [NEXT]: 'RS So' } })],
+    }
+    const p = advanceSeasonPlayers(d, input).players.find(x => x.pid === 90)
+    expect(p.classByYear[NEXT]).toBe('RS So')
+    expect(p.isRecruit).toBe(false)
+    expect(p.team).toBe(USER)
+  })
+
+  it('a record with no enrollment slot yet still gets the assigned class applied', () => {
+    // Older/partial data: the commit never stamped teamsByYear[NEXT], so the
+    // recruit-conversion fallback is what enrolls them.
+    const noSlot = arrival({ year: 'Fr', classByYear: { [PREV]: 'Fr' }, teamsByYear: { [PREV]: OLD } })
+    const d = {
+      ...fixture(), currentYear: NEXT, currentWeek: 8,
+      players: [noSlot],
+      portalTransferClassByYear: { [PREV]: [{ playerName: 'Wideout In', selectedClass: 'RS So', pid: 90 }] },
+    }
+    const p = advanceSeasonPlayers(d, input).players.find(x => x.pid === 90)
+    expect(p.isRecruit).toBe(false)
+    expect(p.teamsByYear[NEXT]).toBe(USER)
+    expect(p.classByYear[NEXT]).toBe('RS So')
+    expect(p.year).toBe('RS So')
+    expect(p.teamsByYear[PREV]).toBe(OLD)   // origin season untouched
+  })
+
+  it('the wk5→6 progression leaves them alone — their next season is already set', () => {
+    const d = { ...fixture(), players: [arrival({ year: 'So', classByYear: { [PREV]: 'Fr', [NEXT]: 'So' } })] }
+    const p = rollOverRosterAtYearFlip(d, flipInput).players.find(x => x.pid === 90)
+    expect(p.classByYear[NEXT]).toBe('So')   // not advanced a second time
+    expect(p.teamsByYear[PREV]).toBe(OLD)    // origin season untouched
+  })
+})

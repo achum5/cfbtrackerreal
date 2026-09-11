@@ -125,6 +125,10 @@ export function rollOverRosterAtYearFlip(dynasty, { nextYear, previousSeasonYear
   // actually a new recruit) when any prior teamsByYear entry exists.
   const isStaleRecruitFlag = (player) => {
     if (!player.isRecruit) return false
+    // A recruit of THIS cycle is never stale, however far back their record
+    // reaches: a portal transfer now carries the season they played at their
+    // old school, which is exactly the prior-year entry this test looks for.
+    if (Number(player.recruitYear) === Number(previousSeasonYear)) return false
     const tby = player.teamsByYear || {}
     for (const yKey of Object.keys(tby)) {
       const y = Number(yKey)
@@ -497,7 +501,13 @@ export function advanceSeasonPlayers(dynasty, { previousSeasonYear, currentSeaso
     // Skip players from other teams (use teamsByYear for previous season as primary check)
     // CRITICAL: Handle both tid (number) and legacy abbr (string) in teamsByYear values
     const playerTeamPrevSeason = player.teamsByYear?.[previousSeasonYear] ?? player.teamsByYear?.[String(previousSeasonYear)]
-    if (playerTeamPrevSeason && !isTeamMatch(playerTeamPrevSeason)) return player
+    // An incoming recruit of THIS cycle is joining us now, so a prior-season
+    // entry on another team is their ORIGIN school (a portal transfer's old
+    // team), not evidence they belong to someone else. Without this they were
+    // skipped outright the moment that season was recorded — never enrolled,
+    // never given the class the Portal Transfer Class step assigned.
+    const isIncomingThisCycle = player.isRecruit && Number(player.recruitYear) === Number(previousSeasonYear)
+    if (playerTeamPrevSeason && !isTeamMatch(playerTeamPrevSeason) && !isIncomingThisCycle) return player
     // Also check player.team field (could be tid or abbr)
     const playerTeamFieldTid = typeof player.team === 'number' ? player.team : getTidFromAbbr(player.team, dynasty)
     if (!playerTeamPrevSeason && player.team && playerTeamFieldTid !== teamTid) return player
@@ -605,7 +615,13 @@ export function advanceSeasonPlayers(dynasty, { previousSeasonYear, currentSeaso
       const y = Number(k)
       return Number.isFinite(y) && y <= previousSeasonYear
     })
-    const isGenuineRecruit = player.isRecruit && !hasPriorTeamYearForGrad
+    // A recruit from THIS cycle is genuine no matter what earlier seasons the
+    // record carries: a portal transfer's origin season (the year they played
+    // at their old school) is exactly such an entry, and without the
+    // recruitYear test an incoming RS Sr transfer read as an exhausted
+    // senior and was graduated instead of joining the roster.
+    const isGenuineRecruit = player.isRecruit &&
+      (Number(player.recruitYear) === previousSeasonYear || !hasPriorTeamYearForGrad)
     // Auto-graduate BOTH exhausted-eligibility shapes — matching the CPU-team
     // path, which already graduates Sr and RS Sr alike. Previously only
     // RS Sr auto-graduated here, so a plain Sr not marked in Players Leaving

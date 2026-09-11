@@ -99,10 +99,12 @@ export function applyCommitRows({ rows, players, selectedTid, teamAbbr, selected
       // what made transfers read "FROM <your own school>".
       const rawFrom = cur.team
       const fromTid = rawFrom != null && rawFrom !== '' && Number(rawFrom) !== Number(selectedTid) ? Number(rawFrom) : null
+      const joiningClass = CLASS_TO_YEAR[recruit.class] || cur.year || 'Fr'
       let next = {
         ...cur,
         team: selectedTid,
         teamsByYear: { ...cur.teamsByYear, [year + 1]: selectedTid },
+        classByYear: { ...(cur.classByYear || {}), [year + 1]: joiningClass },
         movementByYear: {
           ...(cur.movementByYear || {}),
           [year]: { type: 'arrival', arrival: 'transfer_in', fromTid },
@@ -147,6 +149,10 @@ export function applyCommitRows({ rows, players, selectedTid, teamAbbr, selected
       isRecruit: true,
       recruitYear: year,
       teamsByYear: { [year + 1]: selectedTid },
+      // The class they enroll as, per-year from the start — same stamp the
+      // Dashboard's commitment save writes, so both entry points leave the
+      // record in one shape and the year flip reads a class either way.
+      classByYear: { [year + 1]: CLASS_TO_YEAR[recruit.class] || 'Fr' },
       movementByYear: { [year]: { type: 'arrival', arrival: 'recruit' } },
       stars: recruit.stars || 0,
       nationalRank: recruit.nationalRank || null,

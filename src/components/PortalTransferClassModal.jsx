@@ -12,7 +12,6 @@ import { useAuthErrorHandler } from '../hooks/useAuthErrorHandler'
 import {
   createPortalTransferClassSheet,
   readPortalTransferClassFromSheet,
-  getPortalTransferClassOptions,
   deleteGoogleSheet,
   getSheetEmbedUrl,
   sheetExists
@@ -22,6 +21,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+import { getPortalTransferClassOptions, getPortalTransferDefaultClass } from '../utils/transferClassOptions'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -252,9 +252,12 @@ FINAL CHECK before you send
     }
     return (portalTransfers || [])
       .map(t => {
+        if (!t.name) return null
         const match = savedByName.get((t.name || '').toLowerCase().trim())
-        const cls = match?.selectedClass || t.incomingClass || ''
-        if (!t.name || !cls) return null
+        // A saved answer wins; otherwise pre-select the normal progression —
+        // never the incoming class, which is not one of the legal options and
+        // would save as "no progression at all" if imported untouched.
+        const cls = match?.selectedClass || getPortalTransferDefaultClass(t.incomingClass)
         return `${t.name}\t${cls}`
       })
       .filter(Boolean)
