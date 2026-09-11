@@ -54,9 +54,12 @@ export const ALL_ARCHETYPES = Array.from(
  *   QB: Backfield Creator | Dual Threat | …
  *   LT / LG / C / RG / RT: Agile | Pass Protector | …
  *
- * Prompts that ask for an archetype have to state the legal values, and the
- * legal set depends on the row's position — a flat list of all 44 invites a
- * linebacker archetype on a receiver.
+ * Grouped for READABILITY only, NOT as a restriction. The game hands out
+ * archetypes across position lines — a tight end whose card reads "Physical
+ * Route Runner", a receiver archetype, is a real player, not a misread — so a
+ * prompt that forced the value onto the row's own position made the model
+ * blank a correct answer rather than record it. Any player may carry any
+ * archetype on this table.
  */
 export function archetypePromptBlock() {
   const byGroup = new Map()

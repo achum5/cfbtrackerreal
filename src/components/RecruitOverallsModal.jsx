@@ -20,7 +20,7 @@ import {
   sheetExists
 } from '../services/sheetsService'
 import { buildAIPrompt } from '../utils/aiPrompt'
-import { archetypesForPosition, archetypePromptBlock } from '../data/rosterOptions'
+import { ALL_ARCHETYPES, archetypePromptBlock } from '../data/rosterOptions'
 import { normalizePlayerName } from '../utils/playerMatching'
 import { buildAttributesStructure } from '../utils/attributeEntry'
 import { arePlayerAttributesEnabled } from '../editions'
@@ -35,6 +35,9 @@ const ARCHETYPES_BY_POSITION_BLOCK = archetypePromptBlock()
 // The local grid mirrors parseRecruitOverallsLocal's column order. Archetype
 // was appended, so an older three-column paste still parses.
 const LOCAL_COLUMNS = ['Recruit', 'Overall', 'Jersey #', 'Archetype']
+// Every archetype, whatever the recruit's position: the game hands them out
+// across position lines, and filtering by position hid the correct answer.
+const LOCAL_COLUMN_OPTIONS = { Archetype: ALL_ARCHETYPES }
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -134,12 +137,15 @@ Col | Header (protected)  | Your output                                | Format
     |                     | player card (blank if not visible)         |
 
 ═══════════════════════════════════════════════════════════
-ARCHETYPES — the only values column G may take, BY POSITION
+ARCHETYPES — the values column G may take
 ═══════════════════════════════════════════════════════════
 ${ARCHETYPES_BY_POSITION_BLOCK}
 
-Use the row for the recruit's OWN position (column B of the sheet). If the
-screen shows something not on that row, leave column G blank.
+The grouping is for reading convenience only — it is NOT a restriction. The
+game hands out archetypes across position lines, so a tight end whose card
+reads "Physical Route Runner" is a real player. Record what the screen says,
+from ANY row of that list. Leave column G blank only when it is not visible, or
+when the label appears nowhere in the list at all.
 
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
@@ -157,7 +163,7 @@ FINAL CHECK before you send
 [ ] Every line has EXACTLY two tab characters (Overall, Jersey #, Archetype)
 [ ] Every Overall is an integer 40–99, or blank
 [ ] Every Jersey # is an integer 0–99, or blank
-[ ] Every Archetype is on that recruit's OWN position row above, or blank
+[ ] Every Archetype appears somewhere in the list above, or is blank
 [ ] No commas, no decimals, no quotes, no units
 [ ] Row order matches column A alphabetical-by-last-name order exactly
 [ ] Blank cells for unknowns — invented nothing`,
@@ -206,12 +212,15 @@ row order does NOT matter)
    A blank still gets its tab, so every line carries three of them.
 
 ═══════════════════════════════════════════════════════════
-ARCHETYPES — the only values the last field may take, BY POSITION
+ARCHETYPES — the values the last field may take
 ═══════════════════════════════════════════════════════════
 ${ARCHETYPES_BY_POSITION_BLOCK}
 
-Use the row for the recruit's OWN position. If the screen shows something that
-is not on that row, leave the archetype blank and say so outside the data block.
+The grouping is for reading convenience only — it is NOT a restriction. The
+game hands out archetypes across position lines, so a tight end whose card
+reads "Physical Route Runner" is a real player. Record what the screen says,
+from ANY row of that list. Leave it blank only when it is not visible, or when
+the label appears nowhere in the list at all.
 4. NO header row, NO commentary inside the data, NO commas, NO decimals,
    NO units.
 5. NEVER guess. Omit a recruit entirely if you cannot see their overall.
@@ -231,7 +240,7 @@ FINAL CHECK before you send
 [ ] Field 1 is a FULL name from the list above (no initials)
 [ ] Every Overall is an integer 40–99
 [ ] Every Jersey # is an integer 0–99, or blank
-[ ] Every Archetype is on that recruit's OWN position row above, or blank
+[ ] Every Archetype appears somewhere in the list above, or is blank
 [ ] No commas, no decimals, no quotes, no units`,
     includeTeamMap: false,
   }), [currentYear, recruits])
@@ -242,18 +251,6 @@ FINAL CHECK before you send
   // Jersey, Archetype.
   // The parser keeps only overalls in 40–99, so only round-trippable rows are
   // emitted here (a not-yet-entered recruit has no valid overall and is skipped).
-  // The grid has no Position column (the recruit list already knows it), so the
-  // archetype dropdown resolves the position from the recruit's NAME in the
-  // first cell rather than from a sibling cell.
-  const localColumnOptions = useMemo(() => {
-    const posByName = new Map(
-      (recruits || []).filter(p => p?.name).map(p => [normalizePlayerName(p.name), p.position]),
-    )
-    return {
-      Archetype: (row) => archetypesForPosition(posByName.get(normalizePlayerName(row?.[0] || ''))),
-    }
-  }, [recruits])
-
   const initialText = useMemo(() => {
     return (recruits || [])
       .map(p => {
@@ -549,7 +546,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Overalls"
             columns={LOCAL_COLUMNS}
-            columnOptions={localColumnOptions}
+            columnOptions={LOCAL_COLUMN_OPTIONS}
             initialText={initialText}
           />
         ) : isLoading ? (

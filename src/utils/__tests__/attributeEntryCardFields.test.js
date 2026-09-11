@@ -91,9 +91,11 @@ describe('buildAttributesStructure', () => {
     expect(out).toContain('Exactly 7 tab characters per row')
   })
 
-  it('lists the archetypes by position, not as one flat set', () => {
+  it('lists the archetype vocabulary, and says the grouping is not a restriction', () => {
     const out = buildAttributesStructure('recruits')
     expect(out).toContain('QB: Backfield Creator')
-    expect(out).toContain("player's OWN position")
+    expect(out).toContain('NOT a restriction')
+    expect(out).toContain('from ANY row of that list')
+    expect(out).not.toContain('OWN position')
   })
 })

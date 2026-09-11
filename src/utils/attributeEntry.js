@@ -72,9 +72,9 @@ OUTPUT 8 TAB-SEPARATED COLUMNS per row:
               ${DEV_TRAIT_VALUES.join(' | ')}. "Hidden" is a real value, used
               when the game has not revealed the trait yet — it is NOT a
               stand-in for "I can't see it". Blank when the card is not shown.
-• Archetype — the style label beside the position on the same card. It MUST be
-              one of the values listed for that player's OWN position below.
-              Blank when the card is not shown.
+• Archetype — the style label beside the position on the same card. It must be
+              one of the values in the ARCHETYPES list below — ANY of them,
+              whatever the player's position. Blank when the card is not shown.
 • NIL       — ${NIL_FIELD_HINT}
 • Attributes — the player's ENTIRE rating set as ONE cell: comma-separated
               "CODE value" pairs using the codes below, in this order. Include
@@ -89,12 +89,15 @@ still output the row. A blank is correct and costs nothing; the app keeps what
 it already has. A guess does not.
 
 ═══════════════════════════════════════════════════════════
-ARCHETYPES — the only values the Archetype column may take, BY POSITION
+ARCHETYPES — the values the Archetype column may take
 ═══════════════════════════════════════════════════════════
 ${ARCHETYPES_BY_POSITION_BLOCK}
 
-Use the row for the player's OWN position. If the card shows something that is
-not on that row, leave Archetype blank and say so outside the data block.
+The grouping above is for reading convenience only — it is NOT a restriction.
+The game hands out archetypes across position lines, so a tight end whose card
+reads "Physical Route Runner" is a real player, not a misread. Record what the
+card says, from ANY row of that list. Leave Archetype blank only when the card
+is not shown, or when its label appears nowhere in the list at all.
 
 Attribute codes (CODE=Name):
 ${ATTRIBUTE_PROMPT_LEGEND}

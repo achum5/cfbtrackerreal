@@ -24,19 +24,20 @@ import {
 import { buildAIPrompt, NIL_FIELD_HINT } from '../utils/aiPrompt'
 import { arePlayerAttributesEnabled } from '../editions'
 import { ATTRIBUTE_PROMPT_LEGEND } from '../utils/attributeEntry'
-import { POSITIONS, CLASSES, DEV_TRAITS, archetypesForPosition } from '../data/rosterOptions'
+import { POSITIONS, CLASSES, DEV_TRAITS, ALL_ARCHETYPES } from '../data/rosterOptions'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
 import { normalizeRosterRows } from '../utils/rosterRealign'
 
-// Dropdown values for the roster grid's constrained columns. Archetype depends
-// on the row's Position, so it's a function of the row.
+// Dropdown values for the roster grid's constrained columns.
 const ROSTER_COLUMN_OPTIONS = {
   Position: POSITIONS,
   Class: CLASSES,
   'Dev Trait': DEV_TRAITS,
-  Archetype: (row, cols) => archetypesForPosition(row[cols.indexOf('Position')]),
+  // Every archetype, whatever the row's position — the game hands them out
+  // across position lines, so filtering by position hides real answers.
+  Archetype: ALL_ARCHETYPES,
 }
 
 const STATE_CODES_LINE = stateCodesLine()
@@ -188,7 +189,9 @@ COLUMN E — Dev Trait — MUST be one of these 4 values EXACTLY:
 Normal | Impact | Star | Elite
 
 ───────────────────────────────────────────────────────────
-COLUMN G — Archetype — MUST be one of these EXACT values (pick one that fits the player's position):
+COLUMN G — Archetype — MUST be one of these EXACT values. The grouping below is
+for reading only — the game hands archetypes out across position lines, so ANY
+of them may appear on ANY player. Record what the screen shows:
 QB: Backfield Creator | Dual Threat | Pocket Passer | Pure Runner
 HB: Backfield Threat | Contact Seeker | East/West Playmaker | Elusive Bruiser | North/South Receiver | North/South Blocker
 FB: Blocking | Utility
@@ -232,7 +235,7 @@ FINAL CHECK before you send
 [ ] Position is one of the 21 listed codes (NOT "LE" / "RE" / "EDGE" / "LB" / "OLB" / "OT" / "OG" / "S")
 [ ] Class uses exact spacing ("RS Fr" with one space)
 [ ] Dev Trait is one of: Normal, Impact, Star, Elite
-[ ] Archetype matches the position group allowed list
+[ ] Archetype is one of the listed values (any group — not restricted by position)
 [ ] Height uses "feet'inches"" format (e.g. 6'2")
 [ ] State is a 2-letter uppercase US code
 [ ] Blank cells used for every unknown — nothing was invented

@@ -27,7 +27,7 @@ import { arePlayerAttributesEnabled } from '../editions'
 import AttributePasteGrid from './AttributePasteGrid'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { normalizePlayerName } from '../utils/playerMatching'
-import { archetypesForPosition, archetypePromptBlock } from '../data/rosterOptions'
+import { ALL_ARCHETYPES, archetypePromptBlock } from '../data/rosterOptions'
 import { getPlayerNil } from '../data/playerNilModel'
 import { splitTsv } from '../utils/tsvParse'
 import SheetLoadingHint from './SheetLoadingHint'
@@ -43,9 +43,9 @@ const ARCHETYPES_BY_POSITION_BLOCK = archetypePromptBlock()
 
 const LOCAL_COLUMN_OPTIONS = {
   'Dev Trait': TRAINING_DEV_TRAITS,
-  // Archetype depends on the row's own position, the same way the roster grid
-  // does it — a WR must not be offered a linebacker archetype.
-  Archetype: (row, cols) => archetypesForPosition(row[cols.indexOf('Position')]),
+  // Every archetype, whatever the row's position: the game hands them out
+  // across position lines, and filtering by position hid the correct answer.
+  Archetype: ALL_ARCHETYPES,
 }
 
 const isMobileDevice = () => {
@@ -151,8 +151,9 @@ currently highlighted player in full. Two values live ONLY on that card:
               Column 6. "Hidden" is a real value, used when the game has not
               revealed the trait yet — it is not a stand-in for "I can't see it".
 • ARCHETYPE — the style label beside the position on the card (e.g. "Dual
-              Threat" for a QB, "Speedster" for a WR). Column 7. It must be one
-              of the values listed for that player's position further down.
+              Threat", "Speedster"). Column 7. It must be one of the values in
+              the ARCHETYPES list further down — ANY of them, whatever the
+              player's position.
 • NIL — ${NIL_FIELD_HINT} Column 8.
 
 The card shows ONE player at a time, so these four are filled in only for the
@@ -176,20 +177,22 @@ CRITICAL RULES — read before anything else
 6. Column 4 (New OVR) = the OVR number shown in the training results screenshot for this player. Integer 40–99. Leave BLANK only if the player does not appear on any screenshot.
 7. Column 5 (Jersey #) = the number on the RIGHT-HAND PLAYER CARD. Integer 0–99, no "#". BLANK when that player's card is not shown.
 8. Column 6 (Dev Trait) = the trait at the BOTTOM of the RIGHT-HAND PLAYER CARD. EXACTLY one of: ${TRAINING_DEV_TRAITS.join(' | ')} — Title Case, no other wording. BLANK when that player's card is not shown.
-9. Column 7 (Archetype) = the style label on the RIGHT-HAND PLAYER CARD. It MUST be one of the values listed for that player's position in the ARCHETYPES section below — nothing else. BLANK when that player's card is not shown.
+9. Column 7 (Archetype) = the style label on the RIGHT-HAND PLAYER CARD. It must appear somewhere in the ARCHETYPES section below — any row of it, regardless of the player's position. BLANK when that player's card is not shown.
 10. Column 8 (NIL) = ${NIL_FIELD_HINT}
 11. NO header row INSIDE the data. NO commentary INSIDE the data. NO blank lines between rows. Each row has exactly 7 tab characters, INCLUDING rows whose last columns are blank — a row ending in four blanks still ends with four trailing tabs.
 12. INTEGERS only in columns 3, 4, 5 and 8. No decimals, no commas, no quotes, no units, no "+/-" signs, no color coding.
 13. NEVER GUESS. If a player does not appear in any of the screenshots provided, leave columns 3 and 4 blank for that player. If their player card is not shown, leave columns 5 through 8 blank. Blanks are expected in this sheet and cost nothing.
 
 ═══════════════════════════════════════════════════════════
-ARCHETYPES — the only values column 7 may take, BY POSITION
+ARCHETYPES — the values column 7 may take
 ═══════════════════════════════════════════════════════════
 ${ARCHETYPES_BY_POSITION_BLOCK}
 
-A player's archetype must come from their OWN position's row above. If the
-card shows something that is not on that row, leave column 7 blank and say so
-outside the data block.
+The grouping above is for reading convenience only — it is NOT a restriction.
+The game hands out archetypes across position lines, so a tight end whose card
+reads "Physical Route Runner" is a real player, not a misread. Record what the
+card says, from ANY row of that list. Leave column 7 blank only when the card
+is not shown, or when its label appears nowhere in the list at all.
 
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT — a single fenced TSV block, no other prose
@@ -219,7 +222,7 @@ FINAL CHECK before you send
 [ ] Column 4 (New OVR): integer 40–99 for every player visible in any screenshot or video; blank only for players absent from all screenshots
 [ ] Column 5 (Jersey #): integer 0–99 from the right-hand card, or blank
 [ ] Column 6 (Dev Trait): exactly one of ${TRAINING_DEV_TRAITS.join(', ')}, or blank
-[ ] Column 7 (Archetype): on that player's OWN position row in the ARCHETYPES section, or blank
+[ ] Column 7 (Archetype): appears somewhere in the ARCHETYPES section, or blank
 [ ] Column 8 (NIL): digits only — no $, no commas, no "K"/"M" — or blank
 [ ] No header row, no prose INSIDE the data, no commas, no +/- signs
 [ ] Output wrapped in a single \`\`\`tsv ... \`\`\` fence`,

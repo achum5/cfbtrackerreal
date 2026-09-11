@@ -42,6 +42,27 @@ function Caption({ num, title, active, onToggle }) {
   )
 }
 
+// Where a portaled dropdown should sit, given its anchor.
+//
+// Both menus are `position: fixed` and were left-aligned to their anchor, which
+// is fine on a wide screen and wrong on a phone: these controls sit at the
+// right-hand end of the step row, so a menu wider than the gap ran off the
+// screen with its labels unreachable. Anchored left where there is room,
+// pushed back inside the viewport where there is not, and never wider than the
+// screen.
+const GUTTER = 8
+const menuStyle = (rect, minWidth, measuredWidth) => {
+  const vw = typeof window === 'undefined' ? 0 : window.innerWidth
+  const width = Math.max(measuredWidth || 0, minWidth || 0, rect.width)
+  const maxLeft = Math.max(GUTTER, vw - width - GUTTER)
+  return {
+    top: rect.bottom + 2,
+    left: Math.min(Math.max(GUTTER, rect.left), maxLeft),
+    minWidth,
+    maxWidth: `calc(100vw - ${GUTTER * 2}px)`,
+  }
+}
+
 // A hairline chevron between steps, aligned to the control row (not the caption).
 const Chevron = () => (
   <svg className="hidden min-[380px]:block self-end mb-2 sm:mb-2.5 w-3 h-3 sm:w-4 sm:h-4 text-txt-tertiary/40 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -90,6 +111,11 @@ export default function PasteEntrySteps({
   const [pasteMenuOpen, setPasteMenuOpen] = useState(false)
   const [pasteMenuRect, setPasteMenuRect] = useState(null)
   const pasteWrapRef = useRef(null)
+  // Measured widths, so the clamp above uses what the menu actually renders at
+  // instead of its declared minimum.
+  const [aiMenuWidth, setAiMenuWidth] = useState(0)
+  const [pasteMenuWidth, setPasteMenuWidth] = useState(0)
+  const measure = (set) => (el) => { if (el) set(el.offsetWidth) }
 
   // The Paste arrow becomes a MENU only when an append action is offered
   // (roster-style grids). Without it, the arrow keeps its original single job of
@@ -274,8 +300,9 @@ export default function PasteEntrySteps({
       {/* AI picker menu — portaled so the modal's overflow can't clip it */}
       {aiMenuOpen && menuRect && createPortal(
         <ul
+          ref={measure(setAiMenuWidth)}
           className="fixed z-[10001] max-h-72 overflow-y-auto rounded-md border border-surface-5 bg-surface-2 shadow-xl text-sm py-1"
-          style={{ top: menuRect.bottom + 2, left: menuRect.left, minWidth: menuRect.width }}
+          style={menuStyle(menuRect, menuRect.width, aiMenuWidth)}
           role="listbox"
         >
           {tools.map((t) => (
@@ -297,8 +324,9 @@ export default function PasteEntrySteps({
       {/* Paste-mode menu — portaled so the modal's overflow can't clip it */}
       {pasteMenuOpen && pasteMenuRect && createPortal(
         <ul
+          ref={measure(setPasteMenuWidth)}
           className="fixed z-[10001] max-h-72 overflow-y-auto rounded-md border border-surface-5 bg-surface-2 shadow-xl text-sm py-1"
-          style={{ top: pasteMenuRect.bottom + 2, left: pasteMenuRect.left, minWidth: Math.max(pasteMenuRect.width, 180) }}
+          style={menuStyle(pasteMenuRect, Math.max(pasteMenuRect.width, 180), pasteMenuWidth)}
           role="menu"
         >
           {pasteMenuItems.map((item) => (

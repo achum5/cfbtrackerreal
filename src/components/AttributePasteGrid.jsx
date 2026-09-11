@@ -11,7 +11,7 @@ import {
   normalizeArchetype,
   parseNilAmount,
 } from '../utils/playerFieldNormalize'
-import { archetypesForPosition } from '../data/rosterOptions'
+import { ALL_ARCHETYPES } from '../data/rosterOptions'
 import { getPlayerNil } from '../data/playerNilModel'
 
 // Local, Google-free FULL-ATTRIBUTE entry for Training Results / Recruit
@@ -241,8 +241,8 @@ export default function AttributePasteGrid({
                   </select>
                 </td>
                 <td className="w-40 border border-surface-5">
-                  {/* Only this row's position is offered — a WR must not be
-                      given a linebacker archetype. */}
+                  {/* Every archetype, not just this position's: the game hands
+                      them out across position lines. */}
                   <select
                     value={row.archetype ?? ''}
                     onChange={(e) => editCell(i, 'archetype', e.target.value)}
@@ -251,10 +251,10 @@ export default function AttributePasteGrid({
                   >
                     <option value=""></option>
                     {/* Keep an off-list value visible instead of blanking it. */}
-                    {row.archetype && !archetypesForPosition(row.position).includes(row.archetype) && (
+                    {row.archetype && !ALL_ARCHETYPES.includes(row.archetype) && (
                       <option value={row.archetype}>{row.archetype}</option>
                     )}
-                    {archetypesForPosition(row.position).map((v) => <option key={v} value={v}>{v}</option>)}
+                    {ALL_ARCHETYPES.map((v) => <option key={v} value={v}>{v}</option>)}
                   </select>
                 </td>
                 <td className="w-24 border border-surface-5">
