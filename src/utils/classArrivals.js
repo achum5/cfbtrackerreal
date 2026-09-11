@@ -17,6 +17,7 @@
 // Walk-ons and 'created' roster seeds never count.
 
 import { getPlayerTid, getMovement } from '../data/rosterModel'
+import { resolvePreviousSchoolTid } from './previousSchool'
 
 const sameTid = (a, b) => a != null && b != null && a !== '' && b !== '' && Number(a) === Number(b)
 
@@ -91,7 +92,10 @@ export function classArrivalForTeamYear(player, tid, classYear, { currentYear } 
   }
   if (priorTid != null) return { kind: 'transfer', fromTid: Number(priorTid) }
 
-  // No prior season on record.
+  // No prior season on record. These record-level flags describe how the
+  // player joined the team they belong to (`team`), so they only count for
+  // that team — not for an origin school the timeline also places them on.
+  if (player.team != null && player.team !== '' && !sameTid(player.team, tid)) return null
   if (Number(player.recruitYear) === yearNum && (player.isRecruit || player.commitmentTid != null)) {
     return player.isPortal ? { kind: 'transfer', fromTid: null } : { kind: 'recruit', fromTid: null }
   }
@@ -110,4 +114,21 @@ export function playersArrivingForTeamYear(players, tid, classYear, opts = {}) {
     if (arrival) out.push({ player: p, arrival })
   }
   return out
+}
+
+/**
+ * The origin-school tid to show for `player` in `tid`'s classYear class:
+ * the timeline/arrival first (one source of truth), then the record's
+ * previousTeam mirror for a portal transfer whose timeline hasn't been
+ * filled in. Null for a recruit or when nothing resolves.
+ */
+export function classOriginTid(player, tid, classYear, { currentYear, teams } = {}) {
+  if (!player) return null
+  const arrival = classArrivalForTeamYear(player, tid, classYear, { currentYear })
+  if (arrival) {
+    if (arrival.kind === 'recruit') return null
+    if (arrival.fromTid != null) return arrival.fromTid
+  }
+  if (player.isPortal !== true && !arrival) return null
+  return resolvePreviousSchoolTid(player.previousTeam, teams, { joiningTid: tid })
 }

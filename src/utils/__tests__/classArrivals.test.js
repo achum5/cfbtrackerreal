@@ -77,3 +77,32 @@ describe('classArrivalForTeamYear', () => {
     expect(playersArrivingForTeamYear(players, UMASS, 2026).map((x) => x.player.pid)).toEqual([2])
   })
 })
+
+import { classOriginTid } from '../classArrivals'
+
+describe('classOriginTid — one origin for the FROM chip', () => {
+  const teams = {
+    54: { tid: 54, abbr: 'MASS', name: 'Massachusetts Minutemen', teamName: 'Massachusetts' },
+    130: { tid: 130, abbr: 'WSU', name: 'Washington State Cougars', teamName: 'Washington State' },
+  }
+  it('prefers the timeline, then the previousTeam mirror', () => {
+    const timeline = { team: 54, teamsByYear: { 2026: 130, 2027: 54 } }
+    expect(classOriginTid(timeline, 54, 2026, { teams })).toBe(130)
+    const mirrorOnly = { team: 54, isPortal: true, previousTeam: 130, teamsByYear: { 2027: 54 } }
+    expect(classOriginTid(mirrorOnly, 54, 2026, { teams })).toBe(130)
+    const mirrorText = { team: 54, isPortal: true, previousTeam: 'Washington State', teamsByYear: { 2027: 54 } }
+    expect(classOriginTid(mirrorText, 54, 2026, { teams })).toBe(130)
+  })
+  it('is null for a recruit, a non-portal player, or an origin equal to the team', () => {
+    const recruit = { team: 54, teamsByYear: { 2027: 54 }, movementByYear: { 2026: { type: 'arrival', arrival: 'recruit' } } }
+    expect(classOriginTid(recruit, 54, 2026, { teams })).toBeNull()
+    expect(classOriginTid({ team: 54, teamsByYear: { 2027: 54 } }, 54, 2026, { teams })).toBeNull()
+    expect(classOriginTid({ team: 54, isPortal: true, previousTeam: 54, teamsByYear: { 2027: 54 } }, 54, 2026, { teams })).toBeNull()
+  })
+  it('record-level recruit flags only count for the team the record belongs to', () => {
+    // On WSU's 2026 roster via the timeline, but a UMass transfer — not a 2025 WSU arrival.
+    const p = { team: 54, isPortal: true, entryReason: 'transfer_in', teamsByYear: { 2026: 130, 2027: 54 } }
+    expect(classArrivalForTeamYear(p, 130, 2025)).toBeNull()
+    expect(classArrivalForTeamYear(p, 54, 2026)).toEqual({ kind: 'transfer', fromTid: 130 })
+  })
+})

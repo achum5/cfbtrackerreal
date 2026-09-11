@@ -49,6 +49,11 @@ export function resolvePreviousSchoolTid(value, teams, { joiningTid = null } = {
  *     resolved. Only a missing entry or an existing ARRIVAL is written; a
  *     departure or recommit already recorded for that year (a hand-edited
  *     timeline, a returning player) is left exactly as it is.
+ *   • The season BEFORE enrollment (classYear itself) is put on the origin
+ *     school's roster when the player has no season that year or earlier —
+ *     the timeline is the source of truth for where a player was, so a
+ *     transfer "from Washington State" means a 2026 season at Washington
+ *     State, exactly as if the user had added that row by hand.
  *
  * Pure; returns the next player object (the same object when nothing changes).
  */
@@ -70,6 +75,10 @@ export function applyPreviousSchool(player, { previousTeam, classYear, teams, jo
   }
   if (next.isPortal !== true) next = { ...next, isPortal: true }
 
+  if (Number.isFinite(yearNum) && tid != null) {
+    next = placeOriginSeason(next, yearNum, tid)
+  }
+
   if (Number.isFinite(yearNum)) {
     const mby = next.movementByYear || {}
     const existing = mby[yearNum] ?? mby[String(yearNum)]
@@ -87,4 +96,53 @@ export function applyPreviousSchool(player, { previousTeam, classYear, teams, jo
     }
   }
   return next
+}
+
+// Earliest season on the record (teamsByYear keys + stint starts), or null.
+function firstSeasonYear(player) {
+  const years = []
+  for (const k of Object.keys(player?.teamsByYear || {})) {
+    const v = player.teamsByYear[k]
+    const n = Number(k)
+    if (Number.isFinite(n) && v != null && v !== '') years.push(n)
+  }
+  for (const st of Array.isArray(player?.teamHistory) ? player.teamHistory : []) {
+    const n = Number(st?.fromYear)
+    if (Number.isFinite(n)) years.push(n)
+  }
+  return years.length ? Math.min(...years) : null
+}
+
+// Put `originYear` on `tid`'s roster when nothing earlier is recorded. Never
+// overwrites a season already there, never touches a player whose history
+// already reaches back past originYear (their origin is on the timeline).
+function placeOriginSeason(player, originYear, tid) {
+  const tby = player.teamsByYear || {}
+  const existing = tby[originYear] ?? tby[String(originYear)]
+  if (existing != null && existing !== '') return player
+  const first = firstSeasonYear(player)
+  if (first != null && first <= originYear) return player
+  return { ...player, teamsByYear: { ...tby, [originYear]: Number(tid) } }
+}
+
+/**
+ * The player-editor counterpart of applyPreviousSchool: the user set Portal
+ * Transfer = Yes and picked a Previous Team, so the season before their first
+ * recorded one belongs to that school. Derives the year from the record
+ * itself (first season − 1; the current year when the record only carries the
+ * `team` mirror). No-op unless the school resolves and differs from the first
+ * season's team.
+ */
+export function materializeTransferOrigin(player, { teams, currentYear = null } = {}) {
+  if (!player || player.isPortal !== true) return player
+  const tid = resolvePreviousSchoolTid(player.previousTeam, teams)
+  if (tid == null) return player
+  let first = firstSeasonYear(player)
+  if (first == null && currentYear != null && player.team != null && player.team !== '' && Number(player.team) !== -1) {
+    first = Number(currentYear)
+  }
+  if (first == null || !Number.isFinite(first)) return player
+  const firstTid = player.teamsByYear?.[first] ?? player.teamsByYear?.[String(first)] ?? player.team
+  if (firstTid != null && Number(firstTid) === Number(tid)) return player
+  return applyPreviousSchool(player, { previousTeam: tid, classYear: first - 1, teams, joiningTid: firstTid })
 }

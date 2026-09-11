@@ -20,7 +20,7 @@ import TeamPermissionBanner from '../../components/TeamPermissionBanner'
 import { partitionRecruitingRows, reconcileRecruitingRows, isOpenTarget, isMyTarget, resolveTargetCommitment, buildCommitmentRecord } from '../../utils/recruitingTargets'
 import { nextFreePid } from '../../api/pids'
 import { applyCommitRows } from '../../utils/applyCommitRows'
-import { playersArrivingForTeamYear } from '../../utils/classArrivals'
+import { playersArrivingForTeamYear, classOriginTid } from '../../utils/classArrivals'
 import { carryRecruitingNilForward } from '../../data/playerNilModel'
 import ScoutBoard from './ScoutBoard'
 // Scout Staff is an opt-in (League Preferences) replacement for the MaxPlaysCFB
@@ -678,7 +678,25 @@ export default function Recruiting() {
       return levenshteinDistance(n1, n2) <= maxDist
     }
 
-    map._findPlayer = (name, recruitYear) => {
+    // When a name matches more than one record on the team (a recruit stub
+    // and the rostered player it became, say), take the one that actually
+    // carries the origin school — a bare stub with none would otherwise win
+    // by array order and the card would read "Transfer Portal" even though
+    // the player's own page shows the school.
+    const hasOrigin = (p) => {
+      if (!p) return false
+      if (p.previousTeam != null && p.previousTeam !== '' && p.previousTeam !== 'Transfer Portal') return true
+      return Object.values(p.movementByYear || {}).some((m) => m && m.type === 'arrival' && m.fromTid != null)
+    }
+    const richest = (list) => list.find(hasOrigin) || list[0] || null
+
+    map._findPlayer = (name, recruitYear, pid = null) => {
+      if (!name && pid == null) return null
+      // A commit row that remembers its pid points at one exact record.
+      if (pid != null) {
+        const byPid = players.find((p) => p?.pid != null && String(p.pid) === String(pid))
+        if (byPid && (hasOrigin(byPid) || !name)) return byPid
+      }
       if (!name) return null
       const normalizedName = name.toLowerCase().trim()
       const enrollmentYear = recruitYear ? recruitYear + 1 : null
@@ -691,10 +709,10 @@ export default function Recruiting() {
         return false
       }
 
-      const exactTeamMatch = players.find(p => {
+      const exactTeamMatch = richest(players.filter(p => {
         if (!nameMatches(p.name)) return false
         return wasPlayerOnTeam(p, teamAbbr, enrollmentYear)
-      })
+      }))
       if (exactTeamMatch) return exactTeamMatch
 
       if (map[normalizedName]) {
@@ -777,6 +795,10 @@ export default function Recruiting() {
     // mistook the Commitment cell for Prev Team). Drop it rather than render
     // "FROM <this school>" on the card; the recruit falls back to the generic
     // portal label until the user enters the real school.
+    // Origin school for the FROM chip, read off the player's timeline first
+    // (a season at the school / an arrival with fromTid), then the record's
+    // previousTeam. One rule for every source below.
+    const originTid = (p, y) => classOriginTid(p, selectedTid, y, { currentYear: Number(currentDynasty?.currentYear), teams: currentDynasty?.teams })
     const isCommitTeam = (v) => {
       if (v == null || v === '') return false
       const tid = resolveTid(v, currentDynasty?.teams) ?? getTidFromAbbr(v, currentDynasty)
@@ -804,7 +826,7 @@ export default function Recruiting() {
           Object.entries(yearData.recruitingCommitments).forEach(([key, weekCommitments]) => {
             if (Array.isArray(weekCommitments)) {
               weekCommitments.forEach(commit => {
-                const currentPlayer = playersByName._findPlayer(commit.name, Number(year))
+                const currentPlayer = playersByName._findPlayer(commit.name, Number(year), commit.pid)
                 commitments.push(ensurePortalStatus({
                   ...commit,
                   ...(currentPlayer && {
@@ -817,7 +839,7 @@ export default function Recruiting() {
                     previousTeam: currentPlayer.previousTeam || commit.previousTeam,
                     // Durable origin-school identity for portal transfers, so the
                     // FROM-chip resolves the school's live logo/name off tid.
-                    previousTeamTid: currentPlayer.movementByYear?.[Number(year)]?.fromTid ?? currentPlayer.movementByYear?.[year]?.fromTid ?? null,
+                    previousTeamTid: originTid(currentPlayer, Number(year)),
                     isPortal: currentPlayer.isPortal ?? commit.isPortal, pid: currentPlayer.pid
                   }),
                   commitmentWeek: key, recruitYear: Number(year)
@@ -840,7 +862,7 @@ export default function Recruiting() {
         Object.entries(yearCommitments).forEach(([key, weekCommitments]) => {
           if (Array.isArray(weekCommitments)) {
             weekCommitments.forEach(commit => {
-              const currentPlayer = playersByName._findPlayer(commit.name, Number(year))
+              const currentPlayer = playersByName._findPlayer(commit.name, Number(year), commit.pid)
               commitments.push(ensurePortalStatus({
                 ...commit,
                 ...(currentPlayer && {
@@ -851,7 +873,7 @@ export default function Recruiting() {
                   stars: currentPlayer.stars, nationalRank: currentPlayer.nationalRank, stateRank: currentPlayer.stateRank,
                   positionRank: currentPlayer.positionRank, gemBust: currentPlayer.gemBust,
                   previousTeam: currentPlayer.previousTeam || commit.previousTeam,
-                  previousTeamTid: currentPlayer.movementByYear?.[Number(year)]?.fromTid ?? currentPlayer.movementByYear?.[year]?.fromTid ?? null,
+                  previousTeamTid: originTid(currentPlayer, Number(year)),
                   isPortal: currentPlayer.isPortal ?? commit.isPortal, pid: currentPlayer.pid
                 }),
                 commitmentWeek: key, recruitYear: Number(year)
@@ -865,7 +887,7 @@ export default function Recruiting() {
       Object.entries(commitmentsForYear).forEach(([key, weekCommitments]) => {
         if (Array.isArray(weekCommitments)) {
           weekCommitments.forEach(commit => {
-            const currentPlayer = playersByName._findPlayer(commit.name, selectedYear)
+            const currentPlayer = playersByName._findPlayer(commit.name, selectedYear, commit.pid)
             commitments.push(ensurePortalStatus({
               ...commit,
               ...(currentPlayer && {
@@ -886,7 +908,7 @@ export default function Recruiting() {
                 positionRank: currentPlayer.positionRank,
                 gemBust: currentPlayer.gemBust,
                 previousTeam: currentPlayer.previousTeam || commit.previousTeam,
-                previousTeamTid: currentPlayer.movementByYear?.[Number(selectedYear)]?.fromTid ?? currentPlayer.movementByYear?.[selectedYear]?.fromTid ?? null,
+                previousTeamTid: originTid(currentPlayer, Number(selectedYear)),
                 isPortal: currentPlayer.isPortal ?? commit.isPortal,
                 pid: currentPlayer.pid
               }),
@@ -940,7 +962,7 @@ export default function Recruiting() {
               pictureUrl: currentPlayer.pictureUrl || r.pictureUrl,
               gemBust: currentPlayer.gemBust,
               previousTeam: currentPlayer.previousTeam,
-              previousTeamTid: currentPlayer.movementByYear?.[y]?.fromTid ?? currentPlayer.movementByYear?.[String(y)]?.fromTid ?? null,
+              previousTeamTid: originTid(currentPlayer, y),
               isPortal: currentPlayer.isPortal, pid: currentPlayer.pid,
             }),
           }))
@@ -965,7 +987,7 @@ export default function Recruiting() {
           pictureUrl: p.pictureUrl, stars: p.stars, nationalRank: p.nationalRank,
           stateRank: p.stateRank, positionRank: p.positionRank, gemBust: p.gemBust,
           previousTeam: p.previousTeam,
-          previousTeamTid: p.movementByYear?.[ry]?.fromTid ?? p.movementByYear?.[String(ry)]?.fromTid ?? null,
+          previousTeamTid: originTid(p, ry),
           isPortal: p.isPortal, pid: p.pid,
           commitmentWeek: null, recruitYear: Number.isFinite(ry) ? ry : Number(selectedYear),
         }))

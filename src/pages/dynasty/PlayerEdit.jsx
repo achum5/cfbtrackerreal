@@ -5,6 +5,7 @@ import { resolvePortraitUrl } from '../../utils/imageProxy'
 import { useDynasty, getPlayerBoxScoreTotals } from '../../context/DynastyContext'
 import { getEditionConfig } from '../../editions'
 import { resolveTargetCommitment, isTargetPlayer } from '../../utils/recruitingTargets'
+import { materializeTransferOrigin } from '../../utils/previousSchool'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -1013,7 +1014,12 @@ export default function PlayerEdit() {
     try {
       // Use dynastyId from URL params, or fall back to dynasty.id
       const targetDynastyId = dynastyId || dynasty?.id
-      await updatePlayer(targetDynastyId, updatedPlayer)
+      // Portal Transfer = Yes + a Previous Team means a season at that school
+      // before the first one recorded here — put it on the timeline so the
+      // class page, the team pages and the player's own history all read the
+      // same origin.
+      const withOrigin = materializeTransferOrigin(updatedPlayer, { teams: dynasty?.teams, currentYear: dynasty?.currentYear })
+      await updatePlayer(targetDynastyId, withOrigin)
       navigate(navigateTo || `${pathPrefix}/player/${pid}`)
     } catch (error) {
       console.error('Error saving player:', error)

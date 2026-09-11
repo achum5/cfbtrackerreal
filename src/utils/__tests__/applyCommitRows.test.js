@@ -41,6 +41,8 @@ describe('applyCommitRows — previous school survives the round trip', () => {
     expect(p.pid).toBe(100)
     expect(p.previousTeam).toBe(1)
     expect(p.movementByYear[2026]).toEqual({ type: 'arrival', arrival: 'transfer_in', fromTid: 1 })
+    // The origin season lands on the timeline too — Alabama's 2026 roster.
+    expect(p.teamsByYear).toEqual({ 2027: 54, 2026: 1 })
   })
 
   it('matches the existing record even when its team is stored as a numeric string', () => {
