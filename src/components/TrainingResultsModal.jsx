@@ -14,6 +14,7 @@ import {
   createTrainingResultsSheet,
   readTrainingResultsFromSheet,
   parseTrainingResultsLocal,
+  TRAINING_DEV_TRAITS,
   deleteGoogleSheet,
   getSheetEmbedUrl,
   sheetExists
@@ -25,8 +26,16 @@ import { buildAttributesStructure } from '../utils/attributeEntry'
 import { arePlayerAttributesEnabled } from '../editions'
 import AttributePasteGrid from './AttributePasteGrid'
 import LocalDataEntry from './ui/LocalDataEntry'
+import { normalizePlayerName } from '../utils/playerMatching'
 import { splitTsv } from '../utils/tsvParse'
 import SheetLoadingHint from './SheetLoadingHint'
+
+// Grid columns, in the exact order parseTrainingResultsLocal reads them and
+// the Google sheet lays them out. Jersey # and Dev Trait were added after
+// New OVR, not inserted among the existing four, so every stored row and any
+// sheet already in a user's Drive keeps its column meanings.
+const LOCAL_COLUMNS = ['Player', 'Position', 'Past OVR', 'New OVR', 'Jersey #', 'Dev Trait']
+const LOCAL_COLUMN_OPTIONS = { 'Dev Trait': TRAINING_DEV_TRAITS }
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -91,8 +100,11 @@ export default function TrainingResultsModal({ isOpen, onClose, onSave, onImport
     // model may look past, which is how a screen sweep ends up carrying rows
     // for players the task never covered.
     targets: sheetOrderPlayers,
-    targetsLabel: 'THE PLAYERS PRE-FILLED IN THE SHEET',
-    targetsNote: 'They fill the sheet in exactly this order, so your Nth line belongs to the Nth player above.',
+    targetsLabel: 'THE PLAYERS TO ENTER TRAINING RESULTS FOR',
+    // No row-order note here: unlike the other pre-filled sheets, every row of
+    // this one carries the player's own name and the app matches on it, so the
+    // order is presentational only (it mirrors how the sheet reads).
+    targetsNote: undefined,
     structure: `EA CFB TRAINING RESULTS SCREEN — HOW TO READ IT
 ═══════════════════════════════════════════════════════════
 The game shows training results ONE POSITION GROUP at a time (QB, RB, WR, TE,
@@ -105,7 +117,7 @@ Each screen's columns (left to right):
 
 • RS   — redshirt status toggle. IGNORE.
 • Name — ABBREVIATED (e.g. "D.Ware", "Q.Merchant", "G.McManus"). Resolve to
-         full name using the roster block below.
+         the full name using the player list above.
 • Year — class label (JR, SR RS, FR RS, SO RS, etc.). IGNORE.
 • Pos  — position abbreviation.
 • OVR  — the player's CURRENT overall AFTER training. This is the NEW OVR.
@@ -118,46 +130,68 @@ Each screen's columns (left to right):
 CRITICAL: OVR column = NEW (post-training) overall = Column 4.
           OVR delta (the green +N) used to derive Past OVR = Column 3.
 
+THE PLAYER CARD ON THE RIGHT — where columns 5 and 6 come from
+═══════════════════════════════════════════════════════════
+The list on the left shows one row per player; the card on the RIGHT shows the
+currently highlighted player in full. Two values live ONLY on that card:
+
+• JERSEY # — the number shown with the player's name on the card. Column 5.
+• DEV TRAIT — at the BOTTOM of the card. One of: ${TRAINING_DEV_TRAITS.join(' | ')}.
+              Column 6. "Hidden" is a real value, used when the game has not
+              revealed the trait yet — it is not a stand-in for "I can't see it".
+
+The card shows ONE player at a time, so these two are filled in only for the
+players whose card the user actually captured. That is expected: leave columns
+5 and 6 BLANK for anyone whose card is not in the screenshots, and still output
+their row with the OVR columns filled from the list. A blank is correct and
+harmless — the app keeps the value it already has. A guess is not.
+
 ═══════════════════════════════════════════════════════════
 
-This sheet has ONE tab: "Training Results". The app matches rows by PLAYER NAME — row order does not matter. Output ALL FOUR columns for every player on the YOUR TEAM ROSTER block below.
+This sheet has ONE tab: "Training Results". The app matches rows by PLAYER NAME — row order does not matter. Output ALL SIX columns for every player in the list above.
 
 ═══════════════════════════════════════════════════════════
 CRITICAL RULES — read before anything else
 ═══════════════════════════════════════════════════════════
-1. OUTPUT 4 TAB-SEPARATED COLUMNS per row: Player<TAB>Position<TAB>Past OVR<TAB>New OVR.
-2. ONE ROW PER PLAYER in the YOUR TEAM ROSTER block. Include every roster player, even if their OVR is unknown. The roster block has ALREADY been filtered to exclude incoming HS recruits — they do NOT receive training results. If a name appears in EA's training screenshots but is NOT in the YOUR TEAM ROSTER block, DO NOT output a row for them.
-3. Column 1 (Player) MUST use the FULL name from the YOUR TEAM ROSTER block — never abbreviated ("A. Guess"). EA CFB screenshots show abbreviated names; match them to full names using the roster.
-4. Column 2 (Position) MUST match the roster's position string exactly (QB, HB, WR, TE, LT, LG, C, RG, RT, LEDG, REDG, DT, SAM, MIKE, WILL, CB, FS, SS, K, P).
+1. OUTPUT 6 TAB-SEPARATED COLUMNS per row: Player<TAB>Position<TAB>Past OVR<TAB>New OVR<TAB>Jersey #<TAB>Dev Trait.
+2. ONE ROW PER PLAYER in the player list above. Include every one of them, even if their OVR is unknown. That list has ALREADY been filtered to exclude incoming HS recruits — they do NOT receive training results. If a name appears in EA's training screenshots but is NOT in the list above, DO NOT output a row for them.
+3. Column 1 (Player) MUST use the FULL name from the list above — never abbreviated ("A. Guess"). EA CFB screenshots show abbreviated names; match them to full names using that list.
+4. Column 2 (Position) MUST match the listed position string exactly (QB, HB, WR, TE, LT, LG, C, RG, RT, LEDG, REDG, DT, SAM, MIKE, WILL, CB, FS, SS, K, P).
 5. Column 3 (Past OVR) = New OVR − OVR delta. The OVR column in the screenshot shows the post-training overall alongside a green gain. Example: OVR reads "83 (+2)" → New OVR = 83, Past OVR = 83 − 2 = 81. When no delta is shown (player's overall did not change), delta = 0, so Past OVR = New OVR. Leave BLANK only when the player does not appear in any screenshot or video at all.
 6. Column 4 (New OVR) = the OVR number shown in the training results screenshot for this player. Integer 40–99. Leave BLANK only if the player does not appear on any screenshot.
-7. NO header row INSIDE the data. NO commentary INSIDE the data. NO blank lines between rows. Each row has exactly 3 tab characters.
-8. INTEGERS only in columns C and D. No decimals, no commas, no quotes, no units, no "+/-" signs, no color coding.
-9. NEVER GUESS. If a player does not appear in any of the screenshots provided, leave both Column 3 and Column 4 blank for that player.
+7. Column 5 (Jersey #) = the number on the RIGHT-HAND PLAYER CARD. Integer 0–99, no "#". BLANK when that player's card is not shown.
+8. Column 6 (Dev Trait) = the trait at the BOTTOM of the RIGHT-HAND PLAYER CARD. EXACTLY one of: ${TRAINING_DEV_TRAITS.join(' | ')} — Title Case, no other wording. BLANK when that player's card is not shown.
+9. NO header row INSIDE the data. NO commentary INSIDE the data. NO blank lines between rows. Each row has exactly 5 tab characters, INCLUDING rows whose last columns are blank — a row ending in two blanks still ends with two trailing tabs.
+10. INTEGERS only in columns 3, 4 and 5. No decimals, no commas, no quotes, no units, no "+/-" signs, no color coding.
+11. NEVER GUESS. If a player does not appear in any of the screenshots provided, leave columns 3 and 4 blank for that player. If their player card is not shown, leave columns 5 and 6 blank. Blanks are expected in this sheet and cost nothing.
 
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT — a single fenced TSV block, no other prose
 ═══════════════════════════════════════════════════════════
 \`\`\`tsv
-Alex Guess	QB	87	90
-Jaylen Miller	HB	80	82
-Devin Hollis	WR	74	76
-Marcus Porter	WR
+Alex Guess	QB	87	90	12	Elite
+Jaylen Miller	HB	80	82	28	Normal
+Devin Hollis	WR	74	76		
+Marcus Porter	WR				
 ...
 \`\`\`
 
 (Column 3 = New OVR − OVR delta; when no delta shown, delta = 0 so Past OVR = New OVR.
- Column 4 blank only if the player does not appear in any screenshot or video.)
+ Column 4 blank only if the player does not appear in any screenshot or video.
+ Columns 5 and 6 blank whenever that player's right-hand card was not captured —
+ note the trailing tabs on those rows, which hold the empty columns open.)
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
-[ ] Row count equals the number of players on YOUR TEAM ROSTER
-[ ] Every row has exactly 3 tab characters (4 columns)
-[ ] Column 1 names match the FULL names in the roster block (no initials)
+[ ] Row count equals the number of players in the list above
+[ ] Every row has exactly 5 tab characters (6 columns), trailing tabs included
+[ ] Column 1 names match the FULL names in the list above (no initials)
 [ ] Column 2 positions use canonical abbreviations
 [ ] Column 3 (Past OVR): integer 40–99, computed as New OVR − OVR delta (use 0 when no delta shown → Past OVR = New OVR); blank only when player absent from all screenshots
 [ ] Column 4 (New OVR): integer 40–99 for every player visible in any screenshot or video; blank only for players absent from all screenshots
+[ ] Column 5 (Jersey #): integer 0–99 from the right-hand card, or blank
+[ ] Column 6 (Dev Trait): exactly one of ${TRAINING_DEV_TRAITS.join(', ')}, or blank
 [ ] No header row, no prose INSIDE the data, no commas, no +/- signs
 [ ] Output wrapped in a single \`\`\`tsv ... \`\`\` fence`,
     includeTeamMap: false,
@@ -165,19 +199,29 @@ FINAL CHECK before you send
 
   // Pre-fill the local (Overalls) grid with this team's already-saved training
   // results for the year so the modal opens ready to edit. The parser reads
-  // row[0]=Player, row[1]=Position, row[2]=Past OVR, row[3]=New OVR and requires
-  // a name + a valid New OVR (40–99), so we emit only saved rows that satisfy
-  // that. Round-trip safe: re-importing unchanged re-stores the same results.
+  // row[0]=Player, row[1]=Position, row[2]=Past OVR, row[3]=New OVR,
+  // row[4]=Jersey #, row[5]=Dev Trait, and requires a name + a valid New OVR
+  // (40–99), so we emit only saved rows that satisfy that. Jersey and dev trait
+  // fall back to what the app already has for the player — the same values the
+  // Google sheet pre-fills — so the two paths open on the same contents.
+  // Round-trip safe: re-importing unchanged re-stores the same results.
   const initialText = useMemo(() => {
     const saved = currentDynasty?.trainingResultsByYear?.[currentYear] || []
+    const byName = new Map(
+      (players || []).filter(p => p?.name).map(p => [normalizePlayerName(p.name), p]),
+    )
     return saved
       .filter(r => r?.playerName && Number(r?.newOverall) >= 40 && Number(r?.newOverall) <= 99)
       .map(r => {
         const past = (r.pastOverall != null && r.pastOverall !== '') ? String(r.pastOverall) : ''
-        return `${r.playerName}\t${r.position || ''}\t${past}\t${r.newOverall}`
+        const p = byName.get(normalizePlayerName(r.playerName))
+        const jerseyRaw = r.jerseyNumber ?? p?.jerseyNumber
+        const jersey = (jerseyRaw != null && jerseyRaw !== '') ? String(jerseyRaw) : ''
+        const dev = r.devTrait || p?.devTrait || ''
+        return `${r.playerName}\t${r.position || ''}\t${past}\t${r.newOverall}\t${jersey}\t${dev}`
       })
       .join('\n')
-  }, [currentDynasty?.trainingResultsByYear, currentYear])
+  }, [currentDynasty?.trainingResultsByYear, currentYear, players])
 
   // Full-attributes prompt — the AI emits each player's complete rating set in
   // one cell, plus Position + OVR. Used by the local paste grid.
@@ -292,7 +336,7 @@ FINAL CHECK before you send
   }, [isOpen])
 
   // Local paste import: the Training Results AI prompt already emits the full
-  // self-describing 4-column rows, matched by name — so parseTrainingResultsLocal
+  // self-describing 6-column rows, matched by name — so parseTrainingResultsLocal
   // returns the SAME shape the Google reader does and onSave applies unchanged.
   const handleLocalImport = async (text) => {
     const results = parseTrainingResultsLocal(splitTsv(text))
@@ -424,7 +468,10 @@ FINAL CHECK before you send
 
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
         {attributesEnabled && (
-          <div className="mb-3 inline-flex self-start rounded-md border border-surface-5 overflow-hidden text-sm">
+          // flex-shrink-0: this sits in a column flex box whose next child is a
+          // tall grid, so without it the toggle is squeezed to a sliver and its
+          // labels get clipped in half.
+          <div className="mb-3 flex-shrink-0 inline-flex self-start rounded-md border border-surface-5 overflow-hidden text-sm">
             <button
               type="button"
               onClick={() => setMode('overalls')}
@@ -457,7 +504,8 @@ FINAL CHECK before you send
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}
             importLabel="Import Training Results"
-            columns={['Player', 'Position', 'Past OVR', 'New OVR']}
+            columns={LOCAL_COLUMNS}
+            columnOptions={LOCAL_COLUMN_OPTIONS}
             initialText={initialText}
           />
         ) : isLoading ? (

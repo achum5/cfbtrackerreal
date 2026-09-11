@@ -20,7 +20,9 @@ export function buildTrainingResultsSave(dynasty, results) {
     const playerIndex = findRowPlayerIndex(updatedPlayers, result, { nameEq })
     if (playerIndex === -1) continue
     storedRows[i] = withRowPid(result, updatedPlayers[playerIndex])
-    if (!result.newOverall && result.pastOverall == null) continue
+    const hasJersey = result.jerseyNumber != null && result.jerseyNumber !== ''
+    const hasDevTrait = !!result.devTrait
+    if (!result.newOverall && result.pastOverall == null && !hasJersey && !hasDevTrait) continue
 
     const player = updatedPlayers[playerIndex]
     const nextOverallByYear = { ...(player.overallByYear || {}) }
@@ -35,10 +37,22 @@ export function buildTrainingResultsSave(dynasty, results) {
       nextOverallByYear[prevYear] = result.pastOverall
     }
 
+    // Jersey # and dev trait ride along on the same row — both are read off
+    // the player card beside the training screen, so collecting them here
+    // saves a second pass over the roster. Dev trait mirrors how overall is
+    // stored: the flat field is "current", devTraitByYear is the record, and
+    // the per-year readers fall back to the flat one.
     updatedPlayers[playerIndex] = {
       ...player,
       ...(result.newOverall ? { overall: result.newOverall } : {}),
       overallByYear: nextOverallByYear,
+      ...(hasJersey ? { jerseyNumber: String(result.jerseyNumber) } : {}),
+      ...(hasDevTrait
+        ? {
+            devTrait: result.devTrait,
+            devTraitByYear: { ...(player.devTraitByYear || {}), [year]: result.devTrait },
+          }
+        : {}),
     }
     updatedCount++
   }

@@ -75,7 +75,7 @@ export default function RecruitOverallsModal({ isOpen, onClose, onSave, onImport
 ═══════════════════════════════════════════════════════════
 Recruit overalls appear on NATIONAL SIGNING DAY (before Training Results).
 
-The YOUR INCOMING RECRUITING CLASS block below is the definitive list of the
+The signed-recruit list above is the definitive list of the
 commits you signed this class — the SOURCE OF TRUTH for who to record. Your job
 is to find each of those exact players in the screenshots or video and read their overall
 (and jersey #). Do NOT filter by the class/year shown on the depth chart: a
@@ -134,7 +134,7 @@ REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
-[ ] Line count exactly equals the number of recruits in the YOUR INCOMING RECRUITING CLASS block
+[ ] Line count exactly equals the number of recruits in the list above
 [ ] Every line has EXACTLY one tab character (two values: Overall then Jersey #)
 [ ] Every Overall is an integer 40–99, or blank
 [ ] Every Jersey # is an integer 0–99, or blank
@@ -163,13 +163,13 @@ FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
 Recruit overalls appear on NATIONAL SIGNING DAY (before Training Results).
 
-The YOUR INCOMING RECRUITING CLASS block below is the definitive list of the
+The signed-recruit list above is the definitive list of the
 commits you signed this class — the SOURCE OF TRUTH for who to record. Find each
 of those exact players in the screenshots or video and read their overall (and jersey #).
 Do NOT filter by the class/year shown on the depth chart: a commit can appear as
 "Fr", "RS Fr", or any other year. Include a player because their name is in the
 commit list, not because of the year beside them. Browse the position group
-depth charts and match each name to the block (abbreviated names like "D.Ware"
+depth charts and match each name to that list (abbreviated names like "D.Ware"
 resolve to a full name there). The OVR column is their initial overall; the
 jersey number may be visible on the depth-chart row.
 
@@ -179,8 +179,8 @@ row order does NOT matter)
 ═══════════════════════════════════════════════════════════
 1. Each line has EXACTLY 3 tab-separated fields (2 tabs):
    Name<TAB>Overall<TAB>Jersey #
-2. Name MUST be the FULL name from the YOUR INCOMING RECRUITING CLASS block —
-   never an abbreviation. Only output recruits that appear in that block.
+2. Name MUST be the FULL name from the list above — never an abbreviation.
+   Only output recruits that appear in that list.
 3. Overall: integer 40–99. Jersey #: integer 0–99, or BLANK if not visible
    (output the name and overall, then a trailing tab with nothing after it).
 4. NO header row, NO commentary inside the data, NO commas, NO decimals,
@@ -469,7 +469,10 @@ FINAL CHECK before you send
 
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
         {attributesEnabled && (
-          <div className="mb-3 inline-flex self-start rounded-md border border-surface-5 overflow-hidden text-sm">
+          // flex-shrink-0: this sits in a column flex box whose next child is a
+          // tall grid, so without it the toggle is squeezed to a sliver and its
+          // labels get clipped in half.
+          <div className="mb-3 flex-shrink-0 inline-flex self-start rounded-md border border-surface-5 overflow-hidden text-sm">
             <button
               type="button"
               onClick={() => setMode('overalls')}

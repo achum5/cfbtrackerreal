@@ -3781,12 +3781,17 @@ function PlayerInner() {
                 const ydTeamColors = teamName ? getTeamColors(teamName, teamsData) : null
                 const seasonColor = ydTeamColors?.primary || teamInfo.backgroundColor
 
-                // Peel transfer-in events (portal_in, juco_in, transfer) into their own standalone
-                // timeline row that sits just above the new season. This makes a mid-career move
-                // like "Wisconsin → Kentucky" visually obvious instead of hiding it as a chip on
-                // the destination season. We also remove it from the season's movements list so
-                // it doesn't double up. Works for any number of transfers — each team change in
-                // teamsByYear produces its own row (A → B → C → back to A all get separate rows).
+                // Peel transfer-in events (portal_in, juco_in, transfer) out of the season's
+                // movement chips and onto the season row's own headline, so a mid-career move
+                // like "Wisconsin → Kentucky" is the thing you read first instead of a chip
+                // buried under it. Works for any number of transfers — each team change in
+                // teamsByYear produces its own row (A → B → C → back to A all get one each).
+                //
+                // The transfer used to get a SEPARATE row above the season, which meant a
+                // transfer year rendered two nodes for the same team in the same season: the
+                // move, then a near-empty "Current Season / Freshman" card under it. They are
+                // folded into one — the same treatment a first-season recruit already gets
+                // via mergeRecruitIntoFirstSeason below.
                 const prevTeamRef = idx > 0 ? yearData[idx - 1]?.team : null
                 // Safety net: only treat this as a transfer row when the team actually changed
                 // from the previous season. timelineEntries already enforces this, but guard
@@ -3796,6 +3801,8 @@ function PlayerInner() {
                   ? yd.movements.findIndex(m => m.type === 'portal_in' || m.type === 'juco_in' || m.type === 'transfer')
                   : -1
                 const transferMovement = transferIdx >= 0 ? yd.movements[transferIdx] : null
+                // Set when this season is also a transfer-in; folded into the season row below.
+                let mergedTransfer = null
                 const seasonMovements = transferIdx >= 0
                   ? yd.movements.filter((_, i) => i !== transferIdx)
                   : yd.movements
@@ -3810,8 +3817,6 @@ function PlayerInner() {
                   const fromSchool = fromRef ? getSchoolName(fromRef, teamsData) : null
                   const toSchool = schoolName
                   const fromLogo = fromName ? getTeamLogo(fromName, teamsData) : null
-                  const toLogo = logo
-                  const transferColor = getMovementColor(transferMovement.type)
                   const transferLabel = transferMovement.isRecommit
                     ? 'Recommitted'
                     : transferMovement.type === 'juco_in'
@@ -3842,18 +3847,11 @@ function PlayerInner() {
                     </>
                   )
 
-                  rows.push({
-                    key: `transfer-${yd.year}`,
-                    year: yd.year,
-                    node: {
-                      key: `transfer-${yd.year}`,
-                      logo: toLogo,
-                      color: transferColor,
-                      eyebrow: transferLabel,
-                      headline: transferHeadline,
-                      metaRow: transferMeta
-                    }
-                  })
+                  mergedTransfer = {
+                    label: transferLabel,
+                    headline: transferHeadline,
+                    meta: transferMeta,
+                  }
                 }
 
                 const classHeadline = getClassHeadline(yd.playerClass)
@@ -3870,7 +3868,22 @@ function PlayerInner() {
                 const isMergedFirstSeason = idx === 0 && mergeRecruitIntoFirstSeason
                 const mergedEyebrow = isMergedFirstSeason
                   ? [recruitmentNode.isPortal ? 'Portal Entry' : 'Committed', ...eyebrowParts].join(' ')
-                  : eyebrow
+                  : mergedTransfer
+                    // The school is already the headline on a transfer row, so the
+                    // eyebrow carries only the move and the current-season flag.
+                    ? [mergedTransfer.label, ...(isCurrentYear ? ['Current Season'] : [])].join(' ')
+                    : eyebrow
+                // On a transfer year the move is the headline — "Massachusetts ← Charlotte"
+                // says more than "Freshman" — so the eligibility class moves down to the meta
+                // rather than being dropped.
+                const classChip = mergedTransfer && classHeadline ? (
+                  <span
+                    className="inline-block text-[10px] font-semibold uppercase text-txt-secondary"
+                    style={{ letterSpacing: '1px' }}
+                  >
+                    {classHeadline}
+                  </span>
+                ) : null
 
                 const devChip = yd.devTrait ? (
                   <span
@@ -3917,6 +3930,28 @@ function PlayerInner() {
                     {honorChipsNode && (
                       <>
 
+                        {honorChipsNode}
+                      </>
+                    )}
+                  </>
+                ) : mergedTransfer ? (
+                  <>
+                    {mergedTransfer.meta}
+                    {classChip && (
+                      <>
+                        {' '}
+                        {classChip}
+                      </>
+                    )}
+                    {devChip && (
+                      <>
+                        {' '}
+                        {devChip}
+                      </>
+                    )}
+                    {honorChipsNode && (
+                      <>
+                        {' '}
                         {honorChipsNode}
                       </>
                     )}
@@ -3979,7 +4014,7 @@ function PlayerInner() {
                     logo,
                     color: seasonColor,
                     eyebrow: mergedEyebrow,
-                    headline,
+                    headline: mergedTransfer ? mergedTransfer.headline : headline,
                     headlineLink: teamTid ? `${pathPrefix}/team/${teamTid}/${yd.year}` : null,
                     metaRow,
                     rightSlot,

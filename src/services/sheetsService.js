@@ -12561,6 +12561,11 @@ export async function writeRecruitingRows(spreadsheetId, recruits, userTid, dyna
 
 // ==================== TRAINING RESULTS SHEET ====================
 
+// Dev trait values, in the order the game reveals them. Same set the Update
+// Dev Traits modal and the recruiting prompt use — "Hidden" means not yet
+// revealed, never "we don't know".
+export const TRAINING_DEV_TRAITS = ['Hidden', 'Normal', 'Impact', 'Star', 'Elite']
+
 /**
  * Create a Training Results sheet for entering new player overalls
  * @param {string} dynastyName - Name of the dynasty
@@ -12596,7 +12601,7 @@ export async function createTrainingResultsSheet(dynastyName, year, players) {
               title: 'Training Results',
               gridProperties: {
                 rowCount: totalRows + 1,
-                columnCount: 4,
+                columnCount: 6,
                 frozenRowCount: 1
               }
             }
@@ -12639,6 +12644,10 @@ export async function createTrainingResultsSheet(dynastyName, year, players) {
 // Initialize the Training Results sheet with headers, validation, and pre-filled data
 async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetId, players, totalRows) {
   // Build pre-filled rows for players
+  // Jersey # and Dev Trait (E, F) are pre-filled with whatever the app already
+  // has so an unchanged sheet round-trips instead of blanking them. Both read
+  // off the player card on the right of the training screen, which is why they
+  // are collected here rather than on a separate pass.
   const dataRows = players.map(player => ({
     values: [
       { userEnteredValue: { stringValue: String(player.name ?? '') } },
@@ -12647,7 +12656,11 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
       (player.overall != null && player.overall !== '' && !Number.isNaN(Number(player.overall)) && Number(player.overall) !== 0)
         ? { userEnteredValue: { numberValue: Number(player.overall) } }
         : { userEnteredValue: { stringValue: '' } },
-      { userEnteredValue: { stringValue: '' } } // New Overall - user enters this
+      { userEnteredValue: { stringValue: '' } }, // New Overall - user enters this
+      (player.jerseyNumber != null && player.jerseyNumber !== '' && !Number.isNaN(Number(player.jerseyNumber)))
+        ? { userEnteredValue: { numberValue: Number(player.jerseyNumber) } }
+        : { userEnteredValue: { stringValue: '' } },
+      { userEnteredValue: { stringValue: String(player.devTrait ?? '') } }
     ]
   }))
 
@@ -12655,13 +12668,15 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
     // Set headers
     {
       updateCells: {
-        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 },
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 6 },
         rows: [{
           values: [
             { userEnteredValue: { stringValue: 'Player' } },
             { userEnteredValue: { stringValue: 'Position' } },
             { userEnteredValue: { stringValue: 'Past OVR' } },
-            { userEnteredValue: { stringValue: 'New OVR' } }
+            { userEnteredValue: { stringValue: 'New OVR' } },
+            { userEnteredValue: { stringValue: 'Jersey #' } },
+            { userEnteredValue: { stringValue: 'Dev Trait' } }
           ]
         }],
         fields: 'userEnteredValue'
@@ -12670,7 +12685,7 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
     // Pre-fill player data
     {
       updateCells: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: players.length + 1, startColumnIndex: 0, endColumnIndex: 4 },
+        range: { sheetId, startRowIndex: 1, endRowIndex: players.length + 1, startColumnIndex: 0, endColumnIndex: 6 },
         rows: dataRows,
         fields: 'userEnteredValue'
       }
@@ -12692,7 +12707,7 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
     // Format header row - bold, background color
     {
       repeatCell: {
-        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 },
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 6 },
         cell: {
           userEnteredFormat: {
             backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
@@ -12706,7 +12721,7 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
     // Format all data cells - center aligned
     {
       repeatCell: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 4 },
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 6 },
         cell: {
           userEnteredFormat: {
             horizontalAlignment: 'CENTER',
@@ -12745,6 +12760,45 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
         fields: 'pixelSize'
       }
     },
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 4, endIndex: 6 },
+        properties: { pixelSize: 100 },
+        fields: 'pixelSize'
+      }
+    },
+    // Jersey # (E): 0-99, same non-strict validation as New OVR so a paste is
+    // never blocked outright — a bad value warns instead.
+    {
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 4, endColumnIndex: 5 },
+        rule: {
+          condition: {
+            type: 'NUMBER_BETWEEN',
+            values: [
+              { userEnteredValue: '0' },
+              { userEnteredValue: '99' }
+            ]
+          },
+          showCustomUi: true,
+          strict: false
+        }
+      }
+    },
+    // Dev Trait (F): the same five values the app uses everywhere else.
+    {
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 5, endColumnIndex: 6 },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: TRAINING_DEV_TRAITS.map(v => ({ userEnteredValue: v })),
+          },
+          showCustomUi: true,
+          strict: false
+        }
+      }
+    },
     // Add data validation for New OVR column (40-99)
     {
       setDataValidation: {
@@ -12762,10 +12816,10 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
         }
       }
     },
-    // Highlight New OVR column with light background
+    // Highlight the user-entered columns (New OVR, Jersey #, Dev Trait)
     {
       repeatCell: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 3, endColumnIndex: 4 },
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 3, endColumnIndex: 6 },
         cell: {
           userEnteredFormat: {
             backgroundColor: { red: 1, green: 1, blue: 0.8 },
@@ -12780,7 +12834,7 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
     {
       setBasicFilter: {
         filter: {
-          range: { sheetId, startRowIndex: 0, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 4 }
+          range: { sheetId, startRowIndex: 0, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 6 }
         }
       }
     }
@@ -12796,6 +12850,24 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
   })
 }
 
+// Jersey # → an integer 0-99, or null. Anything else (blank, "#12", "twelve")
+// is null so the save leaves the player's existing number alone.
+function parseJersey(raw) {
+  const s = String(raw ?? '').trim().replace(/^#/, '')
+  if (s === '') return null
+  const n = Number(s)
+  return Number.isInteger(n) && n >= 0 && n <= 99 ? n : null
+}
+
+// Dev trait → one of TRAINING_DEV_TRAITS, matched case-insensitively, or null.
+// An unrecognized value is dropped rather than written through: a typo would
+// otherwise land on the player and show up as their trait everywhere.
+function normalizeDevTrait(raw) {
+  const s = String(raw ?? '').trim()
+  if (s === '') return null
+  return TRAINING_DEV_TRAITS.find(v => v.toLowerCase() === s.toLowerCase()) || null
+}
+
 /**
  * Read training results from sheet
  * @param {string} spreadsheetId - The Google Sheet ID
@@ -12805,7 +12877,7 @@ export async function readTrainingResultsFromSheet(spreadsheetId, dynastyTeams =
   try {
     const accessToken = await getAccessToken()
 
-    const range = encodeURIComponent("'Training Results'!A2:D200")
+    const range = encodeURIComponent("'Training Results'!A2:F200")
     const response = await fetchWithTimeout(
       `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
       {
@@ -12829,7 +12901,9 @@ export async function readTrainingResultsFromSheet(spreadsheetId, dynastyTeams =
         playerName: row[0]?.trim() || '',
         position: row[1]?.trim() || '',
         pastOverall: row[2]?.trim() ? parseInt(row[2], 10) : null, // null if blank
-        newOverall: parseInt(row[3], 10) || 0
+        newOverall: parseInt(row[3], 10) || 0,
+        jerseyNumber: parseJersey(row[4]),
+        devTrait: normalizeDevTrait(row[5]),
       }))
       .filter(r => r.newOverall >= 40 && r.newOverall <= 99) // Valid overall range
 
@@ -12841,9 +12915,10 @@ export async function readTrainingResultsFromSheet(spreadsheetId, dynastyTeams =
 }
 
 // Local (no-Google) counterpart of readTrainingResultsFromSheet. The Training
-// Results AI prompt already emits the full self-describing 4-column row
-// (Player<TAB>Position<TAB>Past OVR<TAB>New OVR) and matches by name, so the
-// same prompt drives the local paste. Returns the SAME shape the reader does.
+// Results AI prompt already emits the full self-describing 6-column row
+// (Player<TAB>Position<TAB>Past OVR<TAB>New OVR<TAB>Jersey #<TAB>Dev Trait)
+// and matches by name, so the same prompt drives the local paste. Returns the
+// SAME shape the reader does.
 export function parseTrainingResultsLocal(rows) {
   const intOrNull = (raw) => {
     if (raw === undefined || raw === null) return null
@@ -12858,6 +12933,8 @@ export function parseTrainingResultsLocal(rows) {
       position: String(row[1] || '').trim(),
       pastOverall: intOrNull(row[2]),
       newOverall: intOrNull(row[3]) ?? 0,
+      jerseyNumber: parseJersey(row[4]),
+      devTrait: normalizeDevTrait(row[5]),
     }))
     // Drop a stray header row; require a real name and a valid new overall
     // (mirrors the reader, which needs row[0] && row[3] in 40–99).

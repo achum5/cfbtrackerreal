@@ -47,6 +47,55 @@ describe('buildTrainingResultsSave', () => {
   })
 })
 
+describe('buildTrainingResultsSave — jersey # and dev trait', () => {
+  it('applies both, storing dev trait per year the way overall is stored', () => {
+    const { updates } = buildTrainingResultsSave(dynasty, [
+      { playerName: 'Returner', newOverall: 74, jerseyNumber: 12, devTrait: 'Elite' },
+    ])
+    const p = updates.players.find(x => x.pid === 1)
+    expect(p.jerseyNumber).toBe('12')
+    expect(p.devTrait).toBe('Elite')
+    expect(p.devTraitByYear[2028]).toBe('Elite')
+  })
+
+  it('keeps jersey 0, which is a real number', () => {
+    const { updates } = buildTrainingResultsSave(dynasty, [
+      { playerName: 'Returner', newOverall: 74, jerseyNumber: 0 },
+    ])
+    expect(updates.players.find(x => x.pid === 1).jerseyNumber).toBe('0')
+  })
+
+  it('leaves the existing values alone when the card was not captured', () => {
+    const d = {
+      ...dynasty,
+      players: [{ pid: 1, name: 'Returner', overall: 70, jerseyNumber: '9', devTrait: 'Star' }],
+    }
+    const { updates } = buildTrainingResultsSave(d, [
+      { playerName: 'Returner', newOverall: 74, jerseyNumber: null, devTrait: null },
+    ])
+    expect(updates.players[0].jerseyNumber).toBe('9')
+    expect(updates.players[0].devTrait).toBe('Star')
+    expect(updates.players[0].devTraitByYear).toBeUndefined()
+  })
+
+  it('counts a row that carries only a jersey or only a trait', () => {
+    expect(buildTrainingResultsSave(dynasty, [{ playerName: 'Returner', jerseyNumber: 3 }]).updatedCount).toBe(1)
+    expect(buildTrainingResultsSave(dynasty, [{ playerName: 'Returner', devTrait: 'Impact' }]).updatedCount).toBe(1)
+    expect(buildTrainingResultsSave(dynasty, [{ playerName: 'Returner' }]).updatedCount).toBe(0)
+  })
+
+  it('merges the year into an existing devTraitByYear rather than replacing it', () => {
+    const d = {
+      ...dynasty,
+      players: [{ pid: 1, name: 'Returner', overall: 70, devTraitByYear: { 2027: 'Normal' } }],
+    }
+    const { updates } = buildTrainingResultsSave(d, [
+      { playerName: 'Returner', newOverall: 74, devTrait: 'Star' },
+    ])
+    expect(updates.players[0].devTraitByYear).toEqual({ 2027: 'Normal', 2028: 'Star' })
+  })
+})
+
 describe('buildTrainingResultsAttributesSave', () => {
   it('merges attributes for the year and updates overall when given', () => {
     const d = { ...dynasty, players: [{ pid: 1, name: 'Returner', overall: 70, attributesByYear: { 2028: { SPD: 80 } } }] }
