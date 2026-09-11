@@ -73,7 +73,6 @@ import RecruitingClassRankModal from '../../components/RecruitingClassRankModal'
 import TrainingResultsModal from '../../components/TrainingResultsModal'
 import WeekRecapModal from '../../components/WeekRecapModal'
 import PlayoffPreviewModal from '../../components/PlayoffPreviewModal'
-import WeekOnePreviewModal from '../../components/WeekOnePreviewModal'
 import FormattedRecap from '../../components/FormattedRecap'
 import buildRecapLinks from '../../utils/buildRecapLinks'
 import PreseasonTop25Modal from '../../components/PreseasonTop25Modal'
@@ -723,7 +722,6 @@ export default function Dashboard() {
   // same on/off shape as recapModalContext above.
   const [playoffPreviewYear, setPlayoffPreviewYear] = useState(null)
   // Week 1 Preview modal (shown on Week 0's task list) — same on/off shape.
-  const [weekOnePreviewYear, setWeekOnePreviewYear] = useState(null)
   // Inline budget editing on the preseason "Enter Dynasty Points Budget" to-do.
   const [dpBudgetEditing, setDpBudgetEditing] = useState(false)
   const [dpBudgetInput, setDpBudgetInput] = useState('')
@@ -3735,25 +3733,6 @@ export default function Dashboard() {
                     title: `Generate Week ${prevWeek} Recap`,
                     subtitle: "Summarize the week's biggest results",
                     onAction: () => setRecapModalContext({ year: yearNum, week: prevWeek }),
-                    actionLabel: 'Generate',
-                  })
-                }
-              }
-
-              // Row 3b: Week 1 Preview — the mirror image of Row 3 above.
-              // Week 0 has no previous week to recap, so it gets a
-              // forward-looking preview of the season opener instead.
-              // Shared by both modes, same as the Preseason Preview.
-              if (curWeek === 0) {
-                const preview = currentDynasty.weekOnePreviewByYear?.[yearNum]
-                const done = !!preview?.text
-                if (!done) {
-                  todos.push({
-                    key: 'week-one-preview',
-                    done: false,
-                    title: 'Generate Week 1 Preview',
-                    subtitle: "Preview the season's opening slate",
-                    onAction: () => setWeekOnePreviewYear(yearNum),
                     actionLabel: 'Generate',
                   })
                 }
@@ -8768,17 +8747,6 @@ export default function Dashboard() {
           isOpen={playoffPreviewYear != null}
           onClose={() => setPlayoffPreviewYear(null)}
           year={playoffPreviewYear}
-        />
-      )}
-
-      {/* Week 1 Preview Modal — generates and saves the AI preview of the
-          season-opening week's national schedule. Same copy/paste shell as
-          Playoff Preview. Shown on Week 0's task list. */}
-      {weekOnePreviewYear != null && (
-        <WeekOnePreviewModal
-          isOpen={weekOnePreviewYear != null}
-          onClose={() => setWeekOnePreviewYear(null)}
-          year={weekOnePreviewYear}
         />
       )}
 
