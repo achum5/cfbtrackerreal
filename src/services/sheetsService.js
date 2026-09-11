@@ -12420,6 +12420,209 @@ export async function writeRecruitingRows(spreadsheetId, recruits, userTid, dyna
   }
 }
 
+// ==================== TEAM OVERALLS SHEET ====================
+
+/**
+ * Create a Team Overalls sheet — one row per FBS team, OVR / OFF / DEF.
+ *
+ * The Google path exists for the same reason every other entry to-do has one:
+ * some users work in Sheets. It collects exactly what the local grid does, so
+ * neither path records something the other cannot.
+ *
+ * @param {Array} rows — [{ team, overall, offense, defense }], already ordered
+ */
+export async function createTeamOverallsSheet(dynastyName, year, rows) {
+  try {
+    const accessToken = await getAccessToken()
+    const totalRows = Math.max(rows.length, 20)
+
+    const response = await fetchWithTimeout(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: { title: `${dynastyName} - Team Overalls ${year}` },
+        sheets: [{
+          properties: {
+            title: 'Team Overalls',
+            gridProperties: { rowCount: totalRows + 1, columnCount: 4, frozenRowCount: 1 },
+          },
+        }],
+      }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create team overalls sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+    const sheetId = sheet.sheets[0].properties.sheetId
+    await initializeTeamOverallsSheet(sheet.spreadsheetId, accessToken, sheetId, rows, totalRows)
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+
+    return { spreadsheetId: sheet.spreadsheetId, spreadsheetUrl: sheet.spreadsheetUrl }
+  } catch (error) {
+    console.error('Error creating team overalls sheet:', error)
+    throw error
+  }
+}
+
+async function initializeTeamOverallsSheet(spreadsheetId, accessToken, sheetId, rows, totalRows) {
+  const num = (v) => (v == null || v === '' || Number.isNaN(Number(v))
+    ? { userEnteredValue: { stringValue: '' } }
+    : { userEnteredValue: { numberValue: Number(v) } })
+
+  const dataRows = rows.map(r => ({
+    values: [
+      { userEnteredValue: { stringValue: String(r.team ?? '') } },
+      num(r.overall),
+      num(r.offense),
+      num(r.defense),
+    ],
+  }))
+
+  // 0-99 on all three rating columns, non-strict so a paste is never rejected
+  // outright — a bad cell warns instead.
+  const ratingValidation = {
+    setDataValidation: {
+      range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 1, endColumnIndex: 4 },
+      rule: {
+        condition: {
+          type: 'NUMBER_BETWEEN',
+          values: [{ userEnteredValue: '0' }, { userEnteredValue: '99' }],
+        },
+        showCustomUi: true,
+        strict: false,
+      },
+    },
+  }
+
+  const requests = [
+    {
+      updateCells: {
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'Team' } },
+            { userEnteredValue: { stringValue: 'OVR' } },
+            { userEnteredValue: { stringValue: 'OFF' } },
+            { userEnteredValue: { stringValue: 'DEF' } },
+          ],
+        }],
+        fields: 'userEnteredValue',
+      },
+    },
+    {
+      updateCells: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: rows.length + 1, startColumnIndex: 0, endColumnIndex: 4 },
+        rows: dataRows,
+        fields: 'userEnteredValue',
+      },
+    },
+    // Header and the Team column are protected: the app matches rows by team
+    // name, so an edited name is a row that silently stops matching.
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+          description: 'Header row',
+          warningOnly: false,
+        },
+      },
+    },
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 1 },
+          description: 'Team names',
+          warningOnly: false,
+        },
+      },
+    },
+    {
+      repeatCell: {
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
+            textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
+            horizontalAlignment: 'CENTER',
+          },
+        },
+        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)',
+      },
+    },
+    {
+      repeatCell: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 1, endColumnIndex: 4 },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: { red: 1, green: 1, blue: 0.8 },
+            horizontalAlignment: 'CENTER',
+            textFormat: { bold: true },
+          },
+        },
+        fields: 'userEnteredFormat(backgroundColor,horizontalAlignment,textFormat)',
+      },
+    },
+    ratingValidation,
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 1 },
+        properties: { pixelSize: 220 },
+        fields: 'pixelSize',
+      },
+    },
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 1, endIndex: 4 },
+        properties: { pixelSize: 80 },
+        fields: 'pixelSize',
+      },
+    },
+    {
+      setBasicFilter: {
+        filter: {
+          range: { sheetId, startRowIndex: 0, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 4 },
+        },
+      },
+    },
+  ]
+
+  await fetchWithTimeout(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ requests }),
+  })
+}
+
+/**
+ * Read a Team Overalls sheet back as raw [Team, OVR, OFF, DEF] rows — the same
+ * shape splitTsv gives the local path, so both feed parseTeamOverallRows and
+ * cannot diverge in how they resolve a team or validate a rating.
+ */
+export async function readTeamOverallsFromSheet(spreadsheetId) {
+  const accessToken = await getAccessToken()
+  const range = encodeURIComponent("'Team Overalls'!A2:D200")
+  const response = await fetchWithTimeout(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
+    { headers: { 'Authorization': `Bearer ${accessToken}` } },
+  )
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(`Failed to read team overalls: ${error.error?.message || 'Unknown error'}`)
+  }
+  const data = await response.json()
+  return data.values || []
+}
+
 // ==================== TRAINING RESULTS SHEET ====================
 
 // Re-exported under the name the Training Results modal already imports.

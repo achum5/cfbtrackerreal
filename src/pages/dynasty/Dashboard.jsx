@@ -8672,6 +8672,7 @@ export default function Dashboard() {
         isOpen={showTeamOverallsSheet}
         onClose={() => setShowTeamOverallsSheet(false)}
         year={Number(currentDynasty.currentYear)}
+        teamColors={teamColors}
       />
 
       <CoachingStaffModal
