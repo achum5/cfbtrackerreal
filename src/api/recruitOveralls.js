@@ -3,6 +3,8 @@
 // verbatim from Dashboard.jsx; pinned by __tests__/recruitOveralls.test.js.
 
 import { normalizePlayerName, findRowPlayerIndex, withRowPid } from '../utils/playerMatching'
+import { setPlayerNil } from '../data/playerNilModel'
+import { cardFields, applyCardFields } from './trainingResults'
 
 const nameEq = (a, b) => normalizePlayerName(a) === normalizePlayerName(b)
 
@@ -71,7 +73,8 @@ export function buildRecruitOverallsAttributesSave(dynasty, entries) {
     if (playerIndex === -1) continue
     const player = updatedPlayers[playerIndex]
     const hasAttrs = entry.attributes && Object.keys(entry.attributes).length > 0
-    if (entry.overall == null && !hasAttrs) continue
+    const card = cardFields(entry)
+    if (entry.overall == null && !hasAttrs && !card.any) continue
     const next = { ...player }
     if (entry.overall != null) {
       next.overall = entry.overall
@@ -81,7 +84,10 @@ export function buildRecruitOverallsAttributesSave(dynasty, entries) {
       const existingAttrs = player.attributesByYear?.[freshmanYear] || player.attributesByYear?.[String(freshmanYear)] || {}
       next.attributesByYear = { ...(player.attributesByYear || {}), [freshmanYear]: { ...existingAttrs, ...entry.attributes } }
     }
-    updatedPlayers[playerIndex] = next
+    // The card fields land on the FRESHMAN year, the season these ratings are
+    // for — the same year the overall above is stamped under.
+    applyCardFields(next, card, freshmanYear)
+    updatedPlayers[playerIndex] = card.nil != null ? setPlayerNil(next, freshmanYear, card.nil) : next
     // The ratings themselves stay on the player — copying a full set per
     // recruit into the season doc is the bloat the per-season subcollection
     // exists to avoid — so the ledger row keeps only what identifies it.

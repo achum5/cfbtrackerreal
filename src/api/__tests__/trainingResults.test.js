@@ -124,6 +124,27 @@ describe('buildTrainingResultsAttributesSave', () => {
     expect(updates.players[0].overallByYear[2028]).toBe(76)
     expect(updates.players[0].attributesByYear[2028]).toEqual({ SPD: 80, ACC: 85 })
   })
+  it('applies the four player-card fields, same as the overall-only path', () => {
+    const { updates } = buildTrainingResultsAttributesSave(dynasty, [{
+      playerName: 'Returner', overall: 76, attributes: { ACC: 85 },
+      jerseyNumber: 12, devTrait: 'Elite', archetype: 'Lurker', nil: 250000,
+    }])
+    const p = updates.players.find(x => x.pid === 1)
+    expect(p.jerseyNumber).toBe('12')
+    expect(p.devTrait).toBe('Elite')
+    expect(p.devTraitByYear[2028]).toBe('Elite')
+    expect(p.archetype).toBe('Lurker')
+    expect(p.nilByYear).toEqual({ 2028: 250000 })
+  })
+
+  it('saves a player whose card was captured but whose ratings were not', () => {
+    const { updates } = buildTrainingResultsAttributesSave(dynasty, [
+      { playerName: 'Returner', jerseyNumber: 9 },
+    ])
+    expect(updates.players.find(x => x.pid === 1).jerseyNumber).toBe('9')
+    expect(updates.trainingResultsByYear[2028]).toHaveLength(1)
+  })
+
   it('ignores an entry with nothing to apply', () => {
     const { updates } = buildTrainingResultsAttributesSave(dynasty, [{ playerName: 'Returner', attributes: {} }])
     expect(updates.players).toEqual(dynasty.players)

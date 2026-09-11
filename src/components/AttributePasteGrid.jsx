@@ -4,13 +4,23 @@ import PasteEntrySteps from './ui/PasteEntrySteps'
 import { useToast } from './ui/Toast'
 import { splitTsv } from '../utils/tsvParse'
 import { parseAttributeRows, serializeAttributeRows } from '../utils/attributeEntry'
+import {
+  DEV_TRAIT_VALUES,
+  parseJerseyNumber,
+  normalizeDevTrait,
+  normalizeArchetype,
+  parseNilAmount,
+} from '../utils/playerFieldNormalize'
+import { archetypesForPosition } from '../data/rosterOptions'
+import { getPlayerNil } from '../data/playerNilModel'
 
 // Local, Google-free FULL-ATTRIBUTE entry for Training Results / Recruit
-// Overalls. One row per player: Player, Position, OVR, and the whole rating set
-// as a single comma-separated "CODE value" cell (kept compact instead of ~50
-// columns). The grid is the source of truth; the raw TSV textarea (behind the
-// arrow) stays in sync both ways. Paste fills it, existing ratings pre-fill it,
-// Import hands [{ playerName, position, overall, attributes }] to the parent.
+// Overalls. One row per player: Player, Position, OVR, the four fields that
+// live on the in-game player card (Jersey #, Dev Trait, Archetype, NIL), and
+// the whole rating set as a single comma-separated "CODE value" cell (kept
+// compact instead of ~50 columns). The grid is the source of truth; the raw TSV
+// textarea (behind the arrow) stays in sync both ways. Paste fills it, existing
+// values pre-fill it, Import hands the entries to the parent.
 
 export default function AttributePasteGrid({
   players,        // roster/recruit list to pre-fill from
@@ -19,7 +29,7 @@ export default function AttributePasteGrid({
   onImport,
   onClose,
   onUseGoogle,
-  hint = 'Paste the AI reply here. One line per player: name, position, OVR, then the ratings cell.',
+  hint = 'Paste the AI reply here. One line per player: name, position, OVR, jersey #, dev trait, archetype, NIL, then the ratings cell.',
 }) {
   const { toast } = useToast()
   const [grid, setGrid] = useState([])
@@ -37,7 +47,16 @@ export default function AttributePasteGrid({
     const entries = (players || []).map((p) => {
       const ovr = p?.overallByYear?.[y] ?? p?.overallByYear?.[String(y)] ?? p?.overall ?? null
       const attrs = p?.attributesByYear?.[y] || p?.attributesByYear?.[String(y)] || {}
-      return { playerName: p?.name || '', position: p?.position || '', overall: ovr, attributes: { ...attrs } }
+      return {
+        playerName: p?.name || '',
+        position: p?.position || '',
+        overall: ovr,
+        jerseyNumber: p?.jerseyNumber ?? '',
+        devTrait: p?.devTrait || '',
+        archetype: p?.archetype || '',
+        nil: getPlayerNil(p, y) ?? '',
+        attributes: { ...attrs },
+      }
     }).filter((e) => e.playerName)
     setGrid(entries)
     setRawText(serializeAttributeRows(entries))
@@ -62,7 +81,7 @@ export default function AttributePasteGrid({
 
   // Edit the raw attributes cell for one row -> reparse just that cell.
   const editAttrsCell = (rowIdx, cellText) => {
-    const parsed = parseAttributeRows(splitTsv(`x\t\t\t${cellText}`))
+    const parsed = parseAttributeRows(splitTsv(`x\t\t\t\t\t\t\t${cellText}`))
     const attributes = parsed[0]?.attributes || {}
     const g = grid.map((row, i) => (i === rowIdx ? { ...row, attributes, _attrsText: cellText } : row))
     setGrid(g)
@@ -89,7 +108,9 @@ export default function AttributePasteGrid({
   }
 
   const attrCount = (attrs) => (attrs ? Object.keys(attrs).length : 0)
-  const attrsCellText = (row) => row._attrsText ?? serializeAttributeRows([row]).split('\t').slice(3).join('\t')
+  // The ratings are the LAST column, so take everything past the seven ahead
+  // of it — slicing a fixed index would silently truncate the cell.
+  const attrsCellText = (row) => row._attrsText ?? serializeAttributeRows([row]).split('\t').slice(7).join('\t')
 
   // Keep rows that carry real data (OVR or at least one attribute).
   const buildEntries = () =>
@@ -98,9 +119,16 @@ export default function AttributePasteGrid({
         playerName: (r.playerName ?? '').toString().trim(),
         position: (r.position ?? '').toString().trim(),
         overall: r.overall === '' || r.overall == null ? null : Number(r.overall),
+        jerseyNumber: parseJerseyNumber(r.jerseyNumber),
+        devTrait: normalizeDevTrait(r.devTrait),
+        archetype: normalizeArchetype(r.archetype),
+        nil: parseNilAmount(r.nil),
         attributes: r.attributes || {},
       }))
-      .filter((e) => e.playerName && (e.overall != null || attrCount(e.attributes) > 0))
+      .filter((e) => e.playerName && (
+        e.overall != null || attrCount(e.attributes) > 0 ||
+        e.jerseyNumber != null || e.devTrait || e.archetype || e.nil != null
+      ))
 
   const handleImport = async () => {
     const entries = buildEntries()
@@ -153,6 +181,10 @@ export default function AttributePasteGrid({
               <th className="px-2 py-1 text-left font-semibold whitespace-nowrap border border-surface-5">Player</th>
               <th className="px-2 py-1 text-left font-semibold whitespace-nowrap border border-surface-5">Pos</th>
               <th className="px-2 py-1 text-right font-semibold whitespace-nowrap border border-surface-5">OVR</th>
+              <th className="px-2 py-1 text-right font-semibold whitespace-nowrap border border-surface-5">Jersey #</th>
+              <th className="px-2 py-1 text-left font-semibold whitespace-nowrap border border-surface-5">Dev Trait</th>
+              <th className="px-2 py-1 text-left font-semibold whitespace-nowrap border border-surface-5">Archetype</th>
+              <th className="px-2 py-1 text-right font-semibold whitespace-nowrap border border-surface-5">NIL</th>
               <th className="px-2 py-1 text-left font-semibold whitespace-nowrap border border-surface-5">Attributes</th>
             </tr>
           </thead>
@@ -187,6 +219,54 @@ export default function AttributePasteGrid({
                     className="w-full bg-transparent text-right tabular text-txt-primary px-2 py-0.5 focus:outline-none focus:bg-surface-3"
                   />
                 </td>
+                <td className="w-16 border border-surface-5">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={row.jerseyNumber ?? ''}
+                    onChange={(e) => editCell(i, 'jerseyNumber', e.target.value)}
+                    aria-label={`Jersey number ${i + 1}`}
+                    className="w-full bg-transparent text-right tabular text-txt-primary px-2 py-0.5 focus:outline-none focus:bg-surface-3"
+                  />
+                </td>
+                <td className="w-24 border border-surface-5">
+                  <select
+                    value={row.devTrait ?? ''}
+                    onChange={(e) => editCell(i, 'devTrait', e.target.value)}
+                    aria-label={`Dev trait ${i + 1}`}
+                    className="w-full bg-transparent text-txt-primary px-2 py-0.5 focus:outline-none focus:bg-surface-3"
+                  >
+                    <option value=""></option>
+                    {DEV_TRAIT_VALUES.map((v) => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                </td>
+                <td className="w-40 border border-surface-5">
+                  {/* Only this row's position is offered — a WR must not be
+                      given a linebacker archetype. */}
+                  <select
+                    value={row.archetype ?? ''}
+                    onChange={(e) => editCell(i, 'archetype', e.target.value)}
+                    aria-label={`Archetype ${i + 1}`}
+                    className="w-full bg-transparent text-txt-primary px-2 py-0.5 focus:outline-none focus:bg-surface-3"
+                  >
+                    <option value=""></option>
+                    {/* Keep an off-list value visible instead of blanking it. */}
+                    {row.archetype && !archetypesForPosition(row.position).includes(row.archetype) && (
+                      <option value={row.archetype}>{row.archetype}</option>
+                    )}
+                    {archetypesForPosition(row.position).map((v) => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                </td>
+                <td className="w-24 border border-surface-5">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={row.nil ?? ''}
+                    onChange={(e) => editCell(i, 'nil', e.target.value)}
+                    aria-label={`NIL ${i + 1}`}
+                    className="w-full bg-transparent text-right tabular text-txt-primary px-2 py-0.5 focus:outline-none focus:bg-surface-3"
+                  />
+                </td>
                 <td className="min-w-[16rem] border border-surface-5">
                   <input
                     type="text"
@@ -201,7 +281,7 @@ export default function AttributePasteGrid({
             ))}
             {grid.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-2 py-4 text-center text-txt-tertiary border border-surface-5">
+                <td colSpan={8} className="px-2 py-4 text-center text-txt-tertiary border border-surface-5">
                   Paste the AI reply to fill ratings.
                 </td>
               </tr>

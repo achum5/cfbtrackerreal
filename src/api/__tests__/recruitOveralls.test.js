@@ -76,6 +76,34 @@ describe('buildRecruitOverallsAttributesSave', () => {
   })
 })
 
+describe('buildRecruitOverallsAttributesSave — player-card fields', () => {
+  it('stamps them onto the freshman year, the season the ratings are for', () => {
+    const { updates } = buildRecruitOverallsAttributesSave(dynasty, [{
+      playerName: 'Signee', overall: 66, attributes: { SPD: 88 },
+      jerseyNumber: 4, devTrait: 'Star', archetype: 'Speedster', nil: 50000,
+    }])
+    const p = updates.players.find(x => x.pid === 1)
+    expect(p.jerseyNumber).toBe('4')
+    expect(p.devTraitByYear[2028]).toBe('Star')
+    expect(p.archetype).toBe('Speedster')
+    expect(p.nilByYear).toEqual({ 2028: 50000 })
+  })
+
+  it('saves a recruit whose card was read but whose ratings were not', () => {
+    const { updates } = buildRecruitOverallsAttributesSave(dynasty, [
+      { playerName: 'Signee', devTrait: 'Elite' },
+    ])
+    expect(updates.players.find(x => x.pid === 1).devTrait).toBe('Elite')
+  })
+
+  it('still ignores a recruit from another class year', () => {
+    const { updates } = buildRecruitOverallsAttributesSave(dynasty, [
+      { playerName: 'Last Year Signee', jerseyNumber: 5 },
+    ])
+    expect(updates.players.find(x => x.pid === 2)).toBe(dynasty.players[1])
+  })
+})
+
 describe('id-anchored rows', () => {
   it('resolves by pid when the name drifted, still only within this class year', () => {
     const { updates, updatedCount } = buildRecruitOverallsSave(dynasty, [

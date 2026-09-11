@@ -8,6 +8,13 @@ import { getSortableLastName } from '../utils/playerNames'
 import { getFringeCaseClassOptions } from '../utils/fringeCaseRows'
 import { ALL_ARCHETYPES } from '../data/rosterOptions'
 import { normalizeStateCode, STATE_CODES } from '../data/usStates'
+import {
+  DEV_TRAIT_VALUES,
+  parseJerseyNumber as parseJersey,
+  normalizeDevTrait,
+  normalizeArchetype,
+  parseNilAmount as parseNil,
+} from '../utils/playerFieldNormalize'
 import { conferenceTeams as CANONICAL_CONFERENCES } from '../data/conferenceTeams'
 import { STAT_TABS, STAT_TAB_ORDER, SCORING_SUMMARY, SCORE_TYPES, PAT_RESULTS, QUARTERS, DOWNS, PLAY_TYPES, AI_UNIFIED_TAB, computeUnifiedTabLayout } from '../data/boxScoreConstants'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../context/DynastyContext'
@@ -12523,10 +12530,8 @@ export async function writeRecruitingRows(spreadsheetId, recruits, userTid, dyna
 
 // ==================== TRAINING RESULTS SHEET ====================
 
-// Dev trait values, in the order the game reveals them. Same set the Update
-// Dev Traits modal and the recruiting prompt use — "Hidden" means not yet
-// revealed, never "we don't know".
-export const TRAINING_DEV_TRAITS = ['Hidden', 'Normal', 'Impact', 'Star', 'Elite']
+// Re-exported under the name the Training Results modal already imports.
+export const TRAINING_DEV_TRAITS = DEV_TRAIT_VALUES
 
 /**
  * Create a Training Results sheet for entering new player overalls
@@ -12853,44 +12858,6 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
     },
     body: JSON.stringify({ requests })
   })
-}
-
-// Jersey # → an integer 0-99, or null. Anything else (blank, "#12", "twelve")
-// is null so the save leaves the player's existing number alone.
-function parseJersey(raw) {
-  const s = String(raw ?? '').trim().replace(/^#/, '')
-  if (s === '') return null
-  const n = Number(s)
-  return Number.isInteger(n) && n >= 0 && n <= 99 ? n : null
-}
-
-// NIL → a non-negative integer, or null. Strips the $ and thousands separators
-// a screenshot-reading model tends to carry over; anything still non-numeric
-// (e.g. "250K") is dropped rather than guessed at.
-function parseNil(raw) {
-  const s = String(raw ?? '').trim().replace(/[$,\s]/g, '')
-  if (s === '') return null
-  const n = Number(s)
-  return Number.isFinite(n) && n >= 0 ? Math.round(n) : null
-}
-
-// Archetype → one of the game's archetypes, matched case-insensitively, or
-// null. Not filtered by the row's position: a position change and an archetype
-// change land together often enough that rejecting the pair would be worse than
-// accepting an odd-looking one.
-function normalizeArchetype(raw) {
-  const s = String(raw ?? '').trim()
-  if (s === '') return null
-  return ALL_ARCHETYPES.find(v => v.toLowerCase() === s.toLowerCase()) || null
-}
-
-// Dev trait → one of TRAINING_DEV_TRAITS, matched case-insensitively, or null.
-// An unrecognized value is dropped rather than written through: a typo would
-// otherwise land on the player and show up as their trait everywhere.
-function normalizeDevTrait(raw) {
-  const s = String(raw ?? '').trim()
-  if (s === '') return null
-  return TRAINING_DEV_TRAITS.find(v => v.toLowerCase() === s.toLowerCase()) || null
 }
 
 /**
