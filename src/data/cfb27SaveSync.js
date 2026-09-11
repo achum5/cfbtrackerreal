@@ -1340,7 +1340,10 @@ export function buildWholeLeagueGames(parsed, rawTeamIdMap, dynastyTeams, existi
         }
         byTid[appTid] = sortBoxScoreCategories(categories)
       }
-      box = { byTid, teamStatsByTid }
+      const built = { byTid, teamStatsByTid }
+      // Same rule as buildBoxScoresForUserGames: a statless week is not a
+      // box score, and writing it as one would freeze the game that way.
+      box = boxScoreHasContent(built) ? built : null
     }
 
     const record = existing
@@ -1587,7 +1590,10 @@ export function buildPostseasonGames(parsed, rawTeamIdMap, dynastyTeams, existin
         }
         byTid[appTid] = sortBoxScoreCategories(categories)
       }
-      box = { byTid, teamStatsByTid }
+      const built = { byTid, teamStatsByTid }
+      // Same rule as buildBoxScoresForUserGames: a statless week is not a
+      // box score, and writing it as one would freeze the game that way.
+      box = boxScoreHasContent(built) ? built : null
     }
 
     const record = {
@@ -3008,6 +3014,69 @@ function mapPlayerGameStatEntries(entry) {
   return out
 }
 
+/**
+ * Does a freshly built box score carry anything at all — at least one player
+ * stat line, or team stats for at least one side?
+ *
+ * The save only writes a week's stat slots when that week ADVANCES (verified
+ * on a real save: the current week had 57 played games with scores and not
+ * one resolvable TeamStats/GameStats slot, while every earlier week resolved
+ * for nearly all 138 teams). So a sync taken mid-week always finds the
+ * current week's games played but statless. Writing that as an empty
+ * boxScore would stamp the game with a box score that then counts as
+ * "already have it" — and never gets replaced.
+ */
+export function boxScoreHasContent(box) {
+  if (!box) return false
+  if (box.teamStatsByTid && Object.keys(box.teamStatsByTid).length > 0) return true
+  for (const slot of Object.values(box.byTid || {})) {
+    if (!slot) continue
+    for (const list of Object.values(slot)) {
+      if (Array.isArray(list) && list.length > 0) return true
+    }
+  }
+  return false
+}
+
+/**
+ * The latest regular-season week of `year` for which the user's own game
+ * already holds a real box score — what the sync modal sends the server as
+ * alreadySyncedThroughWeek, so the server fetches stats only for weeks after
+ * it.
+ *
+ * This used to be dynasty.currentWeek, and that was the bug behind "scores
+ * sync, player stats never do". The sync sets currentWeek to the save's own
+ * week; the save has not written that week's stats yet (see
+ * boxScoreHasContent); so the server fetched only the one week that was
+ * still empty and skipped, forever, the week that had just materialized.
+ * Every week fell through that gap in turn. Scores never noticed because
+ * they come off the schedule row, not the stat slots.
+ *
+ * Deriving the boundary from what is actually STORED closes the gap and
+ * self-heals any dynasty already missing stats: with nothing stored, this
+ * returns null and the server fetches every played week.
+ *
+ * Only regular-season games count — the server disables the skip the moment
+ * a conference championship or bowl is present, so a CCG box score never
+ * has to be considered here. Empty box scores (see above) do not count.
+ *
+ * @returns {number|null}
+ */
+export function lastRegularSeasonWeekWithBoxScore(dynasty, { userTid, year }) {
+  const tid = Number(userTid)
+  const yr = Number(year)
+  if (!Number.isFinite(tid) || !Number.isFinite(yr)) return null
+  let latest = null
+  for (const g of dynasty?.games || []) {
+    if (!g || Number(g.year) !== yr || g.gameType !== 'regular') continue
+    if (Number(g.team1Tid) !== tid && Number(g.team2Tid) !== tid) continue
+    if (!boxScoreHasContent(g.boxScore)) continue
+    const w = Number(g.week)
+    if (Number.isFinite(w) && (latest == null || w > latest)) latest = w
+  }
+  return latest
+}
+
 const EMPTY_CATEGORIES = () => ({
   passing: [], rushing: [], receiving: [], blocking: [],
   defense: [], kicking: [], punting: [], kickReturn: [], puntReturn: [],
@@ -3105,7 +3174,13 @@ export function buildBoxScoresForUserGames(parsed, rawTeamIdMap, dynastyTeams, u
       byTid[appTid] = sortBoxScoreCategories(categories)
     }
 
-    boxScoresByWeek[ccgWeek != null && week === ccgWeek ? APP_CCG_WEEK : week] = { byTid, teamStatsByTid }
+    const box = { byTid, teamStatsByTid }
+    // A played-but-statless week (the save's current one — see
+    // boxScoreHasContent) is left OUT rather than written empty, so the
+    // existing record keeps whatever it has and the week stays eligible for
+    // the fetch that will finally find its stats.
+    if (!boxScoreHasContent(box)) continue
+    boxScoresByWeek[ccgWeek != null && week === ccgWeek ? APP_CCG_WEEK : week] = box
   }
 
   return boxScoresByWeek

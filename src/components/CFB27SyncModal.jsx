@@ -5,6 +5,7 @@ import { uploadAndParseCfb27Save } from '../utils/cfb27SaveUpload'
 import Modal from './ui/Modal'
 import Button from './ui/Button'
 import { hasPcDynastySynced } from '../editions'
+import { lastRegularSeasonWeekWithBoxScore } from '../data/cfb27SaveSync'
 
 /**
  * "Advance Week" for a PC (CFB27) dynasty — re-uploads a newer save against
@@ -92,18 +93,26 @@ export default function CFB27SyncModal({ isOpen, onClose }) {
     setProgress(null)
     setStatus('uploading')
     try {
-      // Lets the server skip redundantly re-resolving box-score stats for
-      // regular-season weeks already synced last time — see
-      // extractFullSave's comment for the narrow conditions this applies
-      // under. Only sent when the dynasty's LAST sync left it mid regular
-      // season (currentWeek there unambiguously means a football week
-      // number matching the save's own SeasonWeek); any other phase omits
-      // both, which is identical to this optimization not existing.
+      // Lets the server skip re-resolving box-score stats for regular-season
+      // weeks this dynasty already HAS — see extractFullSave's comment for the
+      // narrow conditions this applies under.
+      //
+      // The boundary is the latest week with a real box score actually
+      // stored, NOT currentWeek. The save does not write a week's stats until
+      // that week advances, so the week the dynasty sits at is always the one
+      // still missing them; sending currentWeek told the server to skip
+      // exactly that week next time, and player stats never arrived for any
+      // week at all (scores did — they come off the schedule row). With no
+      // box scores stored this is null, and the server fetches every played
+      // week, which is also what heals a dynasty already caught by this.
       const isRegularSeasonPhase = currentDynasty.currentPhase === 'regular_season'
+      const throughWeek = isRegularSeasonPhase
+        ? lastRegularSeasonWeekWithBoxScore(currentDynasty, { userTid: currentDynasty.currentTid, year: currentDynasty.currentYear })
+        : null
       const parsed = await uploadAndParseCfb27Save(file, {
         onProgress: (stage) => setStatus(stage),
-        alreadySyncedYear: isRegularSeasonPhase ? currentDynasty.currentYear : undefined,
-        alreadySyncedThroughWeek: isRegularSeasonPhase ? Number(currentDynasty.currentWeek) : undefined,
+        alreadySyncedYear: throughWeek != null ? currentDynasty.currentYear : undefined,
+        alreadySyncedThroughWeek: throughWeek != null ? throughWeek : undefined,
       })
       setStatus('syncing')
       const syncResult = await syncDynastyFromCFB27Save(currentDynasty.id, parsed, {

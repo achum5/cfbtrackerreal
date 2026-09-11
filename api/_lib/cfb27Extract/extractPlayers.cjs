@@ -2132,9 +2132,13 @@ function playerGameStatsAttribsByTable() {
  * already has fully synced — a late-season sync otherwise re-walks every
  * week from 1 through the current one, every single time, even though only
  * the newest week is actually new. opts.alreadySyncedYear/
- * alreadySyncedThroughWeek (see api/cfb27-save-parse.js) are the calling
- * dynasty's OWN last-known season position, sent so this can be compared
- * safely without this function knowing anything about a specific dynasty.
+ * alreadySyncedThroughWeek (see api/_handlers/cfb27/save-parse.js) are the
+ * latest regular-season week the calling dynasty already HOLDS a real box
+ * score for — NOT its current week. The save does not write a week's stat
+ * slots until that week advances, so the dynasty's current week is always
+ * the one still missing stats; a caller that sends its current week here
+ * asks for that week to be skipped forever. The client derives the value
+ * from stored box scores (cfb27SaveSync.lastRegularSeasonWeekWithBoxScore).
  *
  * Deliberately narrow: only ever applies when there are ZERO non-regular-
  * season games AND conference championship week hasn't been played yet
