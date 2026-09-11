@@ -1,11 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
-import { createPortal } from 'react-dom'
 import { useDynasty } from '../context/DynastyContext'
 import { useToast } from './ui/Toast'
 import { buildPlayoffPreviewPrompt, PLAYOFF_PREVIEW_DEPTH_OPTIONS } from '../utils/playoffPreviewPrompt'
-import FormattedRecap from './FormattedRecap'
 import RecapSettingsModal from './RecapSettingsModal'
-import PasteEntrySteps from './ui/PasteEntrySteps'
+import PromptProseModal from './ui/PromptProseModal'
 import {
   extractSocialBlock, parseSocialLines, resolveSocialPosts,
   getEffectiveCharacters, ensureUniverseLoaded,
@@ -21,10 +19,10 @@ import {
 const PLAYOFF_PREVIEW_SOCIAL_WEEK = 16
 
 /**
- * Single-screen modal for generating and saving the CFP Playoff Preview —
- * same copy-prompt/paste-back shell as WeekRecapModal, but built from the
- * locked 12-team bracket (dynasty.cfpSeedsByYear[year]) instead of a played
- * week's games. Saved at dynasty.playoffPreviewByYear[year] = { generatedAt, text }.
+ * The CFP Playoff Preview, built from the locked 12-team bracket
+ * (dynasty.cfpSeedsByYear[year]) instead of a played week's games. Saved at
+ * dynasty.playoffPreviewByYear[year] = { generatedAt, text }. The screen is
+ * PromptProseModal, shared with the week recap and the Week 1 preview.
  *
  * Props: isOpen, onClose, year, onSaved
  */
@@ -34,21 +32,10 @@ export default function PlayoffPreviewModal({ isOpen, onClose, year, onSaved }) 
   const yearNum = Number(year)
 
   const existingPreview = currentDynasty?.playoffPreviewByYear?.[yearNum]
-  const [draft, setDraft] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [showManual, setShowManual] = useState(false)
-  const [regenerating, setRegenerating] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [depth, setDepth] = useState('standard')
   const [includeSocial, setIncludeSocial] = useState(currentDynasty?.socialSettings?.enabled !== false)
   const [socialCount, setSocialCount] = useState(8)
-
-  useEffect(() => {
-    if (!isOpen) return
-    setDraft('')
-    setShowManual(false)
-    setRegenerating(false)
-  }, [isOpen, yearNum])
 
   // Load the social universe so the prompt can list real @handles when
   // "Generate social posts" is on, and so the paste-back parser resolves them.
@@ -64,12 +51,8 @@ export default function PlayoffPreviewModal({ isOpen, onClose, year, onSaved }) 
     [currentDynasty, yearNum, depth, includeSocial, socialCount, charactersById]
   )
 
-  const saveOutput = async (text) => {
-    if (isViewOnly) { toast.error('Read-only mode, cannot save.'); return }
-    const trimmed = (text || '').trim()
-    if (!trimmed) { toast.error('Nothing to save — copy the AI output first.'); return }
+  const handleSave = async (trimmed) => {
     if (!currentDynasty) return
-    setSaving(true)
     try {
       const { found: hasSocial, body: socialBody, recapWithoutBlock } = extractSocialBlock(trimmed)
       const previewText = hasSocial ? recapWithoutBlock : trimmed
@@ -107,39 +90,13 @@ export default function PlayoffPreviewModal({ isOpen, onClose, year, onSaved }) 
       const code = err?.code || err?.name
       const msg = err?.message || 'Unknown error'
       toast.error(`Could not save: ${code ? `${code}: ${msg}` : msg}`)
-    } finally {
-      setSaving(false)
+      throw err
     }
-  }
-
-  // Paste (step 3): drop the AI's reply into the VISIBLE draft box so the user
-  // can see it landed, then Save — identical to WeekRecapModal. Reading the
-  // clipboard can be blocked (mobile Safari especially); on failure the box
-  // opens so they can paste by hand.
-  const handlePasteFill = async () => {
-    if (isViewOnly) { toast.error('Read-only mode, cannot save.'); return }
-    let text = ''
-    try {
-      text = await navigator.clipboard.readText()
-    } catch {
-      setShowManual(true)
-      toast.error('Clipboard blocked — paste into the box below, then Save.')
-      return
-    }
-    if (!text.trim()) {
-      setShowManual(true)
-      toast.error('Clipboard is empty — copy the AI\'s full reply first.')
-      return
-    }
-    setDraft(text)
-    setShowManual(true)
-    toast.success('Pasted — review below and hit Save preview.')
   }
 
   const handleDelete = async () => {
     if (isViewOnly || !currentDynasty || !existingPreview) return
     if (!window.confirm('Delete this saved playoff preview? You can regenerate it any time.')) return
-    setSaving(true)
     try {
       await deletePlayoffPreview(currentDynasty.id, yearNum)
       toast.success('Playoff preview deleted.')
@@ -149,159 +106,54 @@ export default function PlayoffPreviewModal({ isOpen, onClose, year, onSaved }) 
       const code = err?.code || err?.name
       const msg = err?.message || 'Unknown error'
       toast.error(`Could not delete: ${code ? `${code}: ${msg}` : msg}`)
-    } finally {
-      setSaving(false)
     }
   }
 
-  if (!isOpen) return null
-
-  const showGenerateFlow = regenerating || !existingPreview?.text
-
-  return createPortal(
-    <div
-      className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-70 flex items-center justify-center z-[10000] py-8 px-4 sm:p-4 modal-backdrop-in"
-      style={{ margin: 0 }}
-      onMouseDown={(e) => { e.stopPropagation(); onClose() }}
+  const settingsGear = (
+    <button
+      type="button"
+      onClick={() => setShowSettings(true)}
+      title="Preview length and social posts"
+      aria-label="Preview settings"
+      className="px-2.5 flex items-center justify-center transition-opacity hover:opacity-90"
+      style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)', borderRight: '1px solid var(--surface-1)' }}
     >
-      <div
-        className="card-elevated w-full sm:w-[min(880px,95vw)] max-h-[calc(100dvh-4rem)] sm:max-h-[88vh] flex flex-col overflow-hidden"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-5 sm:px-7 py-4 border-b border-surface-4">
-          <div className="flex flex-col min-w-0">
-            <span className="label-xs text-txt-tertiary">Playoff Preview</span>
-            <h2 className="text-xl sm:text-2xl font-bold text-txt-primary tracking-tight truncate">{yearNum} College Football Playoff</h2>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" />
+      </svg>
+    </button>
+  )
+
+  return (
+    <>
+      <PromptProseModal
+        isOpen={isOpen}
+        onClose={onClose}
+        eyebrow="Playoff Preview"
+        title={`${yearNum} College Football Playoff`}
+        prompt={prompt}
+        hasPrompt={Boolean(prompt)}
+        notice={!prompt ? (
+          <div className="rounded-md border border-surface-4 bg-surface-2/50 px-3 py-2.5 text-sm text-txt-secondary">
+            The 12-team CFP bracket isn't locked in yet — sync your save (or enter CFP seeds) once the field is set, then come back here.
           </div>
-          <button
-            aria-label="Close"
-            onClick={onClose}
-            className="text-txt-tertiary hover:text-txt-primary transition-colors -mr-1 p-1.5 rounded-md hover:bg-surface-2 flex-shrink-0"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-5 space-y-5">
-          {!prompt && (
-            <div className="rounded-md border border-surface-4 bg-surface-2/50 px-3 py-2.5 text-sm text-txt-secondary">
-              The 12-team CFP bracket isn't locked in yet — sync your save (or enter CFP seeds) once the field is set, then come back here.
-            </div>
-          )}
-
-          {!showGenerateFlow && existingPreview?.text ? (
-            <section className="space-y-3">
-              <FormattedRecap text={existingPreview.text} />
-              <p className="text-xs text-txt-tertiary">
-                Saved {existingPreview.generatedAt ? new Date(existingPreview.generatedAt).toLocaleString() : ''}
-              </p>
-            </section>
-          ) : prompt ? (
-            <>
-              <section>
-                <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                  <label className="text-sm font-semibold text-txt-primary">AI Prompt</label>
-                </div>
-                <p className="text-xs text-txt-tertiary">
-                  Copy the prompt, run it in your AI, then copy the <strong className="text-txt-secondary">entire</strong> output and paste it back.{includeSocial ? ' The app splits it automatically — the preview saves here, and the social posts go to the Social tab.' : ''}
-                </p>
-              </section>
-
-              <section className="space-y-3">
-                {/* Unified 3-step flow: Copy prompt → Open your AI → Paste it
-                    back. Same component, labels and paste behavior as
-                    WeekRecapModal; the preview settings gear is joined to the
-                    Copy button exactly like the game-recap flow. */}
-                <PasteEntrySteps
-                  aiPrompt={prompt}
-                  onPaste={handlePasteFill}
-                  showText={showManual}
-                  onToggleText={() => setShowManual(v => !v)}
-                  disabled={saving || isViewOnly}
-                  copyEmoji={null}
-                  labels={{ copy: 'Copy prompt', copyButton: 'Copy prompt', paste: 'Paste it back' }}
-                  hints={{
-                    screenshot: 'Tap Copy prompt — it already includes the locked 12-team bracket, seeds, and context. No screenshot needed.',
-                    ai: 'Open your AI, paste the prompt, and it writes the playoff preview.',
-                    paste: 'Copy the AI\'s ENTIRE reply, then tap Paste — it drops into the box below to review before you Save. Tap the arrow to type/paste by hand if the button is blocked.',
-                  }}
-                  copyLeading={
-                    <button
-                      type="button"
-                      onClick={() => setShowSettings(true)}
-                      title="Preview length and social posts"
-                      aria-label="Preview settings"
-                      className="px-2.5 flex items-center justify-center transition-opacity hover:opacity-90"
-                      style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)', borderRight: '1px solid var(--surface-1)' }}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="3" />
-                        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" />
-                      </svg>
-                    </button>
-                  }
-                />
-
-                <div className="text-xs text-txt-tertiary text-center">
-                  {existingPreview?.generatedAt ? `Last saved ${new Date(existingPreview.generatedAt).toLocaleString()}` : 'Not saved yet'}
-                </div>
-
-                {showManual && (
-                  <div className="space-y-2 pt-1">
-                    <textarea
-                      value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
-                      className="w-full h-44 rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm font-sans p-3 resize-y focus:outline-none focus:ring-2 focus:ring-surface-5"
-                      placeholder="Paste the AI's full output here, then Save. Markdown is supported."
-                    />
-                    <p className="text-xs text-txt-tertiary">
-                      Markdown renders when you save.{includeSocial ? ' Any cfb-social block in the paste is split out to the Social tab automatically.' : ''}
-                    </p>
-                    <button
-                      onClick={() => saveOutput(draft)}
-                      disabled={saving || !draft.trim() || isViewOnly}
-                      className="px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                      style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
-                    >
-                      {saving ? 'Saving…' : 'Save preview'}
-                    </button>
-                  </div>
-                )}
-              </section>
-            </>
-          ) : null}
-        </div>
-
-        <div className="border-t border-surface-4 px-5 sm:px-6 py-4 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-4">
-            {existingPreview?.text && !showGenerateFlow && (
-              <button
-                onClick={() => setRegenerating(true)}
-                className="text-xs text-txt-tertiary hover:text-txt-primary transition-colors"
-              >
-                Regenerate
-              </button>
-            )}
-            {existingPreview && (
-              <button
-                onClick={handleDelete}
-                disabled={saving}
-                className="text-xs text-txt-tertiary hover:text-red-400 transition-colors disabled:opacity-50"
-              >
-                Delete saved preview
-              </button>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm font-medium border border-surface-4 text-txt-secondary hover:text-txt-primary hover:border-surface-5 transition-colors bg-transparent"
-          >
-            Close
-          </button>
-        </div>
-      </div>
+        ) : null}
+        intro={<>Copy the prompt, run it in your AI, then copy the <strong className="text-txt-secondary">entire</strong> output and paste it back.{includeSocial ? ' The app splits it automatically — the preview saves here, and the social posts go to the Social tab.' : ''}</>}
+        hints={{
+          screenshot: 'Tap Copy prompt — it already includes the locked 12-team bracket, seeds, and context. No screenshot needed.',
+          ai: 'Open your AI, paste the prompt, and it writes the playoff preview.',
+          paste: 'Copy the AI\'s ENTIRE reply, then tap Paste — it drops into the box below to review before you Save. Tap the arrow to type/paste by hand if the button is blocked.',
+        }}
+        copyLeading={settingsGear}
+        saved={existingPreview}
+        onSave={handleSave}
+        saveLabel="Save preview"
+        manualNote={`Markdown renders when you save.${includeSocial ? ' Any cfb-social block in the paste is split out to the Social tab automatically.' : ''}`}
+        onDelete={existingPreview ? handleDelete : null}
+        deleteLabel="Delete saved preview"
+        disabled={isViewOnly}
+      />
 
       <RecapSettingsModal
         isOpen={showSettings}
@@ -315,7 +167,6 @@ export default function PlayoffPreviewModal({ isOpen, onClose, year, onSaved }) 
         onSocialCountChange={setSocialCount}
         socialLabel="posts about the playoff bracket, in the same response"
       />
-    </div>,
-    document.body,
+    </>
   )
 }
