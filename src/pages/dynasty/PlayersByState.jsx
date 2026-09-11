@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { US_STATES, normalizeStateCode, stateName } from '../../data/usStates'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
@@ -6,60 +7,7 @@ import { getTeamLogoByTid } from '../../data/teams'
 import { PageHero, Card, EmptyState, Select, Badge, Stat, Tabs } from '../../components/ui'
 import { isOpenTarget } from '../../utils/recruitingTargets'
 
-const US_STATES = [
-  { code: 'AL', name: 'Alabama' },
-  { code: 'AK', name: 'Alaska' },
-  { code: 'AZ', name: 'Arizona' },
-  { code: 'AR', name: 'Arkansas' },
-  { code: 'CA', name: 'California' },
-  { code: 'CO', name: 'Colorado' },
-  { code: 'CT', name: 'Connecticut' },
-  { code: 'DE', name: 'Delaware' },
-  { code: 'FL', name: 'Florida' },
-  { code: 'GA', name: 'Georgia' },
-  { code: 'HI', name: 'Hawaii' },
-  { code: 'ID', name: 'Idaho' },
-  { code: 'IL', name: 'Illinois' },
-  { code: 'IN', name: 'Indiana' },
-  { code: 'IA', name: 'Iowa' },
-  { code: 'KS', name: 'Kansas' },
-  { code: 'KY', name: 'Kentucky' },
-  { code: 'LA', name: 'Louisiana' },
-  { code: 'ME', name: 'Maine' },
-  { code: 'MD', name: 'Maryland' },
-  { code: 'MA', name: 'Massachusetts' },
-  { code: 'MI', name: 'Michigan' },
-  { code: 'MN', name: 'Minnesota' },
-  { code: 'MS', name: 'Mississippi' },
-  { code: 'MO', name: 'Missouri' },
-  { code: 'MT', name: 'Montana' },
-  { code: 'NE', name: 'Nebraska' },
-  { code: 'NV', name: 'Nevada' },
-  { code: 'NH', name: 'New Hampshire' },
-  { code: 'NJ', name: 'New Jersey' },
-  { code: 'NM', name: 'New Mexico' },
-  { code: 'NY', name: 'New York' },
-  { code: 'NC', name: 'North Carolina' },
-  { code: 'ND', name: 'North Dakota' },
-  { code: 'OH', name: 'Ohio' },
-  { code: 'OK', name: 'Oklahoma' },
-  { code: 'OR', name: 'Oregon' },
-  { code: 'PA', name: 'Pennsylvania' },
-  { code: 'RI', name: 'Rhode Island' },
-  { code: 'SC', name: 'South Carolina' },
-  { code: 'SD', name: 'South Dakota' },
-  { code: 'TN', name: 'Tennessee' },
-  { code: 'TX', name: 'Texas' },
-  { code: 'UT', name: 'Utah' },
-  { code: 'VT', name: 'Vermont' },
-  { code: 'VA', name: 'Virginia' },
-  { code: 'WA', name: 'Washington' },
-  { code: 'WV', name: 'West Virginia' },
-  { code: 'WI', name: 'Wisconsin' },
-  { code: 'WY', name: 'Wyoming' },
-  { code: 'DC', name: 'District of Columbia' },
-  { code: 'Non-US', name: 'Non-US' }
-]
+// One shared list — see src/data/usStates.js.
 
 const DEV_TRAIT_VARIANT = {
   'Elite': 'warning',
@@ -88,7 +36,11 @@ export default function PlayersByState() {
   const [groupBy, setGroupBy] = useState('hometown')
   const [sortBy, setSortBy] = useState('name')
 
-  const stateName = US_STATES.find(s => s.code === state?.toUpperCase())?.name || state
+  // The route param and the stored value are both normalized before comparing,
+  // so a record written before the parsers normalized (storing "Georgia"
+  // instead of "GA") still lands on its own state page instead of vanishing.
+  const stateCode = normalizeStateCode(state)
+  const stateLabel = stateName(stateCode || state)
 
   const playersFromState = useMemo(() => {
     if (!currentDynasty?.players || !state) return []
@@ -96,8 +48,7 @@ export default function PlayersByState() {
     const filtered = Object.values(currentDynasty.players)
       .filter(player => {
         if (isOpenTarget(player)) return false  // uncommitted targets aren't roster players
-        const playerState = player.state?.toUpperCase()
-        return playerState === state.toUpperCase()
+        return !!stateCode && normalizeStateCode(player.state) === stateCode
       })
 
     return filtered.sort((a, b) => {
@@ -110,7 +61,7 @@ export default function PlayersByState() {
         return (a.name || '').localeCompare(b.name || '')
       }
     })
-  }, [currentDynasty?.players, state, sortBy])
+  }, [currentDynasty?.players, state, stateCode, sortBy])
 
   const statePlayerCounts = useMemo(() => {
     if (!currentDynasty?.players) return {}
@@ -118,7 +69,7 @@ export default function PlayersByState() {
     const counts = {}
     Object.values(currentDynasty.players).forEach(player => {
       if (isOpenTarget(player)) return  // don't count uncommitted targets in state totals
-      const playerState = player.state?.toUpperCase()
+      const playerState = normalizeStateCode(player.state)
       if (playerState) {
         counts[playerState] = (counts[playerState] || 0) + 1
       }
@@ -201,7 +152,7 @@ export default function PlayersByState() {
     <div className="space-y-4">
       <PageHero
         eyebrow="Players by State"
-        title={stateName}
+        title={stateLabel}
         meta={
           <>
             <span className="tabular">{playersFromState.length}</span>
@@ -211,7 +162,7 @@ export default function PlayersByState() {
         actions={
           <Select
             size="sm"
-            value={state?.toUpperCase() || ''}
+            value={stateCode}
             onChange={(e) => handleStateChange(e.target.value)}
           >
             {US_STATES.map(s => {
@@ -278,7 +229,7 @@ export default function PlayersByState() {
         <Card>
           <EmptyState
             title="No players from this state"
-            message={`No players from ${stateName} are currently in your dynasty.`}
+            message={`No players from ${stateLabel} are currently in your dynasty.`}
           />
         </Card>
       ) : (

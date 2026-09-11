@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { STATE_CODES } from '../../data/usStates'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { resolvePortraitUrl } from '../../utils/imageProxy'
 import { useDynasty, getPlayerBoxScoreTotals } from '../../context/DynastyContext'
@@ -89,7 +90,7 @@ const DEV_TRAITS = ['Elite', 'Star', 'Impact', 'Normal']
 const TRANSFER_REASONS = ['Playing Time', ...PORTAL_REASONS.filter(r => r !== 'Playing Time')]
 
 // States
-const STATES = ['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC', 'Non-US']
+const STATES = STATE_CODES
 
 // Archetype options grouped by position type
 const ARCHETYPES = {

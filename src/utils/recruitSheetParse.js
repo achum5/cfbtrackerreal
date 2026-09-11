@@ -14,6 +14,7 @@
 // attributes:null, pid:undefined.
 
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from './recruitAttributes'
+import { normalizeStateCode } from '../data/usStates'
 
 export const COMMITMENT_COL = 15
 // Attributes are now a SINGLE labeled cell at ATTR_COL_START (the AI fills it
@@ -248,7 +249,7 @@ export function parseRecruitingRow(row) {
     height: trim(r[8]),
     weight: intOrNull(r[9]),
     hometown: trim(r[10]),
-    state: trim(r[11]),
+    state: normalizeStateCode(r[11]),
     gemBust: trim(r[12]),
     devTrait: trim(r[13]), // blank stays blank — dev traits are hidden until signing day
     previousTeam: trim(r[14]),

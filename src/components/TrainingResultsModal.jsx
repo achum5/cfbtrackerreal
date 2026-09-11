@@ -20,22 +20,33 @@ import {
   sheetExists
 } from '../services/sheetsService'
 import { getModalColors } from '../utils/colorUtils'
-import { buildAIPrompt } from '../utils/aiPrompt'
+import { buildAIPrompt, NIL_FIELD_HINT } from '../utils/aiPrompt'
 import { getSortableLastName } from '../utils/playerNames'
 import { buildAttributesStructure } from '../utils/attributeEntry'
 import { arePlayerAttributesEnabled } from '../editions'
 import AttributePasteGrid from './AttributePasteGrid'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { normalizePlayerName } from '../utils/playerMatching'
+import { archetypesForPosition, archetypePromptBlock } from '../data/rosterOptions'
+import { getPlayerNil } from '../data/playerNilModel'
 import { splitTsv } from '../utils/tsvParse'
 import SheetLoadingHint from './SheetLoadingHint'
 
 // Grid columns, in the exact order parseTrainingResultsLocal reads them and
-// the Google sheet lays them out. Jersey # and Dev Trait were added after
-// New OVR, not inserted among the existing four, so every stored row and any
-// sheet already in a user's Drive keeps its column meanings.
-const LOCAL_COLUMNS = ['Player', 'Position', 'Past OVR', 'New OVR', 'Jersey #', 'Dev Trait']
-const LOCAL_COLUMN_OPTIONS = { 'Dev Trait': TRAINING_DEV_TRAITS }
+// the Google sheet lays them out. Everything past New OVR was APPENDED rather
+// than inserted among the original four, so every stored row and any sheet
+// already in a user's Drive keeps its column meanings.
+const LOCAL_COLUMNS = ['Player', 'Position', 'Past OVR', 'New OVR', 'Jersey #', 'Dev Trait', 'Archetype', 'NIL']
+// Built once — the table is static, and it is long enough that rebuilding it
+// per render would be wasted work.
+const ARCHETYPES_BY_POSITION_BLOCK = archetypePromptBlock()
+
+const LOCAL_COLUMN_OPTIONS = {
+  'Dev Trait': TRAINING_DEV_TRAITS,
+  // Archetype depends on the row's own position, the same way the roster grid
+  // does it — a WR must not be offered a linebacker archetype.
+  Archetype: (row, cols) => archetypesForPosition(row[cols.indexOf('Position')]),
+}
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -139,12 +150,16 @@ currently highlighted player in full. Two values live ONLY on that card:
 • DEV TRAIT — at the BOTTOM of the card. One of: ${TRAINING_DEV_TRAITS.join(' | ')}.
               Column 6. "Hidden" is a real value, used when the game has not
               revealed the trait yet — it is not a stand-in for "I can't see it".
+• ARCHETYPE — the style label beside the position on the card (e.g. "Dual
+              Threat" for a QB, "Speedster" for a WR). Column 7. It must be one
+              of the values listed for that player's position further down.
+• NIL — ${NIL_FIELD_HINT} Column 8.
 
-The card shows ONE player at a time, so these two are filled in only for the
+The card shows ONE player at a time, so these four are filled in only for the
 players whose card the user actually captured. That is expected: leave columns
-5 and 6 BLANK for anyone whose card is not in the screenshots, and still output
-their row with the OVR columns filled from the list. A blank is correct and
-harmless — the app keeps the value it already has. A guess is not.
+5 through 8 BLANK for anyone whose card is not in the screenshots, and still
+output their row with the OVR columns filled from the list. A blank is correct
+and harmless — the app keeps the value it already has. A guess is not.
 
 ═══════════════════════════════════════════════════════════
 
@@ -153,7 +168,7 @@ This sheet has ONE tab: "Training Results". The app matches rows by PLAYER NAME 
 ═══════════════════════════════════════════════════════════
 CRITICAL RULES — read before anything else
 ═══════════════════════════════════════════════════════════
-1. OUTPUT 6 TAB-SEPARATED COLUMNS per row: Player<TAB>Position<TAB>Past OVR<TAB>New OVR<TAB>Jersey #<TAB>Dev Trait.
+1. OUTPUT 8 TAB-SEPARATED COLUMNS per row: Player<TAB>Position<TAB>Past OVR<TAB>New OVR<TAB>Jersey #<TAB>Dev Trait<TAB>Archetype<TAB>NIL.
 2. ONE ROW PER PLAYER in the player list above. Include every one of them, even if their OVR is unknown. That list has ALREADY been filtered to exclude incoming HS recruits — they do NOT receive training results. If a name appears in EA's training screenshots but is NOT in the list above, DO NOT output a row for them.
 3. Column 1 (Player) MUST use the FULL name from the list above — never abbreviated ("A. Guess"). EA CFB screenshots show abbreviated names; match them to full names using that list.
 4. Column 2 (Position) MUST match the listed position string exactly (QB, HB, WR, TE, LT, LG, C, RG, RT, LEDG, REDG, DT, SAM, MIKE, WILL, CB, FS, SS, K, P).
@@ -161,37 +176,51 @@ CRITICAL RULES — read before anything else
 6. Column 4 (New OVR) = the OVR number shown in the training results screenshot for this player. Integer 40–99. Leave BLANK only if the player does not appear on any screenshot.
 7. Column 5 (Jersey #) = the number on the RIGHT-HAND PLAYER CARD. Integer 0–99, no "#". BLANK when that player's card is not shown.
 8. Column 6 (Dev Trait) = the trait at the BOTTOM of the RIGHT-HAND PLAYER CARD. EXACTLY one of: ${TRAINING_DEV_TRAITS.join(' | ')} — Title Case, no other wording. BLANK when that player's card is not shown.
-9. NO header row INSIDE the data. NO commentary INSIDE the data. NO blank lines between rows. Each row has exactly 5 tab characters, INCLUDING rows whose last columns are blank — a row ending in two blanks still ends with two trailing tabs.
-10. INTEGERS only in columns 3, 4 and 5. No decimals, no commas, no quotes, no units, no "+/-" signs, no color coding.
-11. NEVER GUESS. If a player does not appear in any of the screenshots provided, leave columns 3 and 4 blank for that player. If their player card is not shown, leave columns 5 and 6 blank. Blanks are expected in this sheet and cost nothing.
+9. Column 7 (Archetype) = the style label on the RIGHT-HAND PLAYER CARD. It MUST be one of the values listed for that player's position in the ARCHETYPES section below — nothing else. BLANK when that player's card is not shown.
+10. Column 8 (NIL) = ${NIL_FIELD_HINT}
+11. NO header row INSIDE the data. NO commentary INSIDE the data. NO blank lines between rows. Each row has exactly 7 tab characters, INCLUDING rows whose last columns are blank — a row ending in four blanks still ends with four trailing tabs.
+12. INTEGERS only in columns 3, 4, 5 and 8. No decimals, no commas, no quotes, no units, no "+/-" signs, no color coding.
+13. NEVER GUESS. If a player does not appear in any of the screenshots provided, leave columns 3 and 4 blank for that player. If their player card is not shown, leave columns 5 through 8 blank. Blanks are expected in this sheet and cost nothing.
+
+═══════════════════════════════════════════════════════════
+ARCHETYPES — the only values column 7 may take, BY POSITION
+═══════════════════════════════════════════════════════════
+${ARCHETYPES_BY_POSITION_BLOCK}
+
+A player's archetype must come from their OWN position's row above. If the
+card shows something that is not on that row, leave column 7 blank and say so
+outside the data block.
 
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT — a single fenced TSV block, no other prose
 ═══════════════════════════════════════════════════════════
 \`\`\`tsv
-Alex Guess	QB	87	90	12	Elite
-Jaylen Miller	HB	80	82	28	Normal
-Devin Hollis	WR	74	76		
-Marcus Porter	WR				
+Alex Guess	QB	87	90	12	Elite	Dual Threat	250000
+Jaylen Miller	HB	80	82	28	Normal	Contact Seeker	90000
+Devin Hollis	WR	74	76				
+Marcus Porter	WR						
 ...
 \`\`\`
 
 (Column 3 = New OVR − OVR delta; when no delta shown, delta = 0 so Past OVR = New OVR.
  Column 4 blank only if the player does not appear in any screenshot or video.
- Columns 5 and 6 blank whenever that player's right-hand card was not captured —
- note the trailing tabs on those rows, which hold the empty columns open.)
+ Columns 5 through 8 blank whenever that player's right-hand card was not
+ captured — note the trailing tabs on those rows, which hold the empty
+ columns open.)
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
 [ ] Row count equals the number of players in the list above
-[ ] Every row has exactly 5 tab characters (6 columns), trailing tabs included
+[ ] Every row has exactly 7 tab characters (8 columns), trailing tabs included
 [ ] Column 1 names match the FULL names in the list above (no initials)
 [ ] Column 2 positions use canonical abbreviations
 [ ] Column 3 (Past OVR): integer 40–99, computed as New OVR − OVR delta (use 0 when no delta shown → Past OVR = New OVR); blank only when player absent from all screenshots
 [ ] Column 4 (New OVR): integer 40–99 for every player visible in any screenshot or video; blank only for players absent from all screenshots
 [ ] Column 5 (Jersey #): integer 0–99 from the right-hand card, or blank
 [ ] Column 6 (Dev Trait): exactly one of ${TRAINING_DEV_TRAITS.join(', ')}, or blank
+[ ] Column 7 (Archetype): on that player's OWN position row in the ARCHETYPES section, or blank
+[ ] Column 8 (NIL): digits only — no $, no commas, no "K"/"M" — or blank
 [ ] No header row, no prose INSIDE the data, no commas, no +/- signs
 [ ] Output wrapped in a single \`\`\`tsv ... \`\`\` fence`,
     includeTeamMap: false,
@@ -200,10 +229,11 @@ FINAL CHECK before you send
   // Pre-fill the local (Overalls) grid with this team's already-saved training
   // results for the year so the modal opens ready to edit. The parser reads
   // row[0]=Player, row[1]=Position, row[2]=Past OVR, row[3]=New OVR,
-  // row[4]=Jersey #, row[5]=Dev Trait, and requires a name + a valid New OVR
-  // (40–99), so we emit only saved rows that satisfy that. Jersey and dev trait
-  // fall back to what the app already has for the player — the same values the
-  // Google sheet pre-fills — so the two paths open on the same contents.
+  // row[4]=Jersey #, row[5]=Dev Trait, row[6]=Archetype, row[7]=NIL, and
+  // requires a name + a valid New OVR (40–99), so we emit only saved rows that
+  // satisfy that. The four appended fields fall back to what the app already
+  // has for the player — the same values the Google sheet pre-fills — so the
+  // two paths open on the same contents.
   // Round-trip safe: re-importing unchanged re-stores the same results.
   const initialText = useMemo(() => {
     const saved = currentDynasty?.trainingResultsByYear?.[currentYear] || []
@@ -218,7 +248,10 @@ FINAL CHECK before you send
         const jerseyRaw = r.jerseyNumber ?? p?.jerseyNumber
         const jersey = (jerseyRaw != null && jerseyRaw !== '') ? String(jerseyRaw) : ''
         const dev = r.devTrait || p?.devTrait || ''
-        return `${r.playerName}\t${r.position || ''}\t${past}\t${r.newOverall}\t${jersey}\t${dev}`
+        const arch = r.archetype || p?.archetype || ''
+        const nilRaw = r.nil ?? (p ? getPlayerNil(p, currentYear) : null)
+        const nil = nilRaw != null ? String(nilRaw) : ''
+        return `${r.playerName}\t${r.position || ''}\t${past}\t${r.newOverall}\t${jersey}\t${dev}\t${arch}\t${nil}`
       })
       .join('\n')
   }, [currentDynasty?.trainingResultsByYear, currentYear, players])
@@ -336,7 +369,7 @@ FINAL CHECK before you send
   }, [isOpen])
 
   // Local paste import: the Training Results AI prompt already emits the full
-  // self-describing 6-column rows, matched by name — so parseTrainingResultsLocal
+  // self-describing 8-column rows, matched by name — so parseTrainingResultsLocal
   // returns the SAME shape the Google reader does and onSave applies unchanged.
   const handleLocalImport = async (text) => {
     const results = parseTrainingResultsLocal(splitTsv(text))

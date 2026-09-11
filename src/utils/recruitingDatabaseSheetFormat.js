@@ -14,6 +14,7 @@
 // they're still what a pasted TSV reply is parsed against.
 
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR, SHEET_HEADER_TO_ATTRIBUTE, positionBucket } from './recruitAttributes'
+import { normalizeStateCode } from '../data/usStates'
 import { resolveRecruitGroup } from './recruitGroup'
 
 // Column order (0-indexed).
@@ -130,7 +131,7 @@ export function parseRecruitingDatabaseRow(row) {
     height: trim(row[HEIGHT_COL]),
     weight: intOrNull(row[WEIGHT_COL]),
     hometown: trim(row[HOMETOWN_COL]),
-    state: trim(row[STATE_COL]),
+    state: normalizeStateCode(row[STATE_COL]),
     gemBust: trim(row[GEM_BUST_COL]),
     devTrait: trim(row[DEV_TRAIT_COL]),
     isPortal: !NON_PORTAL_CLASSES.includes(recruitClass),

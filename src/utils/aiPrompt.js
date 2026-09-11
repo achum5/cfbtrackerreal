@@ -156,6 +156,18 @@ function formatRosterEntry(p) {
 }
 
 /**
+ * How to find a player's NIL on screen, in one sentence, so every prompt that
+ * has a NIL column describes it the same way.
+ *
+ * The number is marked by a blue diamond, not by the word "NIL", which is the
+ * only reliable way to pick it out of a card full of numbers — a prompt that
+ * just says "the NIL amount" leaves the model hunting for a label that is not
+ * there.
+ */
+export const NIL_FIELD_HINT =
+  'the amount next to the BLUE DIAMOND symbol on the player card — that diamond, not a "NIL" label, is what marks it. Digits only: no $, no commas, no "K"/"M" shorthand (write 250000, not $250K). Blank when the card is not shown or the edition has no NIL.'
+
+/**
  * The "whose recruits are these" block for the recruiting commitments prompt.
  *
  * A commit list is national: most rows on it belong to other schools, and the

@@ -6,6 +6,8 @@ import { getAbbrFromTeamName, getTidFromAbbr, getAbbrFromTid, TEAMS as DEFAULT_T
 import { getTidFromTeamText } from '../data/teams'
 import { getSortableLastName } from '../utils/playerNames'
 import { getFringeCaseClassOptions } from '../utils/fringeCaseRows'
+import { ALL_ARCHETYPES } from '../data/rosterOptions'
+import { normalizeStateCode, STATE_CODES } from '../data/usStates'
 import { conferenceTeams as CANONICAL_CONFERENCES } from '../data/conferenceTeams'
 import { STAT_TABS, STAT_TAB_ORDER, SCORING_SUMMARY, SCORE_TYPES, PAT_RESULTS, QUARTERS, DOWNS, PLAY_TYPES, AI_UNIFIED_TAB, computeUnifiedTabLayout } from '../data/boxScoreConstants'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../context/DynastyContext'
@@ -1036,25 +1038,8 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
           rule: {
             condition: {
               type: 'ONE_OF_LIST',
-              values: [
-                { userEnteredValue: 'AL' }, { userEnteredValue: 'AK' }, { userEnteredValue: 'AZ' },
-                { userEnteredValue: 'AR' }, { userEnteredValue: 'CA' }, { userEnteredValue: 'CO' },
-                { userEnteredValue: 'CT' }, { userEnteredValue: 'DE' }, { userEnteredValue: 'FL' },
-                { userEnteredValue: 'GA' }, { userEnteredValue: 'HI' }, { userEnteredValue: 'ID' },
-                { userEnteredValue: 'IL' }, { userEnteredValue: 'IN' }, { userEnteredValue: 'IA' },
-                { userEnteredValue: 'KS' }, { userEnteredValue: 'KY' }, { userEnteredValue: 'LA' },
-                { userEnteredValue: 'ME' }, { userEnteredValue: 'MD' }, { userEnteredValue: 'MA' },
-                { userEnteredValue: 'MI' }, { userEnteredValue: 'MN' }, { userEnteredValue: 'MS' },
-                { userEnteredValue: 'MO' }, { userEnteredValue: 'MT' }, { userEnteredValue: 'NE' },
-                { userEnteredValue: 'NV' }, { userEnteredValue: 'NH' }, { userEnteredValue: 'NJ' },
-                { userEnteredValue: 'NM' }, { userEnteredValue: 'NY' }, { userEnteredValue: 'NC' },
-                { userEnteredValue: 'ND' }, { userEnteredValue: 'OH' }, { userEnteredValue: 'OK' },
-                { userEnteredValue: 'OR' }, { userEnteredValue: 'PA' }, { userEnteredValue: 'RI' },
-                { userEnteredValue: 'SC' }, { userEnteredValue: 'SD' }, { userEnteredValue: 'TN' },
-                { userEnteredValue: 'TX' }, { userEnteredValue: 'UT' }, { userEnteredValue: 'VT' },
-                { userEnteredValue: 'VA' }, { userEnteredValue: 'WA' }, { userEnteredValue: 'WV' },
-                { userEnteredValue: 'WI' }, { userEnteredValue: 'WY' }, { userEnteredValue: 'DC' }, { userEnteredValue: 'Non-US' }
-              ]
+              // Same canonical list the app normalizes to.
+              values: STATE_CODES.map(code => ({ userEnteredValue: code })),
             },
             showCustomUi: true,
             strict: true
@@ -1775,25 +1760,8 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
           rule: {
             condition: {
               type: 'ONE_OF_LIST',
-              values: [
-                { userEnteredValue: 'AL' }, { userEnteredValue: 'AK' }, { userEnteredValue: 'AZ' },
-                { userEnteredValue: 'AR' }, { userEnteredValue: 'CA' }, { userEnteredValue: 'CO' },
-                { userEnteredValue: 'CT' }, { userEnteredValue: 'DE' }, { userEnteredValue: 'FL' },
-                { userEnteredValue: 'GA' }, { userEnteredValue: 'HI' }, { userEnteredValue: 'ID' },
-                { userEnteredValue: 'IL' }, { userEnteredValue: 'IN' }, { userEnteredValue: 'IA' },
-                { userEnteredValue: 'KS' }, { userEnteredValue: 'KY' }, { userEnteredValue: 'LA' },
-                { userEnteredValue: 'ME' }, { userEnteredValue: 'MD' }, { userEnteredValue: 'MA' },
-                { userEnteredValue: 'MI' }, { userEnteredValue: 'MN' }, { userEnteredValue: 'MS' },
-                { userEnteredValue: 'MO' }, { userEnteredValue: 'MT' }, { userEnteredValue: 'NE' },
-                { userEnteredValue: 'NV' }, { userEnteredValue: 'NH' }, { userEnteredValue: 'NJ' },
-                { userEnteredValue: 'NM' }, { userEnteredValue: 'NY' }, { userEnteredValue: 'NC' },
-                { userEnteredValue: 'ND' }, { userEnteredValue: 'OH' }, { userEnteredValue: 'OK' },
-                { userEnteredValue: 'OR' }, { userEnteredValue: 'PA' }, { userEnteredValue: 'RI' },
-                { userEnteredValue: 'SC' }, { userEnteredValue: 'SD' }, { userEnteredValue: 'TN' },
-                { userEnteredValue: 'TX' }, { userEnteredValue: 'UT' }, { userEnteredValue: 'VT' },
-                { userEnteredValue: 'VA' }, { userEnteredValue: 'WA' }, { userEnteredValue: 'WV' },
-                { userEnteredValue: 'WI' }, { userEnteredValue: 'WY' }, { userEnteredValue: 'DC' }, { userEnteredValue: 'Non-US' }
-              ]
+              // Same canonical list the app normalizes to.
+              values: STATE_CODES.map(code => ({ userEnteredValue: code })),
             },
             showCustomUi: true,
             strict: true
@@ -1977,7 +1945,7 @@ export async function readRosterFromRosterSheet(spreadsheetId, opts = {}) {
         height: normalizeHeight(row[8]),                  // I: Height
         weight: row[9] ? parseInt(row[9]) : null,         // J: Weight
         hometown: row[10] || '',                          // K: Hometown
-        state: row[11] || '',                             // L: State
+        state: normalizeStateCode(row[11]),               // L: State (canonical code)
         pictureUrl: row[12] || '',                         // M: Image URL
         nil: (row[13] != null && String(row[13]).trim() !== '') ? parseInt(row[13]) : null,  // N: NIL (CFB 27+)
         attributes: parseAttributes(row[14])              // O: Attributes (single-cell, CFB 27)
@@ -2375,7 +2343,7 @@ export async function readRosterFromSheet(spreadsheetId, dynastyTeams = null) {
         height: normalizeHeight(row[8]),                  // I: Height (auto-formats to 6'1")
         weight: row[9] ? parseInt(row[9]) : null,         // J: Weight
         hometown: row[10] || '',                          // K: Hometown
-        state: row[11] || '',                             // L: State
+        state: normalizeStateCode(row[11]),               // L: State (canonical code)
         pictureUrl: row[12] || '',                         // M: Image URL
         nil: (row[13] != null && String(row[13]).trim() !== '') ? parseInt(row[13]) : null,  // N: NIL (CFB 27+)
         attributes: parseAttributes(row[14])              // O: Attributes (single-cell, CFB 27)
@@ -11904,13 +11872,7 @@ const HEIGHTS = [
   '7\'0"'
 ]
 
-const US_STATES = [
-  'AK', 'AL', 'AR', 'AZ', 'CA', 'CO', 'CT', 'DC', 'DE', 'FL',
-  'GA', 'HI', 'IA', 'ID', 'IL', 'IN', 'KS', 'KY', 'LA', 'MA',
-  'MD', 'ME', 'MI', 'MN', 'MO', 'MS', 'MT', 'NC', 'ND', 'NE',
-  'NH', 'NJ', 'NM', 'NV', 'NY', 'OH', 'OK', 'OR', 'PA', 'RI',
-  'SC', 'SD', 'TN', 'TX', 'UT', 'VA', 'VT', 'WA', 'WI', 'WV', 'WY', 'Non-US'
-]
+const US_STATES = STATE_CODES
 
 const GEM_BUST_OPTIONS = ['Gem', 'Bust']
 const DEV_TRAITS = ['Elite', 'Star', 'Impact', 'Normal']
@@ -12601,7 +12563,7 @@ export async function createTrainingResultsSheet(dynastyName, year, players) {
               title: 'Training Results',
               gridProperties: {
                 rowCount: totalRows + 1,
-                columnCount: 6,
+                columnCount: 8,
                 frozenRowCount: 1
               }
             }
@@ -12625,7 +12587,8 @@ export async function createTrainingResultsSheet(dynastyName, year, players) {
       accessToken,
       sheetId,
       sortedPlayers,
-      totalRows
+      totalRows,
+      year
     )
 
     // Share sheet publicly so it can be embedded in iframe
@@ -12642,7 +12605,12 @@ export async function createTrainingResultsSheet(dynastyName, year, players) {
 }
 
 // Initialize the Training Results sheet with headers, validation, and pre-filled data
-async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetId, players, totalRows) {
+async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetId, players, totalRows, year) {
+  // NIL is per-season (nilByYear), unlike the other pre-filled fields.
+  const nilFor = (p) => {
+    const v = p?.nilByYear?.[year] ?? p?.nilByYear?.[String(year)]
+    return v == null || v === '' || Number.isNaN(Number(v)) ? null : Number(v)
+  }
   // Build pre-filled rows for players
   // Jersey # and Dev Trait (E, F) are pre-filled with whatever the app already
   // has so an unchanged sheet round-trips instead of blanking them. Both read
@@ -12660,7 +12628,11 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
       (player.jerseyNumber != null && player.jerseyNumber !== '' && !Number.isNaN(Number(player.jerseyNumber)))
         ? { userEnteredValue: { numberValue: Number(player.jerseyNumber) } }
         : { userEnteredValue: { stringValue: '' } },
-      { userEnteredValue: { stringValue: String(player.devTrait ?? '') } }
+      { userEnteredValue: { stringValue: String(player.devTrait ?? '') } },
+      { userEnteredValue: { stringValue: String(player.archetype ?? '') } },
+      (nilFor(player) != null)
+        ? { userEnteredValue: { numberValue: nilFor(player) } }
+        : { userEnteredValue: { stringValue: '' } }
     ]
   }))
 
@@ -12668,7 +12640,7 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
     // Set headers
     {
       updateCells: {
-        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 6 },
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 8 },
         rows: [{
           values: [
             { userEnteredValue: { stringValue: 'Player' } },
@@ -12676,7 +12648,9 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
             { userEnteredValue: { stringValue: 'Past OVR' } },
             { userEnteredValue: { stringValue: 'New OVR' } },
             { userEnteredValue: { stringValue: 'Jersey #' } },
-            { userEnteredValue: { stringValue: 'Dev Trait' } }
+            { userEnteredValue: { stringValue: 'Dev Trait' } },
+            { userEnteredValue: { stringValue: 'Archetype' } },
+            { userEnteredValue: { stringValue: 'NIL' } }
           ]
         }],
         fields: 'userEnteredValue'
@@ -12685,7 +12659,7 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
     // Pre-fill player data
     {
       updateCells: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: players.length + 1, startColumnIndex: 0, endColumnIndex: 6 },
+        range: { sheetId, startRowIndex: 1, endRowIndex: players.length + 1, startColumnIndex: 0, endColumnIndex: 8 },
         rows: dataRows,
         fields: 'userEnteredValue'
       }
@@ -12707,7 +12681,7 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
     // Format header row - bold, background color
     {
       repeatCell: {
-        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 6 },
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 8 },
         cell: {
           userEnteredFormat: {
             backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
@@ -12721,7 +12695,7 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
     // Format all data cells - center aligned
     {
       repeatCell: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 6 },
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 8 },
         cell: {
           userEnteredFormat: {
             horizontalAlignment: 'CENTER',
@@ -12785,6 +12759,37 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
         }
       }
     },
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 6, endIndex: 7 },
+        properties: { pixelSize: 160 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 7, endIndex: 8 },
+        properties: { pixelSize: 110 },
+        fields: 'pixelSize'
+      }
+    },
+    // Archetype (G): one flat list, not a per-row list filtered by that row's
+    // position — Sheets validation is per-range, so a position-specific rule
+    // would be one API request per player. Non-strict, so the column warns
+    // rather than rejecting a paste.
+    {
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 6, endColumnIndex: 7 },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: ALL_ARCHETYPES.map(v => ({ userEnteredValue: v })),
+          },
+          showCustomUi: true,
+          strict: false
+        }
+      }
+    },
     // Dev Trait (F): the same five values the app uses everywhere else.
     {
       setDataValidation: {
@@ -12816,10 +12821,10 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
         }
       }
     },
-    // Highlight the user-entered columns (New OVR, Jersey #, Dev Trait)
+    // Highlight the user-entered columns (New OVR through NIL)
     {
       repeatCell: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 3, endColumnIndex: 6 },
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 3, endColumnIndex: 8 },
         cell: {
           userEnteredFormat: {
             backgroundColor: { red: 1, green: 1, blue: 0.8 },
@@ -12834,7 +12839,7 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
     {
       setBasicFilter: {
         filter: {
-          range: { sheetId, startRowIndex: 0, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 6 }
+          range: { sheetId, startRowIndex: 0, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 8 }
         }
       }
     }
@@ -12859,6 +12864,26 @@ function parseJersey(raw) {
   return Number.isInteger(n) && n >= 0 && n <= 99 ? n : null
 }
 
+// NIL → a non-negative integer, or null. Strips the $ and thousands separators
+// a screenshot-reading model tends to carry over; anything still non-numeric
+// (e.g. "250K") is dropped rather than guessed at.
+function parseNil(raw) {
+  const s = String(raw ?? '').trim().replace(/[$,\s]/g, '')
+  if (s === '') return null
+  const n = Number(s)
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : null
+}
+
+// Archetype → one of the game's archetypes, matched case-insensitively, or
+// null. Not filtered by the row's position: a position change and an archetype
+// change land together often enough that rejecting the pair would be worse than
+// accepting an odd-looking one.
+function normalizeArchetype(raw) {
+  const s = String(raw ?? '').trim()
+  if (s === '') return null
+  return ALL_ARCHETYPES.find(v => v.toLowerCase() === s.toLowerCase()) || null
+}
+
 // Dev trait → one of TRAINING_DEV_TRAITS, matched case-insensitively, or null.
 // An unrecognized value is dropped rather than written through: a typo would
 // otherwise land on the player and show up as their trait everywhere.
@@ -12877,7 +12902,7 @@ export async function readTrainingResultsFromSheet(spreadsheetId, dynastyTeams =
   try {
     const accessToken = await getAccessToken()
 
-    const range = encodeURIComponent("'Training Results'!A2:F200")
+    const range = encodeURIComponent("'Training Results'!A2:H200")
     const response = await fetchWithTimeout(
       `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
       {
@@ -12904,6 +12929,8 @@ export async function readTrainingResultsFromSheet(spreadsheetId, dynastyTeams =
         newOverall: parseInt(row[3], 10) || 0,
         jerseyNumber: parseJersey(row[4]),
         devTrait: normalizeDevTrait(row[5]),
+        archetype: normalizeArchetype(row[6]),
+        nil: parseNil(row[7]),
       }))
       .filter(r => r.newOverall >= 40 && r.newOverall <= 99) // Valid overall range
 
@@ -12915,10 +12942,10 @@ export async function readTrainingResultsFromSheet(spreadsheetId, dynastyTeams =
 }
 
 // Local (no-Google) counterpart of readTrainingResultsFromSheet. The Training
-// Results AI prompt already emits the full self-describing 6-column row
-// (Player<TAB>Position<TAB>Past OVR<TAB>New OVR<TAB>Jersey #<TAB>Dev Trait)
-// and matches by name, so the same prompt drives the local paste. Returns the
-// SAME shape the reader does.
+// Results AI prompt already emits the full self-describing 8-column row
+// (Player<TAB>Position<TAB>Past OVR<TAB>New OVR<TAB>Jersey #<TAB>Dev Trait<TAB>
+// Archetype<TAB>NIL) and matches by name, so the same prompt drives the local
+// paste. Returns the SAME shape the reader does.
 export function parseTrainingResultsLocal(rows) {
   const intOrNull = (raw) => {
     if (raw === undefined || raw === null) return null
@@ -12935,6 +12962,8 @@ export function parseTrainingResultsLocal(rows) {
       newOverall: intOrNull(row[3]) ?? 0,
       jerseyNumber: parseJersey(row[4]),
       devTrait: normalizeDevTrait(row[5]),
+      archetype: normalizeArchetype(row[6]),
+      nil: parseNil(row[7]),
     }))
     // Drop a stray header row; require a real name and a valid new overall
     // (mirrors the reader, which needs row[0] && row[3] in 40–99).
@@ -13306,7 +13335,7 @@ async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetI
           startRowIndex: 0,
           endRowIndex: 1,
           startColumnIndex: 0,
-          endColumnIndex: 6
+          endColumnIndex: 7
         },
         rows: [{
           values: [
@@ -13315,7 +13344,8 @@ async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetI
             { userEnteredValue: { stringValue: 'Class' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
             { userEnteredValue: { stringValue: 'Stars' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
             { userEnteredValue: { stringValue: 'Overall' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
-            { userEnteredValue: { stringValue: 'Jersey #' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } }
+            { userEnteredValue: { stringValue: 'Jersey #' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
+            { userEnteredValue: { stringValue: 'Archetype' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } }
           ]
         }],
         fields: 'userEnteredValue,userEnteredFormat'
@@ -13329,7 +13359,7 @@ async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetI
           startRowIndex: 1,
           endRowIndex: sortedRecruits.length + 1,
           startColumnIndex: 0,
-          endColumnIndex: 6
+          endColumnIndex: 7
         },
         rows: sortedRecruits.map(recruit => ({
           values: [
@@ -13338,7 +13368,8 @@ async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetI
             { userEnteredValue: { stringValue: String(recruit.year ?? recruit.class ?? '') }, userEnteredFormat: { horizontalAlignment: 'CENTER' } },
             { userEnteredValue: { numberValue: Number(recruit.stars) || 0 }, userEnteredFormat: { horizontalAlignment: 'CENTER' } },
             { userEnteredValue: (recruit.overall != null && recruit.overall !== '' && !Number.isNaN(Number(recruit.overall))) ? { numberValue: Number(recruit.overall) } : { stringValue: '' }, userEnteredFormat: { horizontalAlignment: 'CENTER' } },
-            { userEnteredValue: recruit.jerseyNumber != null && recruit.jerseyNumber !== '' ? { stringValue: String(recruit.jerseyNumber) } : { stringValue: '' }, userEnteredFormat: { horizontalAlignment: 'CENTER' } }
+            { userEnteredValue: recruit.jerseyNumber != null && recruit.jerseyNumber !== '' ? { stringValue: String(recruit.jerseyNumber) } : { stringValue: '' }, userEnteredFormat: { horizontalAlignment: 'CENTER' } },
+            { userEnteredValue: { stringValue: String(recruit.archetype ?? '') }, userEnteredFormat: { horizontalAlignment: 'CENTER' } }
           ]
         })),
         fields: 'userEnteredValue,userEnteredFormat'
@@ -13353,7 +13384,7 @@ async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetI
             startRowIndex: 0,
             endRowIndex: 1,
             startColumnIndex: 0,
-            endColumnIndex: 6
+            endColumnIndex: 7
           },
           description: 'Header row - do not edit',
           warningOnly: true
@@ -13374,6 +13405,29 @@ async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetI
           description: 'Recruit info - do not edit. Only enter Overall and Jersey #.',
           warningOnly: true
         }
+      }
+    },
+    // Archetype (G): one flat list, since Sheets validation is per-range and a
+    // position-specific rule would be one API request per recruit. Non-strict,
+    // so it warns rather than rejecting a paste.
+    {
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: rowCount, startColumnIndex: 6, endColumnIndex: 7 },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: ALL_ARCHETYPES.map(v => ({ userEnteredValue: v })),
+          },
+          showCustomUi: true,
+          strict: false
+        }
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 6, endIndex: 7 },
+        properties: { pixelSize: 160 },
+        fields: 'pixelSize'
       }
     },
     // Set column widths
@@ -13453,7 +13507,7 @@ async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetI
     {
       setBasicFilter: {
         filter: {
-          range: { sheetId: sheetId, startRowIndex: 0, endRowIndex: rowCount, startColumnIndex: 0, endColumnIndex: 6 }
+          range: { sheetId: sheetId, startRowIndex: 0, endRowIndex: rowCount, startColumnIndex: 0, endColumnIndex: 7 }
         }
       }
     }
@@ -13480,7 +13534,7 @@ export async function readRecruitOverallsFromSheet(spreadsheetId, dynastyTeams =
   try {
     const accessToken = await getAccessToken()
 
-    const range = 'Recruit Overalls!A2:F'
+    const range = 'Recruit Overalls!A2:G'
     const response = await fetchWithTimeout(
       `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
       {
@@ -13507,7 +13561,8 @@ export async function readRecruitOverallsFromSheet(spreadsheetId, dynastyTeams =
         class: row[2]?.trim() || '',
         stars: parseInt(row[3], 10) || 0,
         overall: parseInt(row[4], 10) || 0,
-        jerseyNumber: row[5]?.trim() || ''
+        jerseyNumber: row[5]?.trim() || '',
+        archetype: normalizeArchetype(row[6]),
       }))
       .filter(r => r.overall >= 40 && r.overall <= 99) // Valid overall range
 
@@ -13519,11 +13574,12 @@ export async function readRecruitOverallsFromSheet(spreadsheetId, dynastyTeams =
 }
 
 // Local (no-Google) counterpart of readRecruitOverallsFromSheet. The Google
-// prompt emits only cols E/F in fixed row order (relies on the sheet's
+// prompt emits only cols E/F/G in fixed row order (relies on the sheet's
 // pre-filled Name column); the LOCAL prompt instead leads each row with the
 // recruit's name so paste order doesn't matter. Rows are
-// Name<TAB>Overall<TAB>Jersey#. Returns { name, overall, jerseyNumber } — the
-// fields handleRecruitOverallsSave matches on.
+// Name<TAB>Overall<TAB>Jersey#<TAB>Archetype. Returns
+// { name, overall, jerseyNumber, archetype } — the fields
+// handleRecruitOverallsSave matches on.
 export function parseRecruitOverallsLocal(rows) {
   const intOrNull = (raw) => {
     if (raw === undefined || raw === null) return null
@@ -13537,6 +13593,7 @@ export function parseRecruitOverallsLocal(rows) {
       name: String(row[0] || '').trim(),
       overall: intOrNull(row[1]) ?? 0,
       jerseyNumber: String(row[2] ?? '').trim(),
+      archetype: normalizeArchetype(row[3]),
     }))
     .filter((r) => r.name && r.name.toLowerCase() !== 'name')
     .filter((r) => r.overall >= 40 && r.overall <= 99)

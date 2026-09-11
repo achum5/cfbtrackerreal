@@ -69,6 +69,7 @@ import {
   mapCoachOffer,
   FCS_FILLER_NAME_TO_TID,
 } from './cfb27SaveImport'
+import { normalizeStateCode } from './usStates'
 import { attributeNamesFor } from '../utils/recruitAttributes'
 import { getCFPGameId, CFP_BRACKET_SLOTS } from './cfpConstants'
 import { mergeSimulatedDraftPicks } from './draftEngine'
@@ -129,8 +130,11 @@ function isPlausibleRecruitLink(recruitRecord, mappedRow, syncYear) {
   const recruitHometown = (recruitRecord.hometown || '').trim().toLowerCase()
   const rowHometown = (mappedRow.hometown || '').trim().toLowerCase()
   if (recruitHometown && rowHometown && recruitHometown !== rowHometown) return false
-  const recruitState = (recruitRecord.state || '').trim().toUpperCase()
-  const rowState = (mappedRow.state || '').trim().toUpperCase()
+  // Normalized, not upper-cased: a state mismatch VETOES the match outright, so
+  // a record stored before the parsers normalized ("Georgia" rather than "GA")
+  // would lose its save-file row — and with it its portrait — on every sync.
+  const recruitState = normalizeStateCode(recruitRecord.state)
+  const rowState = normalizeStateCode(mappedRow.state)
   if (recruitState && rowState && recruitState !== rowState) return false
 
   if (recruitRecord.weight != null && mappedRow.weight != null) {
@@ -687,7 +691,8 @@ function bestDirectoryMatch(candidates, target) {
     const cHeight = mapHeight(c.height)
     if (target.height && cHeight && target.height !== cHeight) continue
     const cState = mapState(c.home_state)
-    if (target.state && cState && target.state !== cState) continue
+    const targetState = normalizeStateCode(target.state)
+    if (targetState && cState && targetState !== cState) continue
     const cHometown = (c.hometown || '').trim().toLowerCase()
     const targetHometown = (target.hometown || '').trim().toLowerCase()
     if (targetHometown && cHometown && targetHometown !== cHometown) continue
@@ -695,7 +700,7 @@ function bestDirectoryMatch(candidates, target) {
 
     let score = 0
     if (target.height && cHeight && target.height === cHeight) score++
-    if (target.state && cState && target.state === cState) score++
+    if (targetState && cState && targetState === cState) score++
     if (targetHometown && cHometown && targetHometown === cHometown) score++
     if (score > bestScore) { bestScore = score; best = c }
   }

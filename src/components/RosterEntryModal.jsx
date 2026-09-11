@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { stateCodesLine } from '../data/usStates'
 import { createPortal } from 'react-dom'
 import AuthErrorModal from './AuthErrorModal'
 import { useAuthErrorHandler } from '../hooks/useAuthErrorHandler'
@@ -20,7 +21,7 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from './ui/Toast'
 import { useConfirm } from './ui/ConfirmDialog'
 import SheetModalHeader from './ui/SheetModalHeader'
-import { buildAIPrompt } from '../utils/aiPrompt'
+import { buildAIPrompt, NIL_FIELD_HINT } from '../utils/aiPrompt'
 import { arePlayerAttributesEnabled } from '../editions'
 import { ATTRIBUTE_PROMPT_LEGEND } from '../utils/attributeEntry'
 import { POSITIONS, CLASSES, DEV_TRAITS, archetypesForPosition } from '../data/rosterOptions'
@@ -31,6 +32,8 @@ import { normalizeRosterRows } from '../utils/rosterRealign'
 
 // Dropdown values for the roster grid's constrained columns. Archetype depends
 // on the row's Position, so it's a function of the row.
+const STATE_CODES_LINE = stateCodesLine()
+
 const ROSTER_COLUMN_OPTIONS = {
   Position: POSITIONS,
   Class: CLASSES,
@@ -222,7 +225,7 @@ Col | Header (row 1, protected) | Your value                     | Format / allo
  K  | Hometown                  | City name                      | text
  L  | State                     | US state 2-letter code         | DROPDOWN (see list below) — exact literal
  M  | Image URL                 | Photo URL                      | blank unless a real URL is visible; never invent
- N  | NIL                       | Player's NIL amount (CFB 27)   | integer, no commas — blank if not shown (e.g. CFB 26)${attrTableRow}
+ N  | NIL                       | Player's NIL amount (CFB 27)   | ${NIL_FIELD_HINT}${attrTableRow}
 
 ───────────────────────────────────────────────────────────
 COLUMN C — Position — MUST be one of these 21 values EXACTLY:
@@ -259,9 +262,11 @@ COLUMN I — Height — MUST be one of these 20 values EXACTLY (straight apostro
 (Do NOT output inches like "74" or feet-only like "6'". Use the exact feet'inches" format shown.)
 
 ───────────────────────────────────────────────────────────
-COLUMN L — State — MUST be one of these 51 2-letter codes EXACTLY (uppercase):
-AL | AK | AZ | AR | CA | CO | CT | DE | FL | GA | HI | ID | IL | IN | IA | KS | KY | LA | ME | MD | MA | MI | MN | MS | MO | MT | NE | NV | NH | NJ | NM | NY | NC | ND | OH | OK | OR | PA | RI | SC | SD | TN | TX | UT | VT | VA | WA | WV | WI | WY | DC
-(No country codes. No full state names. Blank if unknown — never guess.)
+COLUMN L — State — MUST be one of these values EXACTLY:
+${STATE_CODES_LINE}
+(2-letter uppercase codes, plus "Non-US" for a player from outside the United
+States. No country codes. No full state names — write GA, never "Georgia".
+Blank if unknown — never guess.)
 ${attrSection}${knownDataSection}
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT

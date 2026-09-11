@@ -3,6 +3,7 @@
 // verbatim from Dashboard.jsx; pinned by __tests__/trainingResults.test.js.
 
 import { getUserTeamTid } from '../data/teamRegistry'
+import { setPlayerNil } from '../data/playerNilModel'
 import { normalizePlayerName, findRowPlayerIndex, withRowPid } from '../utils/playerMatching'
 
 const nameEq = (a, b) => normalizePlayerName(a) === normalizePlayerName(b)
@@ -22,7 +23,12 @@ export function buildTrainingResultsSave(dynasty, results) {
     storedRows[i] = withRowPid(result, updatedPlayers[playerIndex])
     const hasJersey = result.jerseyNumber != null && result.jerseyNumber !== ''
     const hasDevTrait = !!result.devTrait
-    if (!result.newOverall && result.pastOverall == null && !hasJersey && !hasDevTrait) continue
+    const hasArchetype = !!result.archetype
+    const hasNil = result.nil != null && result.nil !== ''
+    if (
+      !result.newOverall && result.pastOverall == null &&
+      !hasJersey && !hasDevTrait && !hasArchetype && !hasNil
+    ) continue
 
     const player = updatedPlayers[playerIndex]
     const nextOverallByYear = { ...(player.overallByYear || {}) }
@@ -37,11 +43,13 @@ export function buildTrainingResultsSave(dynasty, results) {
       nextOverallByYear[prevYear] = result.pastOverall
     }
 
-    // Jersey # and dev trait ride along on the same row — both are read off
-    // the player card beside the training screen, so collecting them here
-    // saves a second pass over the roster. Dev trait mirrors how overall is
-    // stored: the flat field is "current", devTraitByYear is the record, and
-    // the per-year readers fall back to the flat one.
+    // Jersey #, dev trait and archetype ride along on the same row — all three
+    // are read off the player card beside the training screen, so collecting
+    // them here saves a second pass over the roster. Dev trait mirrors how
+    // overall is stored: the flat field is "current", devTraitByYear is the
+    // record, and the per-year readers fall back to the flat one. Archetype
+    // has no per-year map anywhere in the app, so it stays a flat field; NIL
+    // is the opposite, per-season only.
     updatedPlayers[playerIndex] = {
       ...player,
       ...(result.newOverall ? { overall: result.newOverall } : {}),
@@ -53,6 +61,12 @@ export function buildTrainingResultsSave(dynasty, results) {
             devTraitByYear: { ...(player.devTraitByYear || {}), [year]: result.devTrait },
           }
         : {}),
+      ...(hasArchetype ? { archetype: result.archetype } : {}),
+    }
+    // NIL is per-season and has its own small model (nilByYear), so it goes
+    // through setPlayerNil rather than being spread in by hand.
+    if (hasNil) {
+      updatedPlayers[playerIndex] = setPlayerNil(updatedPlayers[playerIndex], year, result.nil)
     }
     updatedCount++
   }

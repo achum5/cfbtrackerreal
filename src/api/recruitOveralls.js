@@ -27,13 +27,21 @@ export function buildRecruitOverallsSave(dynasty, results) {
     const playerIndex = findRowPlayerIndex(updatedPlayers, result, { nameEq, predicate: isThisCyclesRecruit })
     if (playerIndex === -1) continue
     storedRows[i] = withRowPid(result, updatedPlayers[playerIndex])
-    if (!result.overall) continue
+    // Archetype rides the same row: it is on the depth-chart player card the
+    // user is already reading the overall off, and a signing-day correction is
+    // the last chance to fix one the recruiting board got wrong.
+    if (!result.overall && !result.archetype) continue
     const existingOverallByYear = updatedPlayers[playerIndex].overallByYear || {}
     updatedPlayers[playerIndex] = {
       ...updatedPlayers[playerIndex],
-      overall: result.overall,
-      overallByYear: { ...existingOverallByYear, [freshmanYear]: result.overall },
+      ...(result.overall
+        ? {
+            overall: result.overall,
+            overallByYear: { ...existingOverallByYear, [freshmanYear]: result.overall },
+          }
+        : {}),
       ...(result.jerseyNumber && { jerseyNumber: result.jerseyNumber }),
+      ...(result.archetype ? { archetype: result.archetype } : {}),
     }
     updatedCount++
   }

@@ -20,12 +20,21 @@ import {
   sheetExists
 } from '../services/sheetsService'
 import { buildAIPrompt } from '../utils/aiPrompt'
+import { archetypesForPosition, archetypePromptBlock } from '../data/rosterOptions'
+import { normalizePlayerName } from '../utils/playerMatching'
 import { buildAttributesStructure } from '../utils/attributeEntry'
 import { arePlayerAttributesEnabled } from '../editions'
 import AttributePasteGrid from './AttributePasteGrid'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
 import SheetLoadingHint from './SheetLoadingHint'
+
+// Built once — static table, long enough that per-render work would be waste.
+const ARCHETYPES_BY_POSITION_BLOCK = archetypePromptBlock()
+
+// The local grid mirrors parseRecruitOverallsLocal's column order. Archetype
+// was appended, so an older three-column paste still parses.
+const LOCAL_COLUMNS = ['Recruit', 'Overall', 'Jersey #', 'Archetype']
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -89,7 +98,7 @@ HOW TO FIND EACH COMMIT in the screenshots or video:
    screenshots; each recruit in the block should have a depth-chart row.
 
 The OVR column shows each recruit's starting overall — a plain integer. The
-jersey number may be visible on the depth-chart row. If a commit is nowhere in
+jersey number and archetype are on the player card for the highlighted recruit. If a commit is nowhere in
 the screenshots, leave their overall blank (never guess).
 
 ═══════════════════════════════════════════════════════════
@@ -121,13 +130,23 @@ Col | Header (protected)  | Your output                                | Format
  D  | Stars               | — (pre-filled, do NOT output)              | protected
  E  | Overall             | Integer 40–99                              | integer, no commas
  F  | Jersey #            | Integer 0–99 (blank if not visible)        | integer, no commas
+ G  | Archetype           | The style label beside the position on the  | exact text
+    |                     | player card (blank if not visible)         |
+
+═══════════════════════════════════════════════════════════
+ARCHETYPES — the only values column G may take, BY POSITION
+═══════════════════════════════════════════════════════════
+${ARCHETYPES_BY_POSITION_BLOCK}
+
+Use the row for the recruit's OWN position (column B of the sheet). If the
+screen shows something not on that row, leave column G blank.
 
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
 === RECRUIT OVERALLS ===
-<Overall>\\t<Jersey #>
-<Overall>\\t<Jersey #>
+<Overall>\\t<Jersey #>\\t<Archetype>
+<Overall>\\t<Jersey #>\\t<Archetype>
 ...
 (one line per recruit, same order as column A — alphabetical by last name)
 
@@ -135,9 +154,10 @@ REQUIRED OUTPUT FORMAT
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
 [ ] Line count exactly equals the number of recruits in the list above
-[ ] Every line has EXACTLY one tab character (two values: Overall then Jersey #)
+[ ] Every line has EXACTLY two tab characters (Overall, Jersey #, Archetype)
 [ ] Every Overall is an integer 40–99, or blank
 [ ] Every Jersey # is an integer 0–99, or blank
+[ ] Every Archetype is on that recruit's OWN position row above, or blank
 [ ] No commas, no decimals, no quotes, no units
 [ ] Row order matches column A alphabetical-by-last-name order exactly
 [ ] Blank cells for unknowns — invented nothing`,
@@ -171,18 +191,27 @@ Do NOT filter by the class/year shown on the depth chart: a commit can appear as
 commit list, not because of the year beside them. Browse the position group
 depth charts and match each name to that list (abbreviated names like "D.Ware"
 resolve to a full name there). The OVR column is their initial overall; the
-jersey number may be visible on the depth-chart row.
+jersey number and archetype are on the player card for the highlighted recruit.
 
 ═══════════════════════════════════════════════════════════
 OUTPUT — one SELF-DESCRIBING line per recruit (the app matches by NAME, so
 row order does NOT matter)
 ═══════════════════════════════════════════════════════════
-1. Each line has EXACTLY 3 tab-separated fields (2 tabs):
-   Name<TAB>Overall<TAB>Jersey #
+1. Each line has EXACTLY 4 tab-separated fields (3 tabs):
+   Name<TAB>Overall<TAB>Jersey #<TAB>Archetype
 2. Name MUST be the FULL name from the list above — never an abbreviation.
    Only output recruits that appear in that list.
-3. Overall: integer 40–99. Jersey #: integer 0–99, or BLANK if not visible
-   (output the name and overall, then a trailing tab with nothing after it).
+3. Overall: integer 40–99. Jersey #: integer 0–99, or BLANK if not visible.
+   Archetype: the style label beside the position on the player card, or BLANK.
+   A blank still gets its tab, so every line carries three of them.
+
+═══════════════════════════════════════════════════════════
+ARCHETYPES — the only values the last field may take, BY POSITION
+═══════════════════════════════════════════════════════════
+${ARCHETYPES_BY_POSITION_BLOCK}
+
+Use the row for the recruit's OWN position. If the screen shows something that
+is not on that row, leave the archetype blank and say so outside the data block.
 4. NO header row, NO commentary inside the data, NO commas, NO decimals,
    NO units.
 5. NEVER guess. Omit a recruit entirely if you cannot see their overall.
@@ -191,33 +220,47 @@ row order does NOT matter)
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
 === RECRUIT OVERALLS ===
-<Name>\\t<Overall>\\t<Jersey #>
-<Name>\\t<Overall>\\t<Jersey #>
+<Name>\\t<Overall>\\t<Jersey #>\\t<Archetype>
+<Name>\\t<Overall>\\t<Jersey #>\\t<Archetype>
 ...
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
-[ ] Every line has exactly 2 tab characters (3 fields)
-[ ] Field 1 is a FULL name from the recruiting-class block (no initials)
+[ ] Every line has exactly 3 tab characters (4 fields), trailing tabs included
+[ ] Field 1 is a FULL name from the list above (no initials)
 [ ] Every Overall is an integer 40–99
 [ ] Every Jersey # is an integer 0–99, or blank
+[ ] Every Archetype is on that recruit's OWN position row above, or blank
 [ ] No commas, no decimals, no quotes, no units`,
     includeTeamMap: false,
   }), [currentYear, recruits])
 
   // Pre-fill the local Overalls grid with recruits who already have a saved
   // overall, so re-opening the modal shows existing entries instead of a blank
-  // grid. Column order mirrors parseRecruitOverallsLocal: Name, Overall, Jersey.
+  // grid. Column order mirrors parseRecruitOverallsLocal: Name, Overall,
+  // Jersey, Archetype.
   // The parser keeps only overalls in 40–99, so only round-trippable rows are
   // emitted here (a not-yet-entered recruit has no valid overall and is skipped).
+  // The grid has no Position column (the recruit list already knows it), so the
+  // archetype dropdown resolves the position from the recruit's NAME in the
+  // first cell rather than from a sibling cell.
+  const localColumnOptions = useMemo(() => {
+    const posByName = new Map(
+      (recruits || []).filter(p => p?.name).map(p => [normalizePlayerName(p.name), p.position]),
+    )
+    return {
+      Archetype: (row) => archetypesForPosition(posByName.get(normalizePlayerName(row?.[0] || ''))),
+    }
+  }, [recruits])
+
   const initialText = useMemo(() => {
     return (recruits || [])
       .map(p => {
         const ovr = parseInt(p.overall, 10)
         if (!Number.isFinite(ovr) || ovr < 40 || ovr > 99) return null
         const jersey = p.jerseyNumber != null ? String(p.jerseyNumber).trim() : ''
-        return `${p.name || ''}\t${ovr}\t${jersey}`
+        return `${p.name || ''}\t${ovr}\t${jersey}\t${p.archetype || ''}`
       })
       .filter(Boolean)
       .join('\n')
@@ -505,7 +548,8 @@ FINAL CHECK before you send
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}
             importLabel="Import Overalls"
-            columns={['Recruit', 'Overall', 'Jersey #']}
+            columns={LOCAL_COLUMNS}
+            columnOptions={localColumnOptions}
             initialText={initialText}
           />
         ) : isLoading ? (

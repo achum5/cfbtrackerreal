@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { stateCodesLine } from '../data/usStates'
 import { createPortal } from 'react-dom'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
@@ -36,6 +37,8 @@ const isMobileDevice = () => {
 // prompt emits and parseRecruitingRow (utils/recruitSheetParse.js) reads:
 // A→P are the commitment fields, Q is the single labeled attributes cell.
 // Without these the grid renders a headerless, cramped strip of unlabeled cells.
+const STATE_CODES_LINE = stateCodesLine()
+
 const RECRUIT_PASTE_COLUMNS = [
   'Name', 'Class', 'Pos', 'Arch', 'Stars', 'Natl Rk', 'St Rk', 'Pos Rk',
   'Height', 'Weight', 'Hometown', 'State', 'Gem/Bust', 'Dev', 'Prev Team',
@@ -249,8 +252,9 @@ Archetype (D) — 44 values:
   Backfield Creator, Dual Threat, Pocket Passer, Pure Runner, Backfield Threat, Contact Seeker, East/West Playmaker, Elusive Bruiser, North/South Receiver, North/South Blocker, Blocking, Utility, Contested Specialist, Elusive Route Runner, Gadget, Gritty Possession, Physical Route Runner, Route Artist, Speedster, Possession, Pure Blocker, Pure Possession, Vertical Threat, Agile, Pass Protector, Raw Strength, Ground and Pound, Well Rounded, Edge Setter, Gap Specialist, Power Rusher, Pure Power, Speed Rusher, Lurker, Signal Caller, Thumper, Boundary, Bump and Run, Field, Zone, Box Specialist, Coverage Specialist, Hybrid, Accurate, Power
 Height (I) — use a straight ASCII quote " (not curly):
   5'5", 5'6", 5'7", 5'8", 5'9", 5'10", 5'11", 6'0", 6'1", 6'2", 6'3", 6'4", 6'5", 6'6", 6'7", 6'8", 6'9", 6'10", 6'11", 7'0"
-State (L) — 2-letter US codes:
-  AK, AL, AR, AZ, CA, CO, CT, DC, DE, FL, GA, HI, IA, ID, IL, IN, KS, KY, LA, MA, MD, ME, MI, MN, MO, MS, MT, NC, ND, NE, NH, NJ, NM, NV, NY, OH, OK, OR, PA, RI, SC, SD, TN, TX, UT, VA, VT, WA, WI, WV, WY
+State (L) — 2-letter uppercase codes, or "Non-US" for a player from outside
+  the United States. Write GA, never "Georgia":
+  ${STATE_CODES_LINE}
 
 ═══════════════════════════════════════════════════════════
 ATTRIBUTES — column Q, a SINGLE cell. Fill ONLY from a player-page "Attributes" tab. OPTIONAL.

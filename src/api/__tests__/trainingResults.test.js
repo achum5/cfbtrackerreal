@@ -84,6 +84,26 @@ describe('buildTrainingResultsSave — jersey # and dev trait', () => {
     expect(buildTrainingResultsSave(dynasty, [{ playerName: 'Returner' }]).updatedCount).toBe(0)
   })
 
+  it('applies archetype flat and NIL per season', () => {
+    const { updates } = buildTrainingResultsSave(dynasty, [
+      { playerName: 'Returner', newOverall: 74, archetype: 'Dual Threat', nil: 250000 },
+    ])
+    const p = updates.players.find(x => x.pid === 1)
+    expect(p.archetype).toBe('Dual Threat')
+    expect(p.nilByYear).toEqual({ 2028: 250000 })
+  })
+
+  it('keeps a NIL of 0 and leaves other seasons alone', () => {
+    const d = { ...dynasty, players: [{ pid: 1, name: 'Returner', overall: 70, nilByYear: { 2027: 5000 } }] }
+    const { updates } = buildTrainingResultsSave(d, [{ playerName: 'Returner', newOverall: 74, nil: 0 }])
+    expect(updates.players[0].nilByYear).toEqual({ 2027: 5000, 2028: 0 })
+  })
+
+  it('counts a row carrying only an archetype or only a NIL', () => {
+    expect(buildTrainingResultsSave(dynasty, [{ playerName: 'Returner', archetype: 'Lurker' }]).updatedCount).toBe(1)
+    expect(buildTrainingResultsSave(dynasty, [{ playerName: 'Returner', nil: 1000 }]).updatedCount).toBe(1)
+  })
+
   it('merges the year into an existing devTraitByYear rather than replacing it', () => {
     const d = {
       ...dynasty,

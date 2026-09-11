@@ -47,6 +47,29 @@ export const ALL_ARCHETYPES = Array.from(
   new Set(Object.values(ARCH).flat()),
 )
 
+/**
+ * The position → archetype table rendered for an AI prompt, one line per
+ * position, deduped so positions that share a group print once:
+ *
+ *   QB: Backfield Creator | Dual Threat | …
+ *   LT / LG / C / RG / RT: Agile | Pass Protector | …
+ *
+ * Prompts that ask for an archetype have to state the legal values, and the
+ * legal set depends on the row's position — a flat list of all 44 invites a
+ * linebacker archetype on a receiver.
+ */
+export function archetypePromptBlock() {
+  const byGroup = new Map()
+  for (const [pos, list] of Object.entries(ARCHETYPES_BY_POSITION)) {
+    const key = list.join('|')
+    if (!byGroup.has(key)) byGroup.set(key, { positions: [], list })
+    byGroup.get(key).positions.push(pos)
+  }
+  return [...byGroup.values()]
+    .map(({ positions, list }) => `  ${positions.join(' / ')}: ${list.join(' | ')}`)
+    .join('\n')
+}
+
 // Archetypes valid for a given position (all archetypes if position unknown).
 export function archetypesForPosition(pos) {
   const key = (pos || '').toString().trim().toUpperCase()

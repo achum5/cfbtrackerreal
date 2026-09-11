@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { normalizeStateCode } from '../data/usStates'
 import { createPortal } from 'react-dom'
 import { useToast } from './ui/Toast'
 import SheetModalHeader from './ui/SheetModalHeader'
@@ -76,7 +77,7 @@ function formToRecruitFields(form, attrKeys) {
     height: String(form.height || '').trim(),
     weight: form.weight === '' ? null : parseInt(form.weight, 10),
     hometown: String(form.hometown || '').trim(),
-    state: String(form.state || '').trim(),
+    state: normalizeStateCode(form.state),
     gemBust: form.gemBust || '',
     devTrait: form.devTrait || '',
     attributes,

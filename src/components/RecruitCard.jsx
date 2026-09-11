@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { stateName } from '../data/usStates'
 import { Card } from './ui'
 import { proxyImageUrl } from '../utils/imageProxy'
 import { getTidFromAbbr } from '../data/teamRegistry'
@@ -43,19 +44,7 @@ const ratingColor = (v) =>
 //   isAllSeasons  — show the recruit year inline (all-seasons view)
 //   interactive   — Card hover affordance (when the tile links somewhere)
 
-const stateFullNames = {
-  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California',
-  CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia',
-  HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa',
-  KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
-  MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri',
-  MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
-  NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio',
-  OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
-  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont',
-  VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
-  DC: 'Washington, D.C.',
-}
+// Names come from the shared list — see src/data/usStates.js.
 
 export default function RecruitCard({ recruit, player, bg, text, teamsData, teamLogo = null, isAllSeasons = false, interactive = false, playStyle = 'balanced', model = null, graphicUrl = null, onOpenGraphic = null, onRemove = null, scoutStaffEnabled = false, weightsMap = null, pool = null }) {
   const teamBgText = text
@@ -94,7 +83,7 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, team
 
   const hometownText = recruit.hometown
     ? `${recruit.hometown}${recruit.state ? `, ${recruit.state}` : ''}`
-    : (recruit.state ? (stateFullNames[recruit.state] || recruit.state) : null)
+    : (recruit.state ? (stateName(recruit.state)) : null)
   const sizeOnly = (recruit.height || recruit.weight)
     ? `${recruit.height || ''}${recruit.height && recruit.weight ? ', ' : ''}${recruit.weight ? `${recruit.weight} lbs` : ''}`
     : null

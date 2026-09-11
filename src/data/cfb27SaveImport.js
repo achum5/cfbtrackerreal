@@ -12,6 +12,7 @@
 // (Jeremiah Smith: 99 OVR / Contested Specialist / 6'3" / 223 lb, matching
 // the in-game card).
 import { getTidFromTeamName } from './teamRegistry'
+import { normalizeStateCode } from './usStates'
 import UNIQUE_PORTRAIT_IDS from './cfb27UniquePortraitIds.json'
 import GENERIC_PORTRAIT_KEYS from './cfb27GenericPortraitKeys.json'
 import UNIQUE_COACH_PORTRAIT_IDS from './cfb27UniqueCoachPortraitIds.json'
@@ -130,24 +131,16 @@ export function mapAttributes(ratings) {
 // words (e.g. "NewYork", "NorthCarolina") — verified against the real save.
 // "NonUS" (international hometowns) maps to blank, matching the app's dropdown
 // which only offers US state codes.
-const STATE_NAME_TO_CODE = {
-  Alabama: 'AL', Alaska: 'AK', Arizona: 'AZ', Arkansas: 'AR', California: 'CA',
-  Colorado: 'CO', Connecticut: 'CT', Delaware: 'DE', Florida: 'FL', Georgia: 'GA',
-  Hawaii: 'HI', Idaho: 'ID', Illinois: 'IL', Indiana: 'IN', Iowa: 'IA',
-  Kansas: 'KS', Kentucky: 'KY', Louisiana: 'LA', Maine: 'ME', Maryland: 'MD',
-  Massachusetts: 'MA', Michigan: 'MI', Minnesota: 'MN', Mississippi: 'MS',
-  Missouri: 'MO', Montana: 'MT', Nebraska: 'NE', Nevada: 'NV',
-  NewHampshire: 'NH', NewJersey: 'NJ', NewMexico: 'NM', NewYork: 'NY',
-  NorthCarolina: 'NC', NorthDakota: 'ND', Ohio: 'OH', Oklahoma: 'OK',
-  Oregon: 'OR', Pennsylvania: 'PA', RhodeIsland: 'RI', SouthCarolina: 'SC',
-  SouthDakota: 'SD', Tennessee: 'TN', Texas: 'TX', Utah: 'UT', Vermont: 'VT',
-  Virginia: 'VA', Washington: 'WA', WestVirginia: 'WV', Wisconsin: 'WI',
-  Wyoming: 'WY', DistrictOfColumbia: 'DC',
-}
-
+/**
+ * The save writes CamelCase full names with no spaces ("NewHampshire") and
+ * "NonUS" for international players. normalizeStateCode already understands
+ * both spellings, so this is a thin alias kept for the call sites.
+ *
+ * It used to hold its own name→code table AND map "NonUS" to '', which threw
+ * away the international marker the rest of the app stores as 'Non-US'.
+ */
 export function mapState(homeState) {
-  if (!homeState || homeState === 'NonUS') return ''
-  return STATE_NAME_TO_CODE[homeState] || ''
+  return normalizeStateCode(homeState)
 }
 
 // The save's star rating is an enum name ("FIVE_STAR"), not a number — the
