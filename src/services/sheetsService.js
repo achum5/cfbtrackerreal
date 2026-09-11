@@ -940,64 +940,10 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
           rule: {
             condition: {
               type: 'ONE_OF_LIST',
-              values: [
-                // QB Archetypes
-                { userEnteredValue: 'Backfield Creator' },
-                { userEnteredValue: 'Dual Threat' },
-                { userEnteredValue: 'Pocket Passer' },
-                { userEnteredValue: 'Pure Runner' },
-                // HB Archetypes
-                { userEnteredValue: 'Backfield Threat' },
-                { userEnteredValue: 'Contact Seeker' },
-                { userEnteredValue: 'East/West Playmaker' },
-                { userEnteredValue: 'Elusive Bruiser' },
-                { userEnteredValue: 'North/South Receiver' },
-                { userEnteredValue: 'North/South Blocker' },
-                // FB Archetypes
-                { userEnteredValue: 'Blocking' },
-                { userEnteredValue: 'Utility' },
-                // WR Archetypes
-                { userEnteredValue: 'Contested Specialist' },
-                { userEnteredValue: 'Elusive Route Runner' },
-                { userEnteredValue: 'Gadget' },
-                { userEnteredValue: 'Gritty Possession' },
-                { userEnteredValue: 'Physical Route Runner' },
-                { userEnteredValue: 'Route Artist' },
-                { userEnteredValue: 'Speedster' },
-                // TE Archetypes
-                { userEnteredValue: 'Possession' },
-                { userEnteredValue: 'Pure Blocker' },
-                { userEnteredValue: 'Pure Possession' },
-                { userEnteredValue: 'Vertical Threat' },
-                // OL Archetypes
-                { userEnteredValue: 'Agile' },
-                { userEnteredValue: 'Pass Protector' },
-                { userEnteredValue: 'Raw Strength' },
-                { userEnteredValue: 'Ground and Pound' },
-                { userEnteredValue: 'Well Rounded' },
-                // DL Archetypes
-                { userEnteredValue: 'Edge Setter' },
-                { userEnteredValue: 'Gap Specialist' },
-                { userEnteredValue: 'Power Rusher' },
-                { userEnteredValue: 'Pure Power' },
-                { userEnteredValue: 'Speed Rusher' },
-                // LB Archetypes
-                { userEnteredValue: 'Lurker' },
-                { userEnteredValue: 'Signal Caller' },
-                { userEnteredValue: 'Thumper' },
-                // CB Archetypes
-                { userEnteredValue: 'Boundary' },
-                { userEnteredValue: 'Bump and Run' },
-                { userEnteredValue: 'Field' },
-                { userEnteredValue: 'Zone' },
-                // S Archetypes
-                { userEnteredValue: 'Box Specialist' },
-                { userEnteredValue: 'Coverage Specialist' },
-                { userEnteredValue: 'Hybrid' },
-                // K/P Archetypes
-                { userEnteredValue: 'Accurate' },
-                { userEnteredValue: 'Power' }
-              ]
+              // Every archetype, from the app's own list — the same set the entry grids
+              // offer, and NOT filtered by position (the game hands them out across
+              // position lines).
+              values: ALL_ARCHETYPES.map(v => ({ userEnteredValue: v })),
             },
             showCustomUi: true,
             strict: true
@@ -1662,64 +1608,10 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
           rule: {
             condition: {
               type: 'ONE_OF_LIST',
-              values: [
-                // QB Archetypes
-                { userEnteredValue: 'Backfield Creator' },
-                { userEnteredValue: 'Dual Threat' },
-                { userEnteredValue: 'Pocket Passer' },
-                { userEnteredValue: 'Pure Runner' },
-                // HB Archetypes
-                { userEnteredValue: 'Backfield Threat' },
-                { userEnteredValue: 'Contact Seeker' },
-                { userEnteredValue: 'East/West Playmaker' },
-                { userEnteredValue: 'Elusive Bruiser' },
-                { userEnteredValue: 'North/South Receiver' },
-                { userEnteredValue: 'North/South Blocker' },
-                // FB Archetypes
-                { userEnteredValue: 'Blocking' },
-                { userEnteredValue: 'Utility' },
-                // WR Archetypes
-                { userEnteredValue: 'Contested Specialist' },
-                { userEnteredValue: 'Elusive Route Runner' },
-                { userEnteredValue: 'Gadget' },
-                { userEnteredValue: 'Gritty Possession' },
-                { userEnteredValue: 'Physical Route Runner' },
-                { userEnteredValue: 'Route Artist' },
-                { userEnteredValue: 'Speedster' },
-                // TE Archetypes
-                { userEnteredValue: 'Possession' },
-                { userEnteredValue: 'Pure Blocker' },
-                { userEnteredValue: 'Pure Possession' },
-                { userEnteredValue: 'Vertical Threat' },
-                // OL Archetypes
-                { userEnteredValue: 'Agile' },
-                { userEnteredValue: 'Pass Protector' },
-                { userEnteredValue: 'Raw Strength' },
-                { userEnteredValue: 'Ground and Pound' },
-                { userEnteredValue: 'Well Rounded' },
-                // DL Archetypes
-                { userEnteredValue: 'Edge Setter' },
-                { userEnteredValue: 'Gap Specialist' },
-                { userEnteredValue: 'Power Rusher' },
-                { userEnteredValue: 'Pure Power' },
-                { userEnteredValue: 'Speed Rusher' },
-                // LB Archetypes
-                { userEnteredValue: 'Lurker' },
-                { userEnteredValue: 'Signal Caller' },
-                { userEnteredValue: 'Thumper' },
-                // CB Archetypes
-                { userEnteredValue: 'Boundary' },
-                { userEnteredValue: 'Bump and Run' },
-                { userEnteredValue: 'Field' },
-                { userEnteredValue: 'Zone' },
-                // S Archetypes
-                { userEnteredValue: 'Box Specialist' },
-                { userEnteredValue: 'Coverage Specialist' },
-                { userEnteredValue: 'Hybrid' },
-                // K/P Archetypes
-                { userEnteredValue: 'Accurate' },
-                { userEnteredValue: 'Power' }
-              ]
+              // Every archetype, from the app's own list — the same set the entry grids
+              // offer, and NOT filtered by position (the game hands them out across
+              // position lines).
+              values: ALL_ARCHETYPES.map(v => ({ userEnteredValue: v })),
             },
             showCustomUi: true,
             strict: true
@@ -15890,7 +15782,7 @@ export async function createPortalTransferClassSheet(dynastyName, year, portalTr
               title: 'Portal Transfers',
               gridProperties: {
                 rowCount: totalRows + 1,
-                columnCount: 5, // A-E: Name, Position, Current Class, New Class, Jersey #
+                columnCount: 4, // A-D: Name, Position, Current Class, New Class
                 frozenRowCount: 1
               }
             }
@@ -15953,37 +15845,30 @@ function getPortalTransferClassOptions(incomingClass) {
 async function initializePortalTransferClassSheet(spreadsheetId, accessToken, sheetId, transfers, totalRows, year) {
   // Build pre-filled rows for transfers.
   // Support both 'year' and 'incomingClass' field names for flexibility.
-  // Col E "Jersey #" — pre-fill with whatever jersey the player already
-  // has on the roster (typically blank for new transfers); user can
-  // overwrite if needed.
-  const dataRows = transfers.map(transfer => {
-    const j = transfer.jerseyNumber
-    const jerseyCell = (j != null && j !== '' && !Number.isNaN(Number(j)))
-      ? { userEnteredValue: { numberValue: Number(j) } }
-      : { userEnteredValue: { stringValue: '' } }
-    return {
-      values: [
-        { userEnteredValue: { stringValue: String(transfer.name ?? '') } },
-        { userEnteredValue: { stringValue: String(transfer.position ?? '') } },
-        { userEnteredValue: { stringValue: String(transfer.incomingClass ?? transfer.year ?? 'Fr') } }, // Current class they came in as
-        { userEnteredValue: { stringValue: '' } }, // New Class - user selects from dropdown
-        jerseyCell // Jersey # - user fills in
-      ]
-    }
-  })
+  //
+  // No jersey column: the local grid dropped it (three columns did not fit a
+  // phone), and the two paths collect the same fields — a transfer's number is
+  // entered on the player, or on the Training Results sheet.
+  const dataRows = transfers.map(transfer => ({
+    values: [
+      { userEnteredValue: { stringValue: String(transfer.name ?? '') } },
+      { userEnteredValue: { stringValue: String(transfer.position ?? '') } },
+      { userEnteredValue: { stringValue: String(transfer.incomingClass ?? transfer.year ?? 'Fr') } }, // Current class they came in as
+      { userEnteredValue: { stringValue: '' } } // New Class - user selects from dropdown
+    ]
+  }))
 
   const requests = [
     // Set headers
     {
       updateCells: {
-        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 5 },
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 },
         rows: [{
           values: [
             { userEnteredValue: { stringValue: 'Player' } },
             { userEnteredValue: { stringValue: 'Position' } },
             { userEnteredValue: { stringValue: `${year} Recruitment Class` } },
-            { userEnteredValue: { stringValue: `Updated ${year + 1} Class` } },
-            { userEnteredValue: { stringValue: 'Jersey #' } }
+            { userEnteredValue: { stringValue: `Updated ${year + 1} Class` } }
           ]
         }],
         fields: 'userEnteredValue'
@@ -15992,7 +15877,7 @@ async function initializePortalTransferClassSheet(spreadsheetId, accessToken, sh
     // Pre-fill transfer data
     {
       updateCells: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: transfers.length + 1, startColumnIndex: 0, endColumnIndex: 5 },
+        range: { sheetId, startRowIndex: 1, endRowIndex: transfers.length + 1, startColumnIndex: 0, endColumnIndex: 4 },
         rows: dataRows,
         fields: 'userEnteredValue'
       }
@@ -16040,7 +15925,7 @@ async function initializePortalTransferClassSheet(spreadsheetId, accessToken, sh
     // Format header row - bold, background color
     {
       repeatCell: {
-        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 5 },
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 },
         cell: {
           userEnteredFormat: {
             backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
@@ -16054,7 +15939,7 @@ async function initializePortalTransferClassSheet(spreadsheetId, accessToken, sh
     // Format all data cells - center aligned
     {
       repeatCell: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 5 },
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 4 },
         cell: {
           userEnteredFormat: {
             horizontalAlignment: 'CENTER',
@@ -16093,13 +15978,6 @@ async function initializePortalTransferClassSheet(spreadsheetId, accessToken, sh
         fields: 'pixelSize'
       }
     },
-    {
-      updateDimensionProperties: {
-        range: { sheetId, dimension: 'COLUMNS', startIndex: 4, endIndex: 5 },
-        properties: { pixelSize: 90 },
-        fields: 'pixelSize'
-      }
-    },
     // Highlight Updated Class column with light background
     {
       repeatCell: {
@@ -16114,39 +15992,6 @@ async function initializePortalTransferClassSheet(spreadsheetId, accessToken, sh
         fields: 'userEnteredFormat(backgroundColor,horizontalAlignment,textFormat)'
       }
     },
-    // Highlight Jersey # column with the same light background — both
-    // are user-editable columns and should share the visual cue.
-    {
-      repeatCell: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 4, endColumnIndex: 5 },
-        cell: {
-          userEnteredFormat: {
-            backgroundColor: { red: 1, green: 1, blue: 0.8 },
-            horizontalAlignment: 'CENTER',
-            textFormat: { bold: true }
-          }
-        },
-        fields: 'userEnteredFormat(backgroundColor,horizontalAlignment,textFormat)'
-      }
-    },
-    // Jersey # validation — integer 0..99, strict but allow blank
-    // (the empty-string sentinel value sneaks through strict-mode).
-    {
-      setDataValidation: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 4, endColumnIndex: 5 },
-        rule: {
-          condition: {
-            type: 'NUMBER_BETWEEN',
-            values: [
-              { userEnteredValue: '0' },
-              { userEnteredValue: '99' }
-            ]
-          },
-          showCustomUi: true,
-          strict: false // allow blank cells for unknown jerseys
-        }
-      }
-    },
     // Add auto-filter to header row for sorting/filtering
     {
       setBasicFilter: {
@@ -16156,7 +16001,7 @@ async function initializePortalTransferClassSheet(spreadsheetId, accessToken, sh
             startRowIndex: 0,
             endRowIndex: totalRows + 1,
             startColumnIndex: 0,
-            endColumnIndex: 5
+            endColumnIndex: 4
           }
         }
       }
@@ -16208,9 +16053,10 @@ export async function readPortalTransferClassFromSheet(spreadsheetId, dynastyTea
     } else {
       const accessToken = await getAccessToken()
 
-      // Read columns A through E (col E = Jersey #). Older sheets that
-      // were created before the Jersey # column was added are 4 cols wide;
-      // the extra range just returns shorter rows and row[4] is undefined.
+      // Read columns A through E. New sheets are 4 wide — the jersey column
+      // was dropped so the sheet collects exactly what the local grid does —
+      // but a sheet already in someone's Drive still has it, so the range
+      // stays wide enough to honor one. row[4] is simply undefined otherwise.
       const range = encodeURIComponent("'Portal Transfers'!A2:E100")
       const response = await fetchWithTimeout(
         `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
