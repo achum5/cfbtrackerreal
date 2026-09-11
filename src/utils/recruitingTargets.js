@@ -22,6 +22,7 @@
 import { normalizePlayerName } from './playerMatching'
 import { getTidFromTeamName, resolveTid } from '../data/teamRegistry'
 import { carryRecruitingNilForward } from '../data/playerNilModel'
+import { applyPreviousSchool } from './previousSchool'
 
 // Sentinel the Targets sheet/prompt uses in the Commitment column for an
 // uncommitted prospect. Blank is reserved for "committed to your team" so the
@@ -308,6 +309,11 @@ export function reconcileRecruitingRows({
     // Signing with YOU carries the offer forward as next season's roster-NIL floor.
     if (status === 'committed' && Number(commitmentTid) === Number(userTid)) {
       record = carryRecruitingNilForward(record, yearN)
+    }
+    // A committed transfer's previous school lands on the durable fields too
+    // (previousTeam tid mirror + arrival fromTid), same as the plain commit path.
+    if (status === 'committed' && record.isPortal) {
+      record = applyPreviousSchool(record, { previousTeam: row.previousTeam, classYear: yearN, teams: dynastyTeams, joiningTid: commitmentTid })
     }
 
     if (idx !== -1) {

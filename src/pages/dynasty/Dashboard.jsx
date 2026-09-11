@@ -63,6 +63,7 @@ import PlayersLeavingModal from '../../components/PlayersLeavingModal'
 import DraftResultsModal from '../../components/DraftResultsModal'
 import TransferDestinationsModal from '../../components/TransferDestinationsModal'
 import RecruitingCommitmentsModal from '../../components/RecruitingCommitmentsModal'
+import { applyPreviousSchool } from '../../utils/previousSchool'
 import RecruitingInsightLink from '../../components/ui/RecruitingInsightLink'
 import { useToast } from '../../components/ui/Toast'
 import SellVsSendCalculator, { SellVsSendButton } from '../../components/SellVsSendCalculator'
@@ -2248,6 +2249,14 @@ export default function Dashboard() {
       }
     })
 
+    // Route every portal signee's previous school through the one writer that
+    // sets BOTH the previousTeam mirror and the arrival's fromTid.
+    const newPlayersWithOrigin = newPlayers.map((p) => (
+      p.isPortal
+        ? applyPreviousSchool(p, { previousTeam: p.previousTeam, classYear: year, teams: currentDynasty?.teams, joiningTid: teamTid })
+        : p
+    ))
+
     // Update returning players - players who left OR are pending departure but coming back
     // OR players transferring from another team (following the coach)
     // IMPORTANT: Preserve all existing player data (stats, history, etc.)
@@ -2431,20 +2440,17 @@ export default function Dashboard() {
       if (isPortalPlayer) {
         updated.isPortal = true
         const sheetPrevTeam = (recruitData.previousTeam || '').trim()
-        if (sheetPrevTeam && sheetPrevTeam !== 'Transfer Portal') {
-          // Real team provided — always overwrite (this is the correction path)
-          updated.previousTeam = sheetPrevTeam
-        } else if (!p.previousTeam) {
-          updated.previousTeam = sheetPrevTeam || 'Transfer Portal'
-        }
-        // If sheet has no real team but player already has one, keep existing value
+        // A real school from the sheet always overwrites (the correction path)
+        // and reaches the arrival's fromTid too; a blank keeps the existing one.
+        Object.assign(updated, applyPreviousSchool(updated, { previousTeam: sheetPrevTeam, classYear: recruitYr, teams: currentDynasty?.teams, joiningTid: teamTid }))
+        if (!updated.previousTeam) updated.previousTeam = 'Transfer Portal'
       }
 
       return updated
     })
 
     // Store recruits for this phase/week AND add new players
-    const updatedPlayers = [...playersWithPortalFix, ...newPlayers]
+    const updatedPlayers = [...playersWithPortalFix, ...newPlayersWithOrigin]
 
     // All commits: new recruits + returning players + already-on-roster (re-saves)
     // Enrich commitment data with portal detection (previousTeam required for filtering)

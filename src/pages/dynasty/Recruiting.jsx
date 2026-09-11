@@ -19,6 +19,8 @@ import { POSITION_FILTER_OPTIONS, matchesPositionFilter } from '../../utils/recr
 import TeamPermissionBanner from '../../components/TeamPermissionBanner'
 import { partitionRecruitingRows, reconcileRecruitingRows, isOpenTarget, isMyTarget, resolveTargetCommitment, buildCommitmentRecord } from '../../utils/recruitingTargets'
 import { nextFreePid } from '../../api/pids'
+import { applyCommitRows } from '../../utils/applyCommitRows'
+import { playersArrivingForTeamYear } from '../../utils/classArrivals'
 import { carryRecruitingNilForward } from '../../data/playerNilModel'
 import ScoutBoard from './ScoutBoard'
 // Scout Staff is an opt-in (League Preferences) replacement for the MaxPlaysCFB
@@ -455,33 +457,10 @@ export default function Recruiting() {
     // Single id formula — src/api/pids.js (same math this used to inline).
     let nextPID = nextFreePid(currentDynasty, existingPlayers)
 
-    const teamsByYearValue = selectedTid
-
-    const classToYear = {
-      'HS': 'Fr', 'JUCO Fr': 'So', 'JUCO So': 'Jr', 'JUCO Jr': 'Sr',
-      'Fr': 'Fr', 'RS Fr': 'RS Fr', 'So': 'So', 'RS So': 'RS So',
-      'Jr': 'Jr', 'RS Jr': 'RS Jr', 'Sr': 'Sr', 'RS Sr': 'RS Sr'
-    }
-
-    const existingPlayersByName = {}
-    const sameTeamPlayersByName = {}
-    existingPlayers.forEach(p => {
-      const normalizedName = p.name?.toLowerCase().trim()
-      if (normalizedName) {
-        existingPlayersByName[normalizedName] = p
-        if (p.team === selectedTid || p.team === teamAbbr) {
-          sameTeamPlayersByName[normalizedName] = p
-        }
-      }
-    })
-
-    const updatedPlayers = [...existingPlayers]
-    const newPlayers = []
-
     // Targets routing: target-concern rows go to the safe reconciler; plain
-    // commit rows keep the existing portal/returning logic below. With no
-    // tracked targets and no Commitment column, every row is a commit row and
-    // this path runs byte-for-byte as before. See utils/recruitingTargets.js.
+    // commit rows keep the existing portal/returning logic (applyCommitRows).
+    // With no tracked targets and no Commitment column, every row is a commit
+    // row and this path runs as before. See utils/recruitingTargets.js.
     const { targetRows, commitRows } = partitionRecruitingRows(recruits, {
       players: existingPlayers,
       userTid: selectedTid,
@@ -489,144 +468,17 @@ export default function Recruiting() {
       dynastyTeams: currentDynasty.teams,
     })
 
-    commitRows.forEach(recruit => {
-      if (!recruit.name) return
-
-      const normalizedName = recruit.name.toLowerCase().trim()
-      const sameTeamPlayer = sameTeamPlayersByName[normalizedName]
-      const anyTeamPlayer = existingPlayersByName[normalizedName]
-
-      if (sameTeamPlayer) {
-        const playerIndex = updatedPlayers.findIndex(p => p.pid === sameTeamPlayer.pid)
-        if (playerIndex !== -1) {
-          updatedPlayers[playerIndex] = {
-            ...updatedPlayers[playerIndex],
-            position: updatedPlayers[playerIndex].position || recruit.position,
-            archetype: updatedPlayers[playerIndex].archetype || recruit.archetype,
-            // Sheet is authoritative: a blank ('') clears the trait; only an
-            // omitted field (undefined) keeps the existing one.
-            devTrait: recruit.devTrait ?? updatedPlayers[playerIndex].devTrait,
-            height: recruit.height || updatedPlayers[playerIndex].height,
-            weight: recruit.weight || updatedPlayers[playerIndex].weight,
-            hometown: recruit.hometown || updatedPlayers[playerIndex].hometown,
-            state: recruit.state || updatedPlayers[playerIndex].state,
-            stars: recruit.stars ?? updatedPlayers[playerIndex].stars,
-            nationalRank: recruit.nationalRank ?? updatedPlayers[playerIndex].nationalRank,
-            stateRank: recruit.stateRank ?? updatedPlayers[playerIndex].stateRank,
-            positionRank: recruit.positionRank ?? updatedPlayers[playerIndex].positionRank,
-            gemBust: recruit.gemBust || updatedPlayers[playerIndex].gemBust,
-            previousTeam: recruit.previousTeam || updatedPlayers[playerIndex].previousTeam,
-            isPortal: recruit.isPortal ?? updatedPlayers[playerIndex].isPortal ?? false,
-            // Recruiting NIL offer (CFB 27+), absence-safe + carried forward as
-            // the next-season roster floor (never clobbering an entered value).
-            ...(recruit.nil != null && !isNaN(Number(recruit.nil))
-              ? { nilByYear: {
-                  ...(updatedPlayers[playerIndex].nilByYear || {}),
-                  [selectedYear]: Number(recruit.nil),
-                  [selectedYear + 1]: (updatedPlayers[playerIndex].nilByYear?.[selectedYear + 1] ?? updatedPlayers[playerIndex].nilByYear?.[String(selectedYear + 1)] ?? Number(recruit.nil)),
-                } }
-              : {})
-          }
-        }
-      } else if (anyTeamPlayer) {
-        const playerIndex = updatedPlayers.findIndex(p => p.pid === anyTeamPlayer.pid)
-        if (playerIndex !== -1) {
-          const existingPlayer = updatedPlayers[playerIndex]
-          // The school they came FROM. A player whose record already points at
-          // the team they're committing to has no origin school to record —
-          // storing it anyway is what made every transfer read "FROM <your
-          // own school>" on the recruit card. Compared numerically because
-          // `team` has landed as both a number and a numeric string.
-          const rawPreviousTeamTid = existingPlayer.team
-          const previousTeamTid =
-            rawPreviousTeamTid != null && Number(rawPreviousTeamTid) !== Number(selectedTid)
-              ? rawPreviousTeamTid
-              : null
-
-          // Canonical v2 movement — write straight to movementByYear.
-          // The legacy movements[] write was being stripped by
-          // syncDerivedFieldsFromV2 anyway and used the legacy
-          // 'portal_in' type that the heal then re-canonicalized.
-          updatedPlayers[playerIndex] = {
-            ...existingPlayer,
-            team: selectedTid,
-            teamsByYear: {
-              ...existingPlayer.teamsByYear,
-              [selectedYear + 1]: teamsByYearValue
-            },
-            movementByYear: {
-              ...(existingPlayer.movementByYear || {}),
-              [selectedYear]: {
-                type: 'arrival',
-                arrival: 'transfer_in',
-                fromTid: previousTeamTid != null ? Number(previousTeamTid) : null,
-              },
-            },
-            isPortal: true,
-            isRecruit: true,
-            recruitYear: selectedYear,
-            // Durable identity of the origin school is fromTid (written above);
-            // this string is back-compat only. Resolve it LIVE from the origin
-            // tid rather than snapshotting a static base abbr, so a later rename
-            // of that school doesn't leave a stale label. No static registry.
-            previousTeam: recruit.previousTeam || currentDynasty?.teams?.[previousTeamTid]?.abbr || existingPlayer.previousTeam,
-            devTrait: recruit.devTrait ?? existingPlayer.devTrait,
-            stars: recruit.stars ?? existingPlayer.stars,
-            nationalRank: recruit.nationalRank ?? existingPlayer.nationalRank,
-            stateRank: recruit.stateRank ?? existingPlayer.stateRank,
-            positionRank: recruit.positionRank ?? existingPlayer.positionRank,
-            gemBust: recruit.gemBust || existingPlayer.gemBust,
-            // Recruiting NIL offer (CFB 27+), absence-safe + carried forward as
-            // the next-season roster floor (never clobbering an entered value).
-            ...(recruit.nil != null && !isNaN(Number(recruit.nil))
-              ? { nilByYear: {
-                  ...(existingPlayer.nilByYear || {}),
-                  [selectedYear]: Number(recruit.nil),
-                  [selectedYear + 1]: (existingPlayer.nilByYear?.[selectedYear + 1] ?? existingPlayer.nilByYear?.[String(selectedYear + 1)] ?? Number(recruit.nil)),
-                } }
-              : {})
-          }
-          console.log(`[Recruiting] Cross-team transfer detected: ${recruit.name} from tid ${previousTeamTid} to tid ${selectedTid}`)
-        }
-      } else {
-        const pid = nextPID++
-        newPlayers.push({
-          pid,
-          id: `player-${pid}`,
-          name: recruit.name,
-          position: recruit.position || '',
-          year: classToYear[recruit.class] || 'Fr',
-          jerseyNumber: '',
-          // Dev traits are often hidden until signing day — leave blank when the
-          // user didn't enter one (don't presume Normal).
-          devTrait: recruit.devTrait || '',
-          archetype: recruit.archetype || '',
-          overall: null,
-          height: recruit.height || '',
-          weight: recruit.weight || 0,
-          hometown: recruit.hometown || '',
-          state: recruit.state || '',
-          team: selectedTid,
-          isRecruit: true,
-          recruitYear: selectedYear,
-          teamsByYear: { [selectedYear + 1]: teamsByYearValue },
-          stars: recruit.stars || 0,
-          nationalRank: recruit.nationalRank || null,
-          stateRank: recruit.stateRank || null,
-          positionRank: recruit.positionRank || null,
-          gemBust: recruit.gemBust || '',
-          previousTeam: recruit.previousTeam || '',
-          isPortal: recruit.isPortal || false,
-          // Recruiting NIL offer (CFB 27+), absence-safe + carried forward as the
-          // next-season roster floor (new signee, so both years start at the offer).
-          ...(recruit.nil != null && !isNaN(Number(recruit.nil))
-            ? { nilByYear: { [selectedYear]: Number(recruit.nil), [selectedYear + 1]: Number(recruit.nil) } }
-            : {})
-        })
-      }
+    const applied = applyCommitRows({
+      rows: commitRows,
+      players: existingPlayers,
+      selectedTid,
+      teamAbbr,
+      selectedYear,
+      teams: currentDynasty.teams,
+      startPID: nextPID,
     })
-
-    let finalPlayers = [...updatedPlayers, ...newPlayers]
+    nextPID = applied.nextPID
+    let finalPlayers = applied.players
     let committedToUs = []
     if (targetRows.length) {
       const rec = reconcileRecruitingRows({
@@ -1118,6 +970,51 @@ export default function Recruiting() {
           commitmentWeek: null, recruitYear: Number.isFinite(ry) ? ry : Number(selectedYear),
         }))
       })
+    }
+
+    // The player records are the source of truth for who is IN a class: any
+    // player who arrived at this team for the season after the class year —
+    // recruit, portal transfer, or JUCO — belongs in it, whether or not a
+    // commitment row was ever entered. This is what surfaces a transfer the
+    // user added by hand on the player timeline after the class was saved.
+    {
+      const knownPids = new Set(commitments.map(c => c.pid).filter(p => p != null).map(String))
+      const knownNames = new Set(commitments.map(c => c.name?.toLowerCase().trim()).filter(Boolean))
+      const players = currentDynasty?.players || []
+      const currentYear = Number(currentDynasty?.currentYear)
+      const classYears = new Set()
+      if (isAllSeasons) {
+        for (const p of players) {
+          for (const y of Object.keys(p?.teamsByYear || {})) {
+            if (Number(p.teamsByYear[y]) === Number(selectedTid) && Number.isFinite(Number(y))) classYears.add(Number(y) - 1)
+          }
+          for (const st of Array.isArray(p?.teamHistory) ? p.teamHistory : []) {
+            if (Number(st?.teamTid ?? st?.tid) === Number(selectedTid) && Number.isFinite(Number(st?.fromYear))) classYears.add(Number(st.fromYear) - 1)
+          }
+        }
+      } else {
+        classYears.add(Number(selectedYear))
+      }
+      for (const y of classYears) {
+        for (const { player: p, arrival } of playersArrivingForTeamYear(players, selectedTid, y, { currentYear })) {
+          const key = p.name?.toLowerCase().trim()
+          if ((p.pid != null && knownPids.has(String(p.pid))) || (key && knownNames.has(key))) continue
+          if (p.pid != null) knownPids.add(String(p.pid))
+          if (key) knownNames.add(key)
+          const isTransfer = arrival.kind === 'transfer'
+          commitments.push(ensurePortalStatus({
+            name: p.name, firstName: p.firstName, lastName: p.lastName,
+            position: p.position, devTrait: p.devTrait, archetype: p.archetype,
+            height: p.height, weight: p.weight, hometown: p.hometown, state: p.state,
+            pictureUrl: p.pictureUrl, stars: p.stars, nationalRank: p.nationalRank,
+            stateRank: p.stateRank, positionRank: p.positionRank, gemBust: p.gemBust,
+            class: p.class, previousTeam: isTransfer ? (p.previousTeam || arrival.fromTid) : '',
+            previousTeamTid: isTransfer ? arrival.fromTid : null,
+            isPortal: isTransfer, pid: p.pid,
+            commitmentWeek: null, recruitYear: y,
+          }))
+        }
+      }
     }
 
     const seenPids = new Set()

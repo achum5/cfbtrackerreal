@@ -9,6 +9,7 @@ import { getEditionConfig, isDynastyBlueprintEnabled, isPcAutoDynasty } from '..
 import DynastyBlueprintPanel from '../../components/DynastyBlueprintPanel'
 import { ProgramGradesBody } from '../../components/ProgramGradesBody'
 import CoachingStaffPopover from '../../components/CoachingStaffPopover'
+import { playersArrivingForTeamYear } from '../../utils/classArrivals'
 import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES, getCustomConferencesForYear, getGamesByType, isPlayerOnRoster, getUserGamePerspective, getTeamConferenceForDynasty, getTeamConferenceLabel, calculateTeamRecordFromGames, getTeamRecord, getTeamRanking, getRecruitingCommitments, getPlayerPositionForYear, getPlayerOverallForYear, lookupByTeamYear, getPlayersLeaving, getTeamRatingsForYear } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useCompareSelection, buildCompareUrl, COMPARE_ICON_PATH } from '../../hooks/useCompareSelection'
@@ -6098,6 +6099,25 @@ export default function TeamYear() {
               pid: p.pid,
             })
           })
+        }
+        // Player records are the source of truth for class membership — see
+        // Recruiting.jsx. Adds anyone who arrived here for next season
+        // (recruit / portal / JUCO) that no commitment row named.
+        {
+          const knownNames = new Set(commits.map(c => c.name?.toLowerCase().trim()).filter(Boolean))
+          const knownPids = new Set(commits.map(c => c.pid).filter(p => p != null).map(String))
+          const arrivals = playersArrivingForTeamYear(currentDynasty?.players || [], tid, selectedYear, { currentYear: Number(currentDynasty?.currentYear) })
+          for (const { player: p, arrival } of arrivals) {
+            const key = p.name?.toLowerCase().trim()
+            if ((p.pid != null && knownPids.has(String(p.pid))) || (key && knownNames.has(key))) continue
+            if (key) knownNames.add(key)
+            commits.push({
+              name: p.name, position: p.position, stars: p.stars,
+              hometown: p.hometown, state: p.state,
+              previousTeam: arrival.kind === 'transfer' ? (p.previousTeam || arrival.fromTid) : '',
+              pictureUrl: p.pictureUrl, pid: p.pid,
+            })
+          }
         }
         const sorted = [...commits].sort((a, b) => {
           const starDiff = (Number(b.stars) || 0) - (Number(a.stars) || 0)
