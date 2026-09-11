@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { stateCodesLine } from '../data/usStates'
+import { stateCodesLine, STATE_CODES } from '../data/usStates'
 import { createPortal } from 'react-dom'
 import AuthErrorModal from './AuthErrorModal'
 import { useAuthErrorHandler } from '../hooks/useAuthErrorHandler'
@@ -24,7 +24,7 @@ import SheetModalHeader from './ui/SheetModalHeader'
 import { buildAIPrompt, NIL_FIELD_HINT } from '../utils/aiPrompt'
 import { arePlayerAttributesEnabled } from '../editions'
 import { ATTRIBUTE_PROMPT_LEGEND } from '../utils/attributeEntry'
-import { POSITIONS, CLASSES, DEV_TRAITS, ALL_ARCHETYPES } from '../data/rosterOptions'
+import { POSITIONS, CLASSES, DEV_TRAITS, ALL_ARCHETYPES, HEIGHTS } from '../data/rosterOptions'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
@@ -40,6 +40,10 @@ const ROSTER_COLUMN_OPTIONS = {
   // Every archetype, whatever the row's position — the game hands them out
   // across position lines, so filtering by position hides real answers.
   Archetype: ALL_ARCHETYPES,
+  // Height and State are strict dropdowns on the Google sheet; without these
+  // the local grid was the only path where a free-typed value could get in.
+  Height: HEIGHTS,
+  State: STATE_CODES,
 }
 
 export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear, teamColors }) {

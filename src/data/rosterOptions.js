@@ -16,6 +16,15 @@ export const CLASSES = ['Fr', 'RS Fr', 'So', 'RS So', 'Jr', 'RS Jr', 'Sr', 'RS S
 
 export const DEV_TRAITS = ['Normal', 'Impact', 'Star', 'Elite']
 
+// The heights the game offers, straight ASCII quote (never a curly one — the
+// parser and the sheet's validation both match on the literal). Same twenty
+// values the roster sheet validates and the roster prompt lists.
+export const HEIGHTS = [
+  '5\'5"', '5\'6"', '5\'7"', '5\'8"', '5\'9"', '5\'10"', '5\'11"',
+  '6\'0"', '6\'1"', '6\'2"', '6\'3"', '6\'4"', '6\'5"', '6\'6"',
+  '6\'7"', '6\'8"', '6\'9"', '6\'10"', '6\'11"', '7\'0"',
+]
+
 // Archetypes per position group (CFB 26). OL/DL/LB/S positions share a group.
 const ARCH = {
   QB: ['Backfield Creator', 'Dual Threat', 'Pocket Passer', 'Pure Runner'],

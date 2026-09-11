@@ -6,7 +6,8 @@ import { getAbbrFromTeamName, getTidFromAbbr, getAbbrFromTid, TEAMS as DEFAULT_T
 import { getTidFromTeamText } from '../data/teams'
 import { getSortableLastName } from '../utils/playerNames'
 import { getFringeCaseClassOptions } from '../utils/fringeCaseRows'
-import { ALL_ARCHETYPES } from '../data/rosterOptions'
+import { ALL_ARCHETYPES, HEIGHTS } from '../data/rosterOptions'
+import { STAFF_MOVE_REASONS } from '../utils/staffMoves'
 import { normalizeStateCode, STATE_CODES } from '../data/usStates'
 import {
   DEV_TRAIT_VALUES,
@@ -963,15 +964,8 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
           rule: {
             condition: {
               type: 'ONE_OF_LIST',
-              values: [
-                { userEnteredValue: '5\'5"' }, { userEnteredValue: '5\'6"' }, { userEnteredValue: '5\'7"' },
-                { userEnteredValue: '5\'8"' }, { userEnteredValue: '5\'9"' }, { userEnteredValue: '5\'10"' },
-                { userEnteredValue: '5\'11"' }, { userEnteredValue: '6\'0"' }, { userEnteredValue: '6\'1"' },
-                { userEnteredValue: '6\'2"' }, { userEnteredValue: '6\'3"' }, { userEnteredValue: '6\'4"' },
-                { userEnteredValue: '6\'5"' }, { userEnteredValue: '6\'6"' }, { userEnteredValue: '6\'7"' },
-                { userEnteredValue: '6\'8"' }, { userEnteredValue: '6\'9"' }, { userEnteredValue: '6\'10"' },
-                { userEnteredValue: '6\'11"' }, { userEnteredValue: '7\'0"' }
-              ]
+              // Same twenty heights the in-app grid offers.
+              values: HEIGHTS.map(h => ({ userEnteredValue: h }))
             },
             showCustomUi: true,
             strict: true  // Only accept dropdown values, typing filters options
@@ -1631,15 +1625,8 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
           rule: {
             condition: {
               type: 'ONE_OF_LIST',
-              values: [
-                { userEnteredValue: '5\'5"' }, { userEnteredValue: '5\'6"' }, { userEnteredValue: '5\'7"' },
-                { userEnteredValue: '5\'8"' }, { userEnteredValue: '5\'9"' }, { userEnteredValue: '5\'10"' },
-                { userEnteredValue: '5\'11"' }, { userEnteredValue: '6\'0"' }, { userEnteredValue: '6\'1"' },
-                { userEnteredValue: '6\'2"' }, { userEnteredValue: '6\'3"' }, { userEnteredValue: '6\'4"' },
-                { userEnteredValue: '6\'5"' }, { userEnteredValue: '6\'6"' }, { userEnteredValue: '6\'7"' },
-                { userEnteredValue: '6\'8"' }, { userEnteredValue: '6\'9"' }, { userEnteredValue: '6\'10"' },
-                { userEnteredValue: '6\'11"' }, { userEnteredValue: '7\'0"' }
-              ]
+              // Same twenty heights the in-app grid offers.
+              values: HEIGHTS.map(h => ({ userEnteredValue: h }))
             },
             showCustomUi: true,
             strict: true  // Only accept dropdown values, typing filters options
@@ -3582,6 +3569,15 @@ async function initializeStaffMovesSheet(spreadsheetId, accessToken, sheetId, mo
       },
     })
   }
+  // Reason (col 5) — the same list the local grid offers as a dropdown. It was
+  // free text here, so the sheet was the one path that could produce a reason
+  // the app does not recognize. Lenient, so a blank passes.
+  requests.push({
+    setDataValidation: {
+      range: { sheetId, startRowIndex: 1, endRowIndex: rowCount + 1, startColumnIndex: 5, endColumnIndex: 6 },
+      rule: { condition: { type: 'ONE_OF_LIST', values: STAFF_MOVE_REASONS.map((r) => ({ userEnteredValue: r })) }, showCustomUi: true, strict: false },
+    },
+  })
   requests.push({
     addProtectedRange: {
       protectedRange: { range: { sheetId, startRowIndex: 0, endRowIndex: 1 }, description: 'Header row - do not edit', warningOnly: true },
@@ -11463,7 +11459,7 @@ export async function readPlayersLeavingFromSheet(spreadsheetId, dynastyTeams = 
 }
 
 // Draft round options
-const DRAFT_ROUNDS = [
+export const DRAFT_ROUNDS = [
   '1st Round',
   '2nd Round',
   '3rd Round',
@@ -11736,7 +11732,7 @@ export async function readDraftResultsFromSheet(spreadsheetId, dynastyTeams = nu
 }
 
 // Recruiting class options
-const RECRUIT_CLASSES = ['HS', 'JUCO Fr', 'JUCO So', 'JUCO Jr', 'Fr', 'RS Fr', 'So', 'RS So', 'Jr', 'RS Jr']
+export const RECRUIT_CLASSES = ['HS', 'JUCO Fr', 'JUCO So', 'JUCO Jr', 'Fr', 'RS Fr', 'So', 'RS So', 'Jr', 'RS Jr']
 
 // Raw in-game position labels — used by BOTH the Targets/Commitments sheet
 // and the Recruiting Database sheet's Position dropdown. The Database stores
@@ -11749,27 +11745,11 @@ export const RECRUIT_POSITIONS = [
   'LEDG', 'REDG', 'DT', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS', 'K', 'P', 'ATH'
 ]
 
-const RECRUIT_ARCHETYPES = [
-  'Backfield Creator', 'Dual Threat', 'Pocket Passer', 'Pure Runner',
-  'Backfield Threat', 'Contact Seeker', 'East/West Playmaker', 'Elusive Bruiser', 'North/South Receiver', 'North/South Blocker',
-  'Blocking', 'Utility',
-  'Contested Specialist', 'Elusive Route Runner', 'Gadget', 'Gritty Possession', 'Physical Route Runner', 'Route Artist', 'Speedster',
-  'Possession', 'Pure Blocker', 'Pure Possession', 'Vertical Threat',
-  'Agile', 'Pass Protector', 'Raw Strength', 'Ground and Pound', 'Well Rounded',
-  'Edge Setter', 'Gap Specialist', 'Power Rusher', 'Pure Power', 'Speed Rusher',
-  'Lurker', 'Signal Caller', 'Thumper',
-  'Boundary', 'Bump and Run', 'Field', 'Zone',
-  'Box Specialist', 'Coverage Specialist', 'Hybrid',
-  'Accurate', 'Power'
-]
+// The archetype vocabulary, from the app's own list. Was a fourth hand-kept
+// copy of the same 45 values.
+const RECRUIT_ARCHETYPES = ALL_ARCHETYPES
 
-const STAR_RATINGS = ['☆', '☆☆', '☆☆☆', '☆☆☆☆', '☆☆☆☆☆']
-
-const HEIGHTS = [
-  '5\'5"', '5\'6"', '5\'7"', '5\'8"', '5\'9"', '5\'10"', '5\'11"',
-  '6\'0"', '6\'1"', '6\'2"', '6\'3"', '6\'4"', '6\'5"', '6\'6"', '6\'7"', '6\'8"', '6\'9"', '6\'10"', '6\'11"',
-  '7\'0"'
-]
+export const STAR_RATINGS = ['☆', '☆☆', '☆☆☆', '☆☆☆☆', '☆☆☆☆☆']
 
 const US_STATES = STATE_CODES
 
@@ -16026,8 +16006,9 @@ export async function createPortalTransferClassSheet(dynastyName, year, portalTr
   }
 }
 
-// Get class progression options for a given incoming class
-function getPortalTransferClassOptions(incomingClass) {
+// Get class progression options for a given incoming class. Exported so the
+// local grid can offer the SAME per-row dropdown the sheet enforces.
+export function getPortalTransferClassOptions(incomingClass) {
   // Portal transfers can come in as Fr, So, or Jr
   // Each has options: stay same (with RS prefix), progress, or progress with RS
   const baseClass = incomingClass?.replace('RS ', '') || 'Fr'

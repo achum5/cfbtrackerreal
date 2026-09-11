@@ -12,6 +12,7 @@ import { useAuthErrorHandler } from '../hooks/useAuthErrorHandler'
 import {
   createPortalTransferClassSheet,
   readPortalTransferClassFromSheet,
+  getPortalTransferClassOptions,
   deleteGoogleSheet,
   getSheetEmbedUrl,
   sheetExists
@@ -226,6 +227,22 @@ FINAL CHECK before you send
   // year. Adjusting a second time here read portalTransferClassByYear one
   // season too early, so saved class selections never round-tripped and a
   // re-import silently reverted the user's corrections.
+  // The same per-row dropdown the sheet enforces: a transfer's options depend
+  // on the class they came in as, so the grid resolves that from the player's
+  // NAME in the first cell rather than offering all eight classes.
+  const localColumnOptions = useMemo(() => {
+    const classByName = new Map(
+      (portalTransfers || [])
+        .filter(t => t?.name)
+        .map(t => [t.name.toLowerCase().trim(), t.incomingClass]),
+    )
+    return {
+      Class: (row) => getPortalTransferClassOptions(
+        classByName.get(String(row?.[0] ?? '').toLowerCase().trim()),
+      ),
+    }
+  }, [portalTransfers])
+
   const initialText = useMemo(() => {
     const dataYear = Number(currentYear)
     const saved = currentDynasty?.portalTransferClassByYear?.[dataYear] || []
@@ -502,6 +519,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Portal Transfer Classes"
             columns={['Player', 'Class']}
+            columnOptions={localColumnOptions}
             initialText={initialText}
           />
         ) : isLoading ? (

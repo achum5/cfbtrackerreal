@@ -16,7 +16,8 @@ import {
   readDraftResultsFromSheet,
   deleteGoogleSheet,
   getSheetEmbedUrl,
-  sheetExists
+  sheetExists,
+  DRAFT_ROUNDS,
 } from '../services/sheetsService'
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
@@ -419,6 +420,8 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Draft Results"
             columns={['Player', 'Draft Round']}
+            // Mirrors the sheet's strict dropdown on column B.
+            columnOptions={{ 'Draft Round': DRAFT_ROUNDS }}
             initialText={initialText}
           />
         ) : isLoading ? (

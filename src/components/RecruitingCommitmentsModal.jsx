@@ -5,7 +5,9 @@ import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './ui/Toast'
 import { useConfirm } from './ui/ConfirmDialog'
-import { getTeamNameLabel } from '../data/teamRegistry'
+import { getTeamNameLabel, getTeamNameOptions, getTeamNameAliases } from '../data/teamRegistry'
+import { ALL_ARCHETYPES, HEIGHTS } from '../data/rosterOptions'
+import { STATE_CODES } from '../data/usStates'
 import SheetModalHeader from './ui/SheetModalHeader'
 import SheetModalAIHero from './ui/SheetModalAIHero'
 import SheetManualEntry from './ui/SheetManualEntry'
@@ -18,7 +20,10 @@ import {
   deleteGoogleSheet,
   getSheetEmbedUrl,
   sheetExists,
-  refreshRecruitingSheetPrefill
+  refreshRecruitingSheetPrefill,
+  RECRUIT_CLASSES,
+  RECRUIT_POSITIONS,
+  STAR_RATINGS,
 } from '../services/sheetsService'
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt, commitmentScopeBlock } from '../utils/aiPrompt'
@@ -50,6 +55,12 @@ const RECRUIT_PASTE_COLUMNS = [
 // snaps onto the canonical casing on the way in). 'Dev' leads with "Hidden" —
 // the correct state for a target whose dev trait hasn't been revealed yet.
 const RECRUIT_COLUMN_OPTIONS = {
+  'Class': RECRUIT_CLASSES,
+  'Pos': RECRUIT_POSITIONS,
+  'Arch': ALL_ARCHETYPES,
+  'Stars': STAR_RATINGS,
+  'Height': HEIGHTS,
+  'State': STATE_CODES,
   'Gem/Bust': ['Gem', 'Bust'],
   'Dev': ['Hidden', 'Normal', 'Impact', 'Star', 'Elite'],
 }
@@ -146,6 +157,20 @@ export default function RecruitingCommitmentsModal({
   // Recognized attribute names + their short codes. The AI may use either when
   // filling the single Attributes cell; the app reads them back by name/code.
   const attrNameRef = ATTRIBUTE_COLUMNS.map(n => `${n} (${ATTRIBUTE_ABBR[n] || n})`).join(', ')
+
+  // The two team columns are dropdowns on the sheet; the grid gets the same
+  // guidance as a typeahead, since the list is far too long for a <select>.
+  // "Uncommitted" leads the Commit list — it is the value for a recruit still
+  // being chased, and the only non-team entry the column takes.
+  const teamNameOptions = useMemo(
+    () => getTeamNameOptions(currentDynasty?.teams, { includeFCS: false }),
+    [currentDynasty?.teams],
+  )
+  const commitOptions = useMemo(() => ['Uncommitted', ...teamNameOptions], [teamNameOptions])
+  const teamNameAliases = useMemo(
+    () => getTeamNameAliases(currentDynasty?.teams),
+    [currentDynasty?.teams],
+  )
 
   // The user's own team, named in the prompt. A commit screen shows the whole
   // country, so the model needs to know whose logo counts as "ours" — without
@@ -588,6 +613,8 @@ FINAL CHECK
             importLabel="Import Recruits"
             columns={RECRUIT_PASTE_COLUMNS}
             columnOptions={RECRUIT_COLUMN_OPTIONS}
+            comboboxColumns={{ 'Prev Team': teamNameOptions, 'Commit': commitOptions }}
+            comboboxAliases={teamNameAliases}
             normalizeRows={normalizeRecruitRows}
           />
         ) : isLoading ? (

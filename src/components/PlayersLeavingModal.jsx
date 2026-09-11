@@ -415,6 +415,9 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Players Leaving"
             columns={['Player', 'Transfer Reason']}
+            // Mirrors the sheet's strict dropdown on column B, so neither path
+            // lets a reason through that the app does not recognize.
+            columnOptions={{ 'Transfer Reason': LEAVING_REASONS }}
             initialText={initialText}
           />
         ) : isLoading ? (
