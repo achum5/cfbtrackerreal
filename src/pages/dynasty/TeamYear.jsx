@@ -44,6 +44,7 @@ import SortableStatsTable, { PlayerCell } from '../../components/SortableStatsTa
 import { formatScoreHighLow } from '../../utils/scoreFormat'
 import { getCoachStints } from '../../data/coachStats'
 import { getRivalryTrophyForTeams } from '../../utils/trophyEngine'
+import { weekNumberLabel } from '../../utils/weekLabel'
 import { computeLiveHonorsByPid, mergeHonorLists, matchHonorToPlayer } from '../../utils/honorMatch'
 import TeamOutlook from '../../components/TeamOutlook'
 import RivalriesTab from '../../components/RivalriesTab'
@@ -7761,7 +7762,7 @@ export default function TeamYear() {
                           name={`${locationPrefix} ${opponentName}`}
                           result={game.isWin ? 'W' : 'L'}
                           score={formatScoreHighLow(game.teamScore, game.oppScore)}
-                          meta={game.week ? `Week ${game.week}` : game.bowlName || 'Postseason'}
+                          meta={weekNumberLabel(game.week, game.bowlName || 'Postseason')}
                         />
                       )
                     })}

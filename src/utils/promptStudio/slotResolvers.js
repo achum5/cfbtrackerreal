@@ -30,6 +30,7 @@ import {
 } from '../../context/DynastyContext'
 import { TEAMS } from '../../data/teamRegistry'
 import { getMascotName } from '../../data/teams'
+import { weekNumberLabel, hasWeek } from '../weekLabel'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -366,7 +367,7 @@ export function resolveGameSlot(dynasty, gameId, options = {}) {
 
   const out = []
   out.push(`### Game: ${t1}${r1} ${s1} — ${s2} ${t2}${r2}`)
-  out.push(`- **Year/Week**: ${game.year || '—'} ${game.week ? `Wk ${game.week}` : ''}${game.bowlName ? ` (${game.bowlName})` : ''}`)
+  out.push(`- **Year/Week**: ${game.year || '—'} ${weekNumberLabel(game.week, '', 'Wk')}${game.bowlName ? ` (${game.bowlName})` : ''}`)
   out.push(`- **Type**: ${gameTypeLabel}`)
   out.push(`- **Site**: ${site}`)
   if (rec1 || rec2) out.push(`- **Records entering**: ${t1Abbr || t1} ${rec1 ?? '—'}, ${t2Abbr || t2} ${rec2 ?? '—'}`)
@@ -507,7 +508,7 @@ export function resolveTeamSlot(dynasty, tid, options = {}) {
       const us = isTeam1 ? g.team1Score : g.team2Score
       const them = isTeam1 ? g.team2Score : g.team1Score
       const result = us > them ? 'W' : us < them ? 'L' : 'T'
-      const weekStr = g.week ? `Wk ${g.week} ` : ''
+      const weekStr = hasWeek(g.week) ? `Wk ${Number(g.week)} ` : ''
       out.push(`  - ${weekStr}${result} ${us}–${them} ${result === 'W' ? 'vs' : 'to'} ${oppLabel}`)
     })
   } else {
@@ -780,7 +781,7 @@ export function resolvePositionSlot(dynasty, position, options = {}) {
       const neutral = g.homeTeamTid == null
       const loc = neutral ? 'vs' : isHome ? 'vs' : '@'
       const wl = Number(myScore) > Number(oppScore) ? 'W' : Number(myScore) < Number(oppScore) ? 'L' : 'T'
-      const weekStr = g.week ? `Wk ${g.week} ` : ''
+      const weekStr = hasWeek(g.week) ? `Wk ${Number(g.week)} ` : ''
       const statsStr = formatRawGameStats(gameStats, focus)
       gameLogLines.push(`  - ${weekStr}${loc} ${oppLabel} (${wl} ${myScore}-${oppScore}): ${statsStr || '_(no countable stats)_'}`)
     })

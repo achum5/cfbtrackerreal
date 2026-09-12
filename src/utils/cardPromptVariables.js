@@ -34,6 +34,7 @@ import { TEAMS } from '../data/teamRegistry'
 import { detectGameType, GAME_TYPES, getTeamRanking, calculateTeamRecordFromGames, getCustomConferencesForYear } from '../context/DynastyContext'
 import { getTeamConference } from '../data/conferenceTeams'
 import { WEEKLY_AWARDS } from '../data/cardStyles'
+import { weekNumberLabel } from './weekLabel'
 
 // Award keys → human display name. Mirrors the labels the player profile
 // surfaces so the prompt language reads consistently across the app.
@@ -987,7 +988,7 @@ export function buildCardPromptVariables({ player, dynasty, card }) {
       gType === GAME_TYPES.CFP_SEMIFINAL ? 'CFP Semifinal' :
       gType === GAME_TYPES.CFP_QUARTERFINAL ? 'CFP Quarterfinal' :
       gType === GAME_TYPES.CFP_FIRST_ROUND ? 'CFP First Round' :
-      week ? `Week ${week}` : 'Game'
+      weekNumberLabel(week, 'Game')
     contextLabel = opponent ? `${gameLabel} vs ${opponent} (${score} ${result})` : gameLabel
   } else if (ctx === 'championship') {
     championshipName = details.championshipName || details.championshipKey || 'Championship'

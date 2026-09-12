@@ -16,6 +16,7 @@ import { buildGameTagMap, getEffectiveCharacters, DEFAULT_SOCIAL_SETTINGS, DEFAU
 import { canonicalBoxScore } from './boxScoreHelpers'
 import { collapsePatRowsIntoTDs, sortPlaysChronologically } from './scoringPlayOrder'
 import { getRecordAsOfGame } from '../context/DynastyContext'
+import { weekNumberLabel } from './weekLabel'
 
 const NATIONAL_SAMPLE_SIZE = 40
 
@@ -266,7 +267,7 @@ function weekDisplay(year, week) {
   const wLabel = week === 'CCG' ? 'Conference Championship'
     : week === 'Bowl' ? 'Bowl Season'
     : week === 'NatChamp' ? 'National Championship'
-    : week ? `Week ${week}` : ''
+    : weekNumberLabel(week)
   return wLabel ? `Year ${year}, ${wLabel}` : `Year ${year}`
 }
 

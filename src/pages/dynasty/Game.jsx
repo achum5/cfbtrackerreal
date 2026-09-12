@@ -35,6 +35,7 @@ import GameContentTools from '../../components/GameContentTools'
 import { isPcAutoDynasty } from '../../editions'
 import { DEFAULT_SOCIAL_PLATFORM, getEffectiveCharacters } from '../../data/socialModel'
 import { sortPlaysChronologically, collapsePatRowsIntoTDs, resolveScoringTeamTids, buildScorerTidResolver } from '../../utils/scoringPlayOrder'
+import { weekNumberLabel } from '../../utils/weekLabel'
 import {
   PageHero,
   Card,
@@ -1386,7 +1387,7 @@ export default function Game() {
       ? `${rivalryTrophy.trophyName} · ${game.year} Regular Season${game.week != null ? ` · Week ${game.week}` : ''}`
       : `${game.year} Regular Season${game.week != null ? ` · Week ${game.week}` : ''}`
   } else {
-    gameTitle = game.week ? `Week ${game.week}` : 'Game'
+    gameTitle = weekNumberLabel(game.week, 'Game')
     gameSubtitle = `${game.year} Regular Season`
   }
 

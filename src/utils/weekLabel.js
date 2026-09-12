@@ -32,3 +32,27 @@ export function gameWeekLabel(game, prefix = 'Wk ') {
   if (game.isBowlGame || t === 'bowl') return game.bowlName || 'Bowl'
   return formatWeek(game.week, prefix)
 }
+
+// ── Week 0 is a real week ────────────────────────────────────────────────
+//
+// Week 0 is the kickoff weekend that opens a season, so a game can genuinely
+// carry week === 0. Label sites used to write `week ? `Week ${week}` : …`, and
+// 0 is falsy: a Week 0 game fell through to the fallback, so the game page
+// headed it "Game", a schedule row read "Postseason", and the AI prompts left
+// the week off the game's own line.
+
+/** True when `week` is a real NUMERIC week (0 included). */
+export function hasWeek(week) {
+  return isNumericWeek(week)
+}
+
+/**
+ * "Week 0" / "Wk 6" for a numeric week, `fallback` when there is no week at
+ * all. A non-numeric postseason label ("Bowl", "CCG") passes through
+ * unprefixed, same as formatWeek.
+ */
+export function weekNumberLabel(week, fallback = '', prefix = 'Week') {
+  if (week == null || week === '') return fallback
+  const s = String(week).trim()
+  return isNumericWeek(s) ? `${prefix} ${Number(s)}` : s
+}
