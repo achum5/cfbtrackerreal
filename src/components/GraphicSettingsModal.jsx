@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom'
-import { GRAPHIC_STYLE_OPTIONS, GRAPHIC_EMPHASIS_OPTIONS } from '../utils/scoreGraphicPrompt'
+import { GRAPHIC_STYLE_OPTIONS, GRAPHIC_EMPHASIS_OPTIONS, DEFAULT_GRAPHIC_SETTINGS } from '../utils/scoreGraphicPrompt'
 
 /**
  * Graphic Settings — the score-graphic analog of RecapSettingsModal. Sliders
@@ -19,12 +19,19 @@ export default function GraphicSettingsModal({
 }) {
   if (!isOpen) return null
 
-  const styleIdx = Math.max(0, GRAPHIC_STYLE_OPTIONS.findIndex(o => o.key === designStyle))
-  const currentStyle = GRAPHIC_STYLE_OPTIONS[styleIdx] || GRAPHIC_STYLE_OPTIONS[2]
-  const rankIdx = Math.max(0, GRAPHIC_EMPHASIS_OPTIONS.findIndex(o => o.key === rankEmphasis))
-  const currentRank = GRAPHIC_EMPHASIS_OPTIONS[rankIdx] || GRAPHIC_EMPHASIS_OPTIONS[1]
-  const recordIdx = Math.max(0, GRAPHIC_EMPHASIS_OPTIONS.findIndex(o => o.key === recordEmphasis))
-  const currentRecord = GRAPHIC_EMPHASIS_OPTIONS[recordIdx] || GRAPHIC_EMPHASIS_OPTIONS[1]
+  // An unknown/stale key resolves to the DEFAULT stop, not to index 0 — a
+  // value saved before these sliders went from three stops to five would
+  // otherwise pin the handle to the far left.
+  const idxOf = (options, key, fallbackKey) => {
+    const i = options.findIndex(o => o.key === key)
+    return i >= 0 ? i : Math.max(0, options.findIndex(o => o.key === fallbackKey))
+  }
+  const styleIdx = idxOf(GRAPHIC_STYLE_OPTIONS, designStyle, DEFAULT_GRAPHIC_SETTINGS.designStyle)
+  const currentStyle = GRAPHIC_STYLE_OPTIONS[styleIdx]
+  const rankIdx = idxOf(GRAPHIC_EMPHASIS_OPTIONS, rankEmphasis, DEFAULT_GRAPHIC_SETTINGS.rankEmphasis)
+  const currentRank = GRAPHIC_EMPHASIS_OPTIONS[rankIdx]
+  const recordIdx = idxOf(GRAPHIC_EMPHASIS_OPTIONS, recordEmphasis, DEFAULT_GRAPHIC_SETTINGS.recordEmphasis)
+  const currentRecord = GRAPHIC_EMPHASIS_OPTIONS[recordIdx]
 
   const sectionLabel = { fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--text-tertiary)' }
 
@@ -66,7 +73,7 @@ export default function GraphicSettingsModal({
           <Slider label="Rankings" options={GRAPHIC_EMPHASIS_OPTIONS} idx={rankIdx} current={currentRank} onPick={onRankEmphasisChange} />
           <Slider label="Records" options={GRAPHIC_EMPHASIS_OPTIONS} idx={recordIdx} current={currentRecord} onPick={onRecordEmphasisChange} />
           <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-            These tune the copied image prompt. Rankings/records only appear when a team is ranked or has a record.
+            These tune the copied image prompt, and apply on both the game page and Edit Game. Rankings and records only appear when a team is actually ranked or has a record.
           </p>
         </div>
       </div>

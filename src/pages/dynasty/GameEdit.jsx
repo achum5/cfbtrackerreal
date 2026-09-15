@@ -23,6 +23,7 @@ import { useConfirm } from '../../components/ui/ConfirmDialog'
 import { useToast } from '../../components/ui/Toast'
 import RecapSettingsModal from '../../components/RecapSettingsModal'
 import GraphicSettingsModal from '../../components/GraphicSettingsModal'
+import { useScoreGraphicSettings } from '../../hooks/useScoreGraphicSettings'
 import GameSocialModal from '../../components/GameSocialModal'
 import { getTeamLogoRobust } from '../../utils/teamLogo'
 import { getTeamColors } from '../../data/teamColors'
@@ -287,20 +288,15 @@ export default function GameEdit() {
     try { return localStorage.getItem('gameRecapDepth') || 'standard' } catch { return 'standard' }
   })
   const [showRecapSettings, setShowRecapSettings] = useState(false)
-  // Score-graphic prompt settings (per-user, localStorage) — see GraphicSettingsModal.
+  // Score-graphic prompt settings (per-device) — shared with the game page's
+  // Score Graphic card via useScoreGraphicSettings.
   const [showGraphicSettings, setShowGraphicSettings] = useState(false)
-  const [graphicStyle, setGraphicStyle] = useState(() => {
-    try { return localStorage.getItem('scoreGraphicStyle') || 'balanced' } catch { return 'balanced' }
-  })
-  const [graphicRankEmphasis, setGraphicRankEmphasis] = useState(() => {
-    try { return localStorage.getItem('scoreGraphicRankEmphasis') || 'standard' } catch { return 'standard' }
-  })
-  const [graphicRecordEmphasis, setGraphicRecordEmphasis] = useState(() => {
-    try { return localStorage.getItem('scoreGraphicRecordEmphasis') || 'standard' } catch { return 'standard' }
-  })
-  useEffect(() => { try { localStorage.setItem('scoreGraphicStyle', graphicStyle) } catch { /* ignored */ } }, [graphicStyle])
-  useEffect(() => { try { localStorage.setItem('scoreGraphicRankEmphasis', graphicRankEmphasis) } catch { /* ignored */ } }, [graphicRankEmphasis])
-  useEffect(() => { try { localStorage.setItem('scoreGraphicRecordEmphasis', graphicRecordEmphasis) } catch { /* ignored */ } }, [graphicRecordEmphasis])
+  const {
+    designStyle: graphicStyle, setDesignStyle: setGraphicStyle,
+    rankEmphasis: graphicRankEmphasis, setRankEmphasis: setGraphicRankEmphasis,
+    recordEmphasis: graphicRecordEmphasis, setRecordEmphasis: setGraphicRecordEmphasis,
+    promptSettings: graphicPromptSettings,
+  } = useScoreGraphicSettings()
   const [recapSocial, setRecapSocial] = useState(() => { try { return localStorage.getItem('gameRecapSocial') === '1' } catch { return false } })
   const [recapSocialCount, setRecapSocialCount] = useState(() => { try { return Number(localStorage.getItem('gameRecapSocialCount')) || 8 } catch { return 8 } })
   useEffect(() => {
@@ -3015,9 +3011,7 @@ export default function GameEdit() {
           gameType: promptGameType,
           bowlName: promptBowlName,
           conference: promptConference,
-          designStyle: graphicStyle,
-          rankEmphasis: graphicRankEmphasis,
-          recordEmphasis: graphicRecordEmphasis,
+          ...graphicPromptSettings,
         }) : ''
 
         return (

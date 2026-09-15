@@ -2,30 +2,135 @@ import { getTeamBrandProfile } from '../data/teamBrandProfiles'
 
 // ─── User-adjustable graphic settings ───────────────────────────────────────
 // Shared by the GraphicSettingsModal (the sliders) and buildScoreGraphicPrompt
-// (which turns the chosen keys into prompt directives). Same slider pattern as
-// the recap's RECAP_DEPTH_OPTIONS. Middle stop = default / no extra directive.
+// (which turns the chosen keys into prompt directives).
+//
+// Five stops each, left = simpler, right = more. The MIDDLE stop is the median
+// house style — the look the page produced before these sliders existed — and
+// it is spelled out explicitly rather than left blank. A silent middle was most
+// of why these sliders "did nothing": three of the nine old stops emitted a
+// byte-identical prompt, and the one style line that did land contradicted the
+// rendering sentence already in the prompt.
+//
+// Each style stop drives THREE places, so the choice actually reaches the
+// image model instead of sitting as one bullet among a dozen:
+//   designBullets — the DESIGN RULES block (composition + effects budget)
+//   renderBody    — the no-photo path's rendering sentence (the one that used
+//                   to always say "gradients are all welcome", flatly
+//                   contradicting Minimal)
+//   overlayNote   — the photo path's overlay budget. The photo itself is
+//                   ALWAYS the full-bleed base; style only changes how much
+//                   sits on top of it, never whether the photo shows through.
 
-// How busy vs. restrained the generated graphic should be.
 export const GRAPHIC_STYLE_OPTIONS = [
-  { key: 'minimal',  label: 'Minimal',  directive: `Style: minimalist — the fewest elements that still communicate the result. Lots of negative space, one or two colors, restrained type. No textures, gradients, or extra graphic flourishes.` },
-  { key: 'clean',    label: 'Clean',    directive: `Style: clean and understated — a calm, modern layout with limited elements and generous spacing. Light on texture and effects.` },
-  { key: 'balanced', label: 'Balanced', directive: `` },
-  { key: 'bold',     label: 'Bold',     directive: `Style: bold and high-energy — strong contrast, large confident type, and dynamic composition. Depth, lighting, and texture are welcome as long as the score stays the focal point.` },
-  { key: 'maximal',  label: 'Maximal',  directive: `Style: maximal, hype broadcast energy — rich layering, dramatic lighting, texture, and graphic energy filling the canvas. Go big, but never bury the score or swap/mislabel a team.` },
+  {
+    key: 'minimal',
+    label: 'Minimal',
+    designBullets: [
+      `Style — MINIMAL. Element budget: the score, the two team logos, and nothing else beyond what the blocks below explicitly require. Count the elements before rendering; if you are over budget, REMOVE one, do not shrink it.`,
+      `Flat color only: no gradients, no glow, no drop shadows, no texture, no rendered lighting, no angled slabs, no motion streaks.`,
+      `One typeface, two weights at most. At least 40% of the canvas stays empty. The negative space IS the design.`,
+    ],
+    renderBody: `design the full 1080×1080 as a flat, poster-grade score graphic: solid fields of color, precise typography, hard edges. No gradients, no lighting, no texture, no rendered depth — the impact comes from scale and negative space alone. Build it from team logos, typography, and color.`,
+    overlayNote: `Overlay budget — MINIMAL: at most three floating elements total (the score block and the two logos). No plates, pills, or slabs unless a number would otherwise be illegible, and then keep it small and barely-there.`,
+  },
+  {
+    key: 'clean',
+    label: 'Clean',
+    designBullets: [
+      `Style — CLEAN. A calm, modern layout: few elements, wide margins, everything aligned to a visible grid.`,
+      `One subtle depth cue at most — a soft shadow OR a single gentle gradient, used once. No texture, no glow, no stacked effects.`,
+      `Typography carries the piece: clear hierarchy, generous letter and line spacing, nothing decorative.`,
+    ],
+    renderBody: `design the full 1080×1080 as a clean, modern score graphic — the restrained end of what an athletics department posts. Crisp typography on a disciplined grid, with at most one subtle depth cue (a soft shadow or a single gentle gradient). No texture, glow, or heavy rendering. Build it from team logos, typography, and color.`,
+    overlayNote: `Overlay budget — CLEAN: the score block, the two logos, and at most one supporting element. Keep the treatment light: a soft shadow or a small translucent plate, nothing heavier.`,
+  },
+  {
+    key: 'balanced',
+    label: 'Balanced',
+    designBullets: [
+      `Style — BALANCED (the house default). The standard athletics-department post: the score dominant, both logos clearly placed, ranks and records as supporting elements, and ONE graphic device — a color block, a diagonal, a subtle pattern — tying the composition together.`,
+      `Moderate depth is expected: real typographic craft, some dimension, restrained lighting or a single gradient. Rich, not loud.`,
+    ],
+    renderBody: `design the full 1080×1080 as a polished, professionally rendered score graphic, the kind a major athletics program actually posts. This is a finished, high-fidelity image — NOT flat clip-art or a plain SVG. Rich typography, depth, lighting, subtle texture, and gradients are all welcome. The ONLY thing off-limits is fabricated photo-realistic imagery of people — no made-up players, faces, or action shots. Build it from team logos, typography, color, and graphic-design elements.`,
+    overlayNote: `Overlay budget — BALANCED: the score block, both logos, and the rank/record elements, arranged as one tidy lockup. A small translucent plate or a drop shadow behind the type is fine.`,
+  },
+  {
+    key: 'bold',
+    label: 'Bold',
+    designBullets: [
+      `Style — BOLD. Large, confident type at high contrast, on a composition with real movement: a diagonal, an off-axis lockup, or an oversized score that breaks the grid.`,
+      `Pick ONE dramatic device and carry it across the whole canvas — a hard light sweep, an angular color block, or a strong duotone. Commit to it fully instead of stacking several competing effects.`,
+      `The score should be the loudest thing on the canvas and still perfectly legible.`,
+    ],
+    renderBody: `design the full 1080×1080 as a high-impact score graphic: dramatic lighting, strong contrast, and large confident type on a dynamic composition. Depth, gradients, and rendered dimension are encouraged. The ONLY thing off-limits is fabricated photo-realistic imagery of people — no made-up players, faces, or action shots. Build it from team logos, typography, color, and graphic-design elements.`,
+    overlayNote: `Overlay budget — BOLD: a heavier lockup is welcome — oversized score numerals, a strong logo pairing, a pronounced shadow or gradient scrim behind the type for contrast. That scrim is a treatment ON the photo, never a panel replacing it.`,
+  },
+  {
+    key: 'maximal',
+    label: 'Maximal',
+    designBullets: [
+      `Style — MAXIMAL. Layer it: texture, pattern, light and particle effects, multiple depth planes, energy filling the frame. This should read like a playoff hype post.`,
+      `Build that depth with stacked PLANES rather than clutter — background texture, mid-ground color forms, foreground lockup — so the eye still lands on the score first.`,
+      `Every layer must serve the score. If an effect makes a number or a logo harder to read, delete that layer.`,
+    ],
+    renderBody: `design the full 1080×1080 as a fully rendered, high-production hype graphic: layered texture, dramatic lighting, glow, depth planes, and rich gradients filling the canvas. The ONLY thing off-limits is fabricated photo-realistic imagery of people — no made-up players, faces, or action shots. Build it from team logos, typography, color, and graphic-design elements.`,
+    overlayNote: `Overlay budget — MAXIMAL: layer freely IN THE OVERLAY — glow, outlines, stacked type, accent shapes and streaks around the lockup. The layering happens on top of the photo, never instead of it: add no panel, slab, or color wash that hides the image.`,
+  },
 ]
 
-// Emphasis level shared by the rankings and records sliders.
+// Emphasis level shared by the rankings and records sliders. Five stops,
+// middle = the house default.
 export const GRAPHIC_EMPHASIS_OPTIONS = [
   { key: 'hide',      label: 'Hide' },
+  { key: 'subtle',    label: 'Subtle' },
   { key: 'standard',  label: 'Standard' },
   { key: 'prominent', label: 'Prominent' },
+  { key: 'hero',      label: 'Hero' },
 ]
+
+// Per-stop wording for the RANKINGS block. Only reached when a team in this
+// game is actually ranked.
+const RANK_DIRECTIVES = {
+  subtle: {
+    header: `RANKINGS — keep the ranking factual and quiet.`,
+    line: (name, rank) => `• ${name} is ranked AP #${rank}: set a small "#${rank}" immediately before ${name}'s name or logo, in the same type family as its surroundings. No badge shape, no accent color, no extra weight — it reads as a detail, not a feature.`,
+  },
+  standard: {
+    header: `RANKINGS — this is a Top 25 matchup detail; surface it the way broadcast and athletics-department graphics do.`,
+    line: (name, rank) => `• ${name} is ranked AP #${rank}: render a clear "#${rank}" rank badge/numeral next to ${name}'s logo or name in the score zone — styled to match the design, clearly legible, not a tiny afterthought.`,
+  },
+  prominent: {
+    header: `RANKINGS — make the AP Top 25 ranking a headline element, sized and placed the way ESPN/broadcast score bugs treat a ranked team.`,
+    line: (name, rank) => `• ${name} is ranked AP #${rank}: render a large, unmistakable "#${rank}" rank badge locked to ${name}'s logo/name in the score zone — a primary element, not a footnote.`,
+  },
+  hero: {
+    header: `RANKINGS — the ranking is part of the headline. Design the score lockup around it: one of the first three things the eye lands on, after the score itself.`,
+    line: (name, rank) => `• ${name} is ranked AP #${rank}: set the "#${rank}" at or near the scale of ${name}'s own mark, in an accent color, locked to the team's side of the score. It should be impossible to miss and still never larger than the score.`,
+  },
+}
+
+// Per-stop wording for records. Only reached when a record is actually known
+// for someone in this game — the old "prominent" bullet fired even on a game
+// with no records at all, telling the model to draw data it never received.
+const RECORD_DIRECTIVES = {
+  subtle: `• Records: set each team's W-L record as a small caption under its name — the smallest type on the canvas, never competing with the score.`,
+  standard: `• Records: place each team's W-L record near its name or logo at supporting-caption scale — clearly legible, plainly secondary to the score.`,
+  prominent: `• Records: show each team's W-L record as a clear supporting element near its name/logo — legible, not buried.`,
+  hero: `• Records: give each team's W-L record its own slot in the score lockup — chipped, boxed, or rule-separated, sized just under the team name so it reads as headline information rather than a caption.`,
+}
 
 export const DEFAULT_GRAPHIC_SETTINGS = {
   designStyle: 'balanced',
   rankEmphasis: 'standard',
   recordEmphasis: 'standard',
 }
+
+const styleOption = (key) =>
+  GRAPHIC_STYLE_OPTIONS.find(o => o.key === key)
+  || GRAPHIC_STYLE_OPTIONS.find(o => o.key === DEFAULT_GRAPHIC_SETTINGS.designStyle)
+
+const emphasisKey = (key, fallback) =>
+  GRAPHIC_EMPHASIS_OPTIONS.some(o => o.key === key) ? key : fallback
 
 /**
  * Build a prompt for an AI image model to generate a post-game score graphic.
@@ -57,9 +162,11 @@ export function buildScoreGraphicPrompt({
   recordEmphasis = 'standard',
 }) {
   // User-adjustable settings → prompt directives (see GRAPHIC_*_OPTIONS).
-  const styleDirective = (GRAPHIC_STYLE_OPTIONS.find(o => o.key === designStyle) || {}).directive || ''
-  const showRanks   = rankEmphasis !== 'hide'
-  const showRecords = recordEmphasis !== 'hide'
+  const style = styleOption(designStyle)
+  const rankKey = emphasisKey(rankEmphasis, DEFAULT_GRAPHIC_SETTINGS.rankEmphasis)
+  const recordKey = emphasisKey(recordEmphasis, DEFAULT_GRAPHIC_SETTINGS.recordEmphasis)
+  const showRanks   = rankKey !== 'hide'
+  const showRecords = recordKey !== 'hide'
   // The caller knows how many photos the user has attached in the game sheet.
   // When photos are present we hard-commit the prompt to the photo path so the
   // external AI uses the attached image on the FIRST generation instead of
@@ -154,8 +261,10 @@ export function buildScoreGraphicPrompt({
     return `[Internal context — do NOT print on graphic]: ${homeName} home, ${visitorName} away.`
   }
 
-  // Only the rules that address real observed AI problems.
-  const designRules = (mode = 'branded') => [
+  // Only the rules that address real observed AI problems, plus the chosen
+  // style's own bullets. `hasRecord` gates the records directive so a game
+  // with no records on file never asks the model to draw one.
+  const designRules = (mode = 'branded', hasRecord = false) => [
     `DESIGN RULES:`,
     `• Bold, contemporary, confident.`,
     `• If a photo IS attached: score and branding elements float over the full-bleed photo — they do not sit inside a separate panel or zone. Acceptable overlay treatments: a small semi-transparent pill/badge behind scores, drop shadows on type. Unacceptable: an opaque rectangular bar covering the bottom quarter or more of the frame, a full-width color slab, or any panel that clearly replaces the photo rather than overlaying it.`,
@@ -164,10 +273,8 @@ export function buildScoreGraphicPrompt({
     mode === 'branded'
       ? `• This is ${featuredName}'s post — their palette drives the design language. The opponent's colors are limited to their logo and their side of the score zone — not background fills, panels, or design shapes elsewhere on the canvas.`
       : `• Both teams represented equally — neither palette dominates.`,
-    styleDirective ? `• ${styleDirective}` : null,
-    (showRecords && recordEmphasis === 'prominent')
-      ? `• Records: show each team's W-L record as a clear supporting element near its name/logo — legible, not buried.`
-      : null,
+    ...style.designBullets.map(b => `• ${b}`),
+    (showRecords && hasRecord) ? RECORD_DIRECTIVES[recordKey] : null,
   ].filter(Boolean).join('\n')
 
   const textRules = (fictionalNamesList = []) => {
@@ -195,9 +302,18 @@ export function buildScoreGraphicPrompt({
   // branches ship. BUT when the caller reports attached photos
   // (screenshotCount > 0) we DO know — so we drop the ambiguity and hard-commit
   // to the photo path, which fixes the first-generation image being ignored.
-  const photoPathText = `THE PHOTO IS THE GRAPHIC. There ${screenshotCount === 1 ? 'is an attached image' : 'are attached images'} to THIS request — you MUST use ${screenshotCount === 1 ? 'it' : 'them (pick the strongest single frame)'} as the base of the graphic. Do NOT generate a logo/typography-only graphic and do NOT ignore the attachment. The attached photo fills the entire 1080×1080 canvas, bleeding corner to corner — no gaps, bars, or panels eating into it. Score numbers, logos, ranks, and records overlay the photo directly as floating elements. Do NOT place any solid/near-solid rectangular panel over the photo covering more than ~15% of the canvas (no heavy opaque score bar, no full-width color slab). Keep the photo's own natural colors; the team palette comes through the score, logos, and type, NOT a color wash, gradient, or tint laid over the image. The photo breathes across the whole canvas: a team photographer's best shot with a handful of graphic elements placed tastefully on top. You MAY make subtle enhancements (slight contrast, saturation, or brightness; minor crop or straighten) but keep the original composition intact. Work ONLY with the attached photo — do not invent or composite additional people or scenery.`
+  // The photo path's invariant never moves: the uploaded image IS the canvas
+  // and everything else floats on top of it. The style slider only sets how
+  // much floats there (overlayNote) — it can never turn the photo into a
+  // backdrop behind a panel, at any stop.
+  const photoPathText = `THE PHOTO IS THE GRAPHIC. There ${screenshotCount === 1 ? 'is an attached image' : 'are attached images'} to THIS request — you MUST use ${screenshotCount === 1 ? 'it' : 'them (pick the strongest single frame)'} as the base of the graphic. Do NOT generate a logo/typography-only graphic and do NOT ignore the attachment. The attached photo fills the entire 1080×1080 canvas, bleeding corner to corner — no gaps, bars, or panels eating into it. Score numbers, logos, ranks, and records overlay the photo directly as floating elements. Do NOT place any solid/near-solid rectangular panel over the photo covering more than ~15% of the canvas (no heavy opaque score bar, no full-width color slab). Keep the photo's own natural colors; the team palette comes through the score, logos, and type, NOT a color wash, gradient, or tint laid over the image. The photo breathes across the whole canvas: a team photographer's best shot with a handful of graphic elements placed tastefully on top. You MAY make subtle enhancements (slight contrast, saturation, or brightness; minor crop or straighten) but keep the original composition intact. Work ONLY with the attached photo — do not invent or composite additional people or scenery.
 
-  const noPhotoPathText = `design the full 1080×1080 as a polished, professionally rendered score graphic, the kind a major athletics program actually posts. This is a finished, high-fidelity image — NOT a flat clip-art or plain SVG. Rich typography, depth, lighting, subtle texture, and gradients are all welcome. The ONLY thing off-limits is fabricated photo-realistic imagery of people — no made-up players, faces, or action shots. Build it from team logos, typography, color, and graphic-design elements.`
+${style.overlayNote}`
+
+  // The rendering sentence now comes FROM the chosen style. It used to be one
+  // fixed line promising "gradients are all welcome", which flatly contradicted
+  // a Minimal or Clean selection further down the same prompt.
+  const noPhotoPathText = style.renderBody
 
   const photoDirective = hasAttachedPhoto
     ? [
@@ -219,14 +335,11 @@ export function buildScoreGraphicPrompt({
     team1Rank ? { name: team1Name, rank: team1Rank } : null,
     team2Rank ? { name: team2Name, rank: team2Rank } : null,
   ].filter(Boolean) : []
+  const rankSpec = RANK_DIRECTIVES[rankKey] || RANK_DIRECTIVES.standard
   const rankDirective = rankedForGraphic.length
     ? [
-        rankEmphasis === 'prominent'
-          ? `RANKINGS — make the AP Top 25 ranking a headline element, sized and placed the way ESPN/broadcast score bugs treat a ranked team.`
-          : `RANKINGS — this is a Top 25 matchup detail; surface it prominently, the way broadcast and athletics-department graphics do.`,
-        ...rankedForGraphic.map(t => rankEmphasis === 'prominent'
-          ? `• ${t.name} is ranked AP #${t.rank}: render a large, unmistakable "#${t.rank}" rank badge locked to ${t.name}'s logo/name in the score zone — a primary element, not a footnote.`
-          : `• ${t.name} is ranked AP #${t.rank}: render a clear "#${t.rank}" rank badge/numeral next to ${t.name}'s logo or name in the score zone — styled to match the design, clearly legible, not a tiny afterthought.`),
+        rankSpec.header,
+        ...rankedForGraphic.map(t => rankSpec.line(t.name, t.rank)),
         `Do NOT invent, guess, or add a rank for any team not listed above.`,
       ].join('\n')
     : null
@@ -299,7 +412,7 @@ export function buildScoreGraphicPrompt({
         ? `Layout: ${awayName} (${awayScore}) on the left or top; ${homeName} (${homeScore}) on the right or bottom.`
         : `Neutral site — layout is your call.`,
       ``,
-      designRules('neutral'),
+      designRules('neutral', !!(t1RecordEff || t2RecordEff)),
       ``,
       textRules(fictionalParticipantNames),
     ]
@@ -411,7 +524,7 @@ export function buildScoreGraphicPrompt({
       ? `Layout: ${awayName} (${awayScore}) on the left or top; ${homeName} (${homeScore}) on the right or bottom.`
       : `Neutral site — layout is your call.`,
     ``,
-    designRules('branded'),
+    designRules('branded', !!(featuredRecordEff || oppRecordEff)),
     ``,
     textRules(fictionalParticipantNames),
   ]
