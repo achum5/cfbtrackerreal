@@ -56,3 +56,43 @@ describe('synthOwnerCoachFromCoachTeamByYear', () => {
     expect(earned['boca-raton-bowl'][0].year).toBe(2026)
   })
 })
+
+import { materializeOwnerCoach } from '../coachModel'
+
+// The "I didn't spot the name-your-coach box and I'm in year 6" report: the
+// owner's coach can be rebuilt from coachTeamByYear with every season intact.
+describe('materializeOwnerCoach', () => {
+  const dynasty = {
+    userId: 'U1',
+    coachTeamByYear: {
+      2026: { tid: 54, team: 'MASS', position: 'HC' },
+      2027: { tid: 54, team: 'MASS', position: 'HC' },
+      2028: { tid: 54, team: 'MASS', position: 'HC' },
+    },
+  }
+
+  it('builds a real, controlled coach carrying every recorded season', () => {
+    const c = materializeOwnerCoach(dynasty)
+    expect(c).toBeTruthy()
+    expect(c.cid).toMatch(/^c_/)
+    expect(c.controlledBy).toBe('U1')
+    expect(c._synthesized).toBeUndefined()
+    expect(Object.keys(c.byYear)).toEqual(['2026', '2027', '2028'])
+    expect(c.byYear['2028']).toEqual({ teamTid: 54, role: 'HC' })
+  })
+
+  it('names it from the argument, then memberLabels, else leaves it blank to fill in', () => {
+    expect(materializeOwnerCoach(dynasty, { name: ' G S ' }).name).toBe('G S')
+    expect(materializeOwnerCoach({ ...dynasty, memberLabels: { U1: 'Coach G' } }).name).toBe('Coach G')
+    expect(materializeOwnerCoach(dynasty).name).toBe('')
+  })
+
+  it('returns null when there is nothing to rebuild from', () => {
+    expect(materializeOwnerCoach({ userId: 'U1' })).toBeNull()
+    expect(materializeOwnerCoach({ coachTeamByYear: dynasty.coachTeamByYear })).toBeNull()
+  })
+
+  it('mints a fresh cid every time', () => {
+    expect(materializeOwnerCoach(dynasty).cid).not.toBe(materializeOwnerCoach(dynasty).cid)
+  })
+})

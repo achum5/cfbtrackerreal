@@ -88,6 +88,7 @@ import {
   setCoachSeason,
   deleteCoach,
   generateCid,
+  materializeOwnerCoach,
   COACH_ROLES,
   COACH_ROLE_LABELS,
 } from '../../data/coachModel'
@@ -477,9 +478,21 @@ export default function LeagueSettings() {
     if (!canManage && uid !== user.uid) return
     setBusyUid(uid)
     try {
-      const c = newCoach(uid)
+      // The OWNER's first coach is rebuilt from coachTeamByYear — the team
+      // they coached each season — so a dynasty that never got an owner
+      // coach at creation recovers its whole career in one click, rather
+      // than a blank coach the user then has to back-fill season by season.
+      const isOwner = uid === currentDynasty.userId
+      const ownerHasCoach = getCoachesControlledBy(currentDynasty, uid).length > 0
+      const rebuilt = isOwner && !ownerHasCoach ? materializeOwnerCoach(currentDynasty) : null
+      const c = rebuilt || newCoach(uid)
       await writeCoaches({ ...getCoaches(currentDynasty), [c.cid]: c })
-      toast.success('Coach added. Assign it a team.')
+      if (rebuilt) {
+        const seasons = Object.keys(rebuilt.byYear || {}).length
+        toast.success(`Coach added with your ${seasons} season${seasons === 1 ? '' : 's'}. ${rebuilt.name ? '' : 'Type your name below.'}`.trim())
+      } else {
+        toast.success('Coach added. Assign it a team.')
+      }
     } catch (err) {
       console.error('[Members] add coach failed:', err)
       toast.error('Failed to add coach.')

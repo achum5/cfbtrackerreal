@@ -856,3 +856,23 @@ export function assignCoachToRole(coaches, { tid, year, role, name, reuseCid = n
   }
   return { coaches: next, cid, changed: true, vacated }
 }
+
+// ── owner coach repair ───────────────────────────────────────────────
+
+// A REAL coach entity for the owner, built from the same per-year record the
+// Career page synthesizes a stand-in from (coachTeamByYear), so a dynasty
+// whose owner never got a coach — the "I didn't spot the name-your-coach box
+// and I'm in year 6" report — picks up every season already played instead
+// of starting a blank career at the current year. The name comes from
+// `name`, else memberLabels, else stays empty for the user to fill in.
+// Null when the dynasty holds no per-year record to build from.
+export function materializeOwnerCoach(dynasty, { name = '' } = {}) {
+  const synth = synthOwnerCoachFromCoachTeamByYear(dynasty)
+  if (!synth) return null
+  const { _synthesized, ...rest } = synth
+  return {
+    ...rest,
+    cid: generateCid(),
+    name: (name || synth.name || '').trim(),
+  }
+}
