@@ -876,3 +876,80 @@ export function materializeOwnerCoach(dynasty, { name = '' } = {}) {
     name: (name || synth.name || '').trim(),
   }
 }
+
+// ── owner coach ↔ season record reconciliation ───────────────────────
+//
+// Two records say which team the OWNER coached in a season:
+//   • coachTeamByYear[year]        stamped from the live team the moment that
+//                                  season's regular season begins; the games,
+//                                  records and awards of the season attribute
+//                                  through it.
+//   • the owner's coach entity's   written at job-accept (hiredVia set) or
+//     byYear[year]                 copied forward at the year flip (no hiredVia).
+//
+// The displayed current team is DERIVED from the coach entity (memberTeams →
+// activeUserTid), while the year flip carries the coach forward from its own
+// most-recent season. So if the coach entity ever lacks or misstates a season
+// — a dynasty that predates coach entities, a job change that ran a fallback
+// path, a revert — the flip resurrects an OLDER team and the dashboard
+// "converts back" to it, even though every game of the missing season is
+// still on the right team. The FSU → Wyoming → "FSU again in year 4" report.
+//
+// This aligns the owner's coach with the season record, which is what the
+// season was actually played as. An explicit job acceptance (hiredVia) is
+// never overwritten; only missing seasons and carried-forward seasons are.
+// After that, a carried-forward season with no record of its own is re-copied
+// from the season before it, so a bad carry gets corrected too.
+export function reconcileOwnerCoachWithSeasonRecord(dynasty) {
+  const ownerUid = dynasty?.userId
+  const record = dynasty?.coachTeamByYear
+  const coaches = getCoaches(dynasty)
+  if (!ownerUid || !record || typeof record !== 'object') return { coaches, changed: false }
+
+  const recordTid = (y) => {
+    const e = record[y] ?? record[String(y)]
+    if (!e) return null
+    const tid = Number(e?.tid ?? e?.teamTid ?? (typeof e === 'number' ? e : NaN))
+    return Number.isFinite(tid) ? tid : null
+  }
+  const recordRole = (y) => (record[y] ?? record[String(y)])?.position || null
+
+  let changed = false
+  const next = { ...coaches }
+  for (const [cid, c] of Object.entries(next)) {
+    if (!c || c.controlledBy !== ownerUid) continue
+    let coach = c
+
+    // 1. Every recorded season lands on the coach — filled when missing,
+    //    corrected when it was a carried-forward guess that disagrees.
+    for (const yKey of Object.keys(record)) {
+      const y = Number(yKey)
+      const tid = recordTid(y)
+      if (!Number.isFinite(y) || tid == null) continue
+      const cur = coach.byYear?.[String(y)]
+      if (cur && Number(cur.teamTid) === tid) continue
+      if (cur && cur.hiredVia) continue // an explicit job acceptance wins
+      coach = setCoachSeason(coach, y, { teamTid: tid, role: cur?.role || recordRole(y) || 'HC' })
+      changed = true
+    }
+
+    // 2. The latest season, when it is a carry-forward (no record yet, no
+    //    hiredVia), is re-copied from the season before it — now correct.
+    const years = Object.keys(coach.byYear || {}).map(Number).filter(Number.isFinite).sort((a, b) => a - b)
+    if (years.length >= 2) {
+      const last = years[years.length - 1]
+      const lastRec = coach.byYear[String(last)]
+      if (recordTid(last) == null && lastRec && !lastRec.hiredVia) {
+        const prior = coach.byYear[String(years[years.length - 2])]
+        const priorTid = Number(prior?.teamTid)
+        if (Number.isFinite(priorTid) && Number(lastRec.teamTid) !== priorTid) {
+          coach = setCoachSeason(coach, last, { teamTid: priorTid })
+          changed = true
+        }
+      }
+    }
+
+    if (coach !== c) next[cid] = coach
+  }
+  return { coaches: changed ? next : coaches, changed }
+}

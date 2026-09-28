@@ -144,7 +144,7 @@ import { CFB27_NIL_BUDGETS } from '../data/cfb27NilBudgets'
 import { normalizeAwardName } from '../utils/playerHeal'
 import { getFirstRoundSlotId, getSlotIdFromBowlName, getCFPGameId, CFP_BRACKET_SLOTS, DEFAULT_BOWL_CONFIG, getBowlForSlot, CFP_BRACKET_FLOW, getBracketFlowConfig } from '../data/cfpConstants'
 import { migrateDynastyToEditors, needsEditorsMigration, getMemberTeams, snapshotAllMembersForYear, getCoachNameForUid, canManageMembers, getMemberPhoto, setMemberPhotoValue } from '../data/leagueModel'
-import { migrateDynastyToCoaches, makeCoach, deriveMemberTeamsIndex, getCoaches, getCoachesControlledBy, getCurrentTeamsForControlledCoaches, getActiveCoachForTeam, setCoachSeason, carryForwardControlledCoaches, applyStaffMovesToCoaches, syncCoordinatorCoachesForTeamYear, assignCoachToRole, deriveCoachingStaffNames } from '../data/coachModel'
+import { migrateDynastyToCoaches, makeCoach, deriveMemberTeamsIndex, getCoaches, getCoachesControlledBy, getCurrentTeamsForControlledCoaches, getActiveCoachForTeam, setCoachSeason, carryForwardControlledCoaches, applyStaffMovesToCoaches, syncCoordinatorCoachesForTeamYear, assignCoachToRole, deriveCoachingStaffNames, reconcileOwnerCoachWithSeasonRecord } from '../data/coachModel'
 import { migrateTeamNameParts } from '../data/teams'
 import { isSameWeek, isSameYear } from '../utils/compareUtils'
 import { shapeTargetForDatabase } from '../utils/recruitAttributes'
@@ -9036,10 +9036,18 @@ export function DynastyProvider({ children }) {
       let coachTeamByYearUpdated = false
       const updatedCoachTeamByYear = { ...migrated.coachTeamByYear }
 
+      // FILL ONLY. An entry already on record was stamped from the live
+      // team when that season began (or by an explicit job change) and is
+      // the truth the season's games attribute through. The inference above
+      // is a guess for pre-migration saves with no record; it used to
+      // OVERWRITE a real entry whenever a game that year happened to involve
+      // the previous season's team, silently moving a whole season (and,
+      // through the flip, the current team) to a school the user had left.
       for (const [yearStr, tid] of Object.entries(inferredTeamsByYear)) {
         const year = Number(yearStr)
         const existingEntry = updatedCoachTeamByYear[year]
-        if (!existingEntry || existingEntry.tid !== tid) {
+        const existingTid = Number(existingEntry?.tid)
+        if (!existingEntry || !Number.isFinite(existingTid)) {
           const team = migrated.teams?.[tid] || TEAMS[tid]
           updatedCoachTeamByYear[year] = {
             tid: tid,
@@ -9056,7 +9064,10 @@ export function DynastyProvider({ children }) {
       const isPlayingPhase = ['preseason', 'regular_season', 'conference_championship', 'postseason'].includes(migrated.currentPhase)
       const currentTid = getCurrentTeamTid(migrated)
       const currentYearEntry = updatedCoachTeamByYear[migrated.currentYear]
-      if (isPlayingPhase && currentTid && (!currentYearEntry || currentYearEntry.tid !== currentTid)) {
+      // Same rule: only stamp a MISSING current-year record. The raw
+      // `userId: 'currentUser'` sentinel this reads can be stale in a shared
+      // dynasty, and an existing record must not be rewritten from it.
+      if (isPlayingPhase && currentTid && !currentYearEntry) {
         const currentTeamAbbr = getCurrentTeamAbbr(migrated)
         updatedCoachTeamByYear[migrated.currentYear] = {
           tid: currentTid,
@@ -9099,6 +9110,25 @@ export function DynastyProvider({ children }) {
       // the on-open auto-persist block, so merely viewing a years-deep save
       // never writes to it. Legacy maps are preserved untouched for fallback.
       migrated = migrateDynastyToCoaches(migrated)
+
+      // Self-heal for a save the flip already got wrong: align the owner's
+      // coach with the season record and re-derive the member index the
+      // active-team override reads, so the dashboard shows the team the
+      // seasons were actually played as. Idempotent; the next coaches write
+      // persists it.
+      {
+        const { coaches: healedCoaches, changed } = reconcileOwnerCoachWithSeasonRecord(migrated)
+        if (changed) {
+          migrated = {
+            ...migrated,
+            coaches: healedCoaches,
+            memberTeams: {
+              ...(migrated.memberTeams || {}),
+              ...deriveMemberTeamsIndex({ ...migrated, coaches: healedCoaches }),
+            },
+          }
+        }
+      }
 
       // Drop 0-0 shell duplicates: if two games match on
       // year + week + gameType + team-pair (either order) and one is a
@@ -16925,7 +16955,13 @@ export function DynastyProvider({ children }) {
     // the existing index so a member without a coach entity (migration edge)
     // never loses their game-write access.
     if (Number.isFinite(currentSeasonYear) && dynasty.coaches && Object.keys(dynasty.coaches).length) {
-      const carried = carryForwardControlledCoaches(dynasty.coaches, currentSeasonYear)
+      // The owner's coach is aligned with coachTeamByYear — the team each
+      // season was actually played as — BEFORE the carry-forward copies its
+      // most recent season into the new year. Without this, a coach entity
+      // missing the just-ended season carried an older team into the new one
+      // and the dashboard "converted back" to it (the FSU/Wyoming report).
+      const { coaches: reconciled } = reconcileOwnerCoachWithSeasonRecord(dynasty)
+      const carried = carryForwardControlledCoaches(reconciled, currentSeasonYear)
       updates.coaches = carried
       updates.memberTeams = {
         ...(dynasty.memberTeams || {}),
