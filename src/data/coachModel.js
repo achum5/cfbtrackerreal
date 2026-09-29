@@ -895,11 +895,16 @@ export function materializeOwnerCoach(dynasty, { name = '' } = {}) {
 // "converts back" to it, even though every game of the missing season is
 // still on the right team. The FSU → Wyoming → "FSU again in year 4" report.
 //
-// This aligns the owner's coach with the season record, which is what the
-// season was actually played as. An explicit job acceptance (hiredVia) is
-// never overwritten; only missing seasons and carried-forward seasons are.
-// After that, a carried-forward season with no record of its own is re-copied
-// from the season before it, so a bad carry gets corrected too.
+// This FILLS the owner's coach from the season record — it never overwrites a
+// season the coach already has. The record is not trustworthy enough to win a
+// disagreement: the load-time inference that used to rewrite coachTeamByYear
+// from games left wrong years behind in real saves, and a first version of
+// this heal that let the record override the coach flipped a user's current
+// team to a school he had beaten three seasons earlier, on every load. So:
+// an existing coach season stands, whatever the record says. Only when the
+// season immediately before a carried-forward latest season was itself just
+// filled in is that latest season re-copied from it — that is the bad-carry
+// case (the FSU/Wyoming report), and the only one this is allowed to touch.
 export function reconcileOwnerCoachWithSeasonRecord(dynasty) {
   const ownerUid = dynasty?.userId
   const record = dynasty?.coachTeamByYear
@@ -919,29 +924,31 @@ export function reconcileOwnerCoachWithSeasonRecord(dynasty) {
   for (const [cid, c] of Object.entries(next)) {
     if (!c || c.controlledBy !== ownerUid) continue
     let coach = c
+    const filled = new Set()
 
-    // 1. Every recorded season lands on the coach — filled when missing,
-    //    corrected when it was a carried-forward guess that disagrees.
+    // 1. FILL ONLY: a recorded season the coach has no entry for is added.
+    //    A season the coach already has is left exactly as it is.
     for (const yKey of Object.keys(record)) {
       const y = Number(yKey)
       const tid = recordTid(y)
       if (!Number.isFinite(y) || tid == null) continue
-      const cur = coach.byYear?.[String(y)]
-      if (cur && Number(cur.teamTid) === tid) continue
-      if (cur && cur.hiredVia) continue // an explicit job acceptance wins
-      coach = setCoachSeason(coach, y, { teamTid: tid, role: cur?.role || recordRole(y) || 'HC' })
+      if (coach.byYear?.[String(y)]) continue
+      coach = setCoachSeason(coach, y, { teamTid: tid, role: recordRole(y) || 'HC' })
+      filled.add(y)
       changed = true
     }
 
     // 2. The latest season, when it is a carry-forward (no record yet, no
-    //    hiredVia), is re-copied from the season before it — now correct.
+    //    hiredVia) AND the season right before it was just filled in above,
+    //    was copied from the wrong season at the flip — re-copy it from the
+    //    one that was missing. Nothing else about the latest season moves.
     const years = Object.keys(coach.byYear || {}).map(Number).filter(Number.isFinite).sort((a, b) => a - b)
     if (years.length >= 2) {
       const last = years[years.length - 1]
+      const before = years[years.length - 2]
       const lastRec = coach.byYear[String(last)]
-      if (recordTid(last) == null && lastRec && !lastRec.hiredVia) {
-        const prior = coach.byYear[String(years[years.length - 2])]
-        const priorTid = Number(prior?.teamTid)
+      if (filled.has(before) && recordTid(last) == null && lastRec && !lastRec.hiredVia) {
+        const priorTid = Number(coach.byYear[String(before)]?.teamTid)
         if (Number.isFinite(priorTid) && Number(lastRec.teamTid) !== priorTid) {
           coach = setCoachSeason(coach, last, { teamTid: priorTid })
           changed = true

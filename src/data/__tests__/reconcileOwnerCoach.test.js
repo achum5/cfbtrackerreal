@@ -49,10 +49,39 @@ describe('reconcileOwnerCoachWithSeasonRecord', () => {
     expect(deriveMemberTeamsIndex({ ...d, coaches })).toEqual({ U1: [WYO] })
   })
 
-  it('corrects a carried-forward season that disagrees with the record', () => {
+  it('never overwrites a season the coach already has, even when the record disagrees', () => {
+    // The record is not trustworthy enough to win: an older load-time
+    // heuristic rewrote coachTeamByYear from games and left wrong years in
+    // real saves. The coach's own season stands.
     const d = dyn({ 2025: { teamTid: FSU, role: 'HC' }, 2026: { teamTid: FSU, role: 'HC' }, 2027: { teamTid: FSU, role: 'HC' } })
-    const { coaches } = reconcileOwnerCoachWithSeasonRecord(d)
-    expect(coaches.c_own.byYear['2027'].teamTid).toBe(WYO)
+    const { coaches, changed } = reconcileOwnerCoachWithSeasonRecord(d)
+    expect(changed).toBe(false)
+    expect(coaches.c_own.byYear['2027'].teamTid).toBe(FSU)
+  })
+
+  it('Marty: a wrong record year must not flip the current team on every load', () => {
+    // Three seasons at team X, complete on the coach. The record for 2027
+    // wrongly says Jacksonville State (X beat them that year and the old
+    // heuristic inferred it). 2028 is the carried-forward current season.
+    const X = 77, JSU = 60
+    const d = {
+      userId: 'U1', currentYear: 2028,
+      coachTeamByYear: { 2025: { tid: X }, 2026: { tid: X }, 2027: { tid: JSU } },
+      coaches: { c_own: ownerCoach({ 2025: { teamTid: X, role: 'HC' }, 2026: { teamTid: X, role: 'HC' }, 2027: { teamTid: X, role: 'HC' }, 2028: { teamTid: X, role: 'HC' } }) },
+    }
+    const { coaches, changed } = reconcileOwnerCoachWithSeasonRecord(d)
+    expect(changed).toBe(false)
+    expect(coaches.c_own.byYear['2027'].teamTid).toBe(X)
+    expect(coaches.c_own.byYear['2028'].teamTid).toBe(X)
+    expect(deriveMemberTeamsIndex({ ...d, coaches })).toEqual({ U1: [X] })
+  })
+
+  it('does not re-copy the latest season unless the season before it was missing', () => {
+    // 2027 present on the coach and 2028 carried: even if 2028 disagrees
+    // with 2027, that is the user's business (a manual change), not ours.
+    const d = dyn({ 2025: { teamTid: FSU, role: 'HC' }, 2026: { teamTid: FSU, role: 'HC' }, 2027: { teamTid: WYO, role: 'HC' }, 2028: { teamTid: FSU, role: 'HC' } })
+    const { changed } = reconcileOwnerCoachWithSeasonRecord(d)
+    expect(changed).toBe(false)
   })
 
   it('never overwrites an explicit job acceptance', () => {
@@ -62,7 +91,7 @@ describe('reconcileOwnerCoachWithSeasonRecord', () => {
     const { coaches, changed } = reconcileOwnerCoachWithSeasonRecord(d)
     expect(changed).toBe(false)
     expect(coaches.c_own.byYear['2028'].teamTid).toBe(1)
-    // …and a recorded season whose coach entry is an explicit hire stays.
+    // …and any recorded season the coach already carries stays, hire or not.
     const d2 = dyn({ 2027: { teamTid: FSU, role: 'HC', hiredVia: 'carousel' } })
     expect(reconcileOwnerCoachWithSeasonRecord(d2).coaches.c_own.byYear['2027'].teamTid).toBe(FSU)
   })
