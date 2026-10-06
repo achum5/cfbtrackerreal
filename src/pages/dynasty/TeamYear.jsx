@@ -9,6 +9,7 @@ import { getEditionConfig, isDynastyBlueprintEnabled, isPcAutoDynasty } from '..
 import DynastyBlueprintPanel from '../../components/DynastyBlueprintPanel'
 import { ProgramGradesBody } from '../../components/ProgramGradesBody'
 import CoachingStaffPopover from '../../components/CoachingStaffPopover'
+import AddConferenceChampionshipModal from '../../components/AddConferenceChampionshipModal'
 import { playersArrivingForTeamYear } from '../../utils/classArrivals'
 import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES, getCustomConferencesForYear, getGamesByType, isPlayerOnRoster, getUserGamePerspective, getTeamConferenceForDynasty, getTeamConferenceLabel, calculateTeamRecordFromGames, getTeamRecord, getTeamRanking, getRecruitingCommitments, getPlayerPositionForYear, getPlayerOverallForYear, lookupByTeamYear, getPlayersLeaving, getTeamRatingsForYear } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
@@ -873,6 +874,51 @@ export default function TeamYear() {
   const conference = getTeamConferenceForDynasty(currentDynasty, teamAbbr, selectedYear)
   // Display label appends the division when the conference is split, e.g. "SEC (East)".
   const conferenceLabel = getTeamConferenceLabel(currentDynasty, teamAbbr, selectedYear) || conference
+
+  // A conference championship that was never entered (most often a past
+  // season — the dashboard only offers it during that season's championship
+  // week). Offered when the season is past the title game, the team is in a
+  // real conference, and no title game exists for it that year.
+  const [showAddCcg, setShowAddCcg] = useState(false)
+  const ccgEligible = (() => {
+    if (!conference || /^ind/i.test(String(conference))) return false
+    const y = Number(selectedYear)
+    const cy = Number(currentDynasty?.currentYear)
+    const phase = currentDynasty?.currentPhase
+    return y < cy || (y === cy && (phase === 'postseason' || phase === 'offseason'))
+  })()
+  const existingCcg = ccgEligible
+    ? (currentDynasty?.games || []).find(g =>
+        g && Number(g.year) === Number(selectedYear) &&
+        (g.isConferenceChampionship || g.gameType === 'conference_championship') &&
+        (Number(g.team1Tid) === Number(tid) || Number(g.team2Tid) === Number(tid)))
+    : null
+  // The editor creates a 0-0 shell the moment it opens, so backing out of it
+  // leaves one behind. Treat that shell as still unfinished and resume it
+  // rather than hiding the button or offering a duplicate.
+  const ccgShell = existingCcg && !Number(existingCcg.team1Score) && !Number(existingCcg.team2Score)
+    ? existingCcg
+    : null
+  const ccgMissing = ccgEligible && (!existingCcg || !!ccgShell)
+  // The conference's member tids that season, so the picker can lead with them.
+  const ccgConferenceTids = (() => {
+    if (!ccgMissing) return []
+    const confMap = getCustomConferencesForYear(currentDynasty, selectedYear) || DEFAULT_CONFERENCE_TEAMS
+    const abbrs = Array.isArray(confMap?.[conference]) ? confMap[conference] : []
+    return abbrs.map(a => resolveTid(a, currentDynasty?.teams || TEAMS)).filter(t => t != null).map(Number)
+  })()
+  const openCcgEditor = (oppTid) => {
+    setShowAddCcg(false)
+    const params = new URLSearchParams({
+      week: 'CCG',
+      year: String(selectedYear),
+      team1Tid: String(tid),
+      team2Tid: String(oppTid),
+      gameType: 'conference_championship',
+      conference: conference || '',
+    })
+    navigate(`${pathPrefix}/game/new?${params.toString()}`, { state: { from: `${pathPrefix}/team/${tid}/${selectedYear}` } })
+  }
   const conferenceLogo = conference ? getConferenceLogo(conference) : null
   const mascotName = team?.name || ''
   // Single source of truth for this team's logo: dynasty.teams[tid].logo, with
@@ -4260,11 +4306,33 @@ export default function TeamYear() {
               </div>
             )
           })()}
+          {!isViewOnly && ccgMissing && (
+            <button
+              type="button"
+              onClick={() => (ccgShell
+                ? navigate(`${pathPrefix}/game/${ccgShell.id}/edit`, { state: { from: `${pathPrefix}/team/${tid}/${selectedYear}` } })
+                : setShowAddCcg(true))}
+              className="mt-3 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-dashed border-surface-4 text-xs font-semibold text-txt-tertiary hover:text-txt-primary hover:border-surface-5 hover:bg-surface-2 active:scale-[0.99] transition-all"
+            >
+              {ccgShell ? 'Finish' : '+ Add'} {conferenceLabel || conference} Championship
+            </button>
+          )}
           </aside>
           </div>
         </div>
         )
       })()}
+
+      <AddConferenceChampionshipModal
+        isOpen={showAddCcg}
+        onClose={() => setShowAddCcg(false)}
+        teams={currentDynasty?.teams || TEAMS}
+        tid={tid}
+        year={selectedYear}
+        conference={conferenceLabel || conference}
+        conferenceTids={ccgConferenceTids}
+        onPick={openCcgEditor}
+      />
 
       {/* ROSTER TAB */}
       {activeTab === 'roster' && (
