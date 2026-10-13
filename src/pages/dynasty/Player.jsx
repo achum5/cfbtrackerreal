@@ -34,7 +34,7 @@ import { canonicalBoxScore } from '../../utils/boxScoreHelpers'
 import { sortPlaysChronologically, resolveScoringTeamTids, buildScorerTidResolver } from '../../utils/scoringPlayOrder'
 import { healPlayer, PLAYER_HEAL_VERSION, normalizeAwardName } from '../../utils/playerHeal'
 import { computeLiveHonorsByPid, mergeHonorLists, computeLiveAwardsByPid, mergeAccoladeLists } from '../../utils/honorMatch'
-import { latestRecommit } from '../../utils/portalRecommit'
+import { latestRecommit, recommitRecruitProfile } from '../../utils/portalRecommit'
 import { buildTimelineEvents, eventsForYear, labelForEventKind } from '../../utils/playerTimeline'
 import { computeSeasonAV } from '../../utils/approximateValue'
 import ScoutScorePanel from '../../components/ScoutScorePanel'
@@ -1747,7 +1747,9 @@ function PlayerInner() {
     const rc = latestRecommit(player)
     if (!rc) return null
     const rcText = teamBgText
-    const profile = rc.profile || {}
+    // Same read the class card uses — stored rankings, then the signing-day
+    // pickup record's while it hasn't been folded in yet.
+    const profile = recommitRecruitProfile(player, dynasty?.players || [], rc.tid, rc.classYear)
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <StripLabel color={rcText}>Portal Recommit</StripLabel>

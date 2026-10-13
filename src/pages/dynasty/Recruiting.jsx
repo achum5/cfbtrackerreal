@@ -21,7 +21,7 @@ import { partitionRecruitingRows, reconcileRecruitingRows, isOpenTarget, isMyTar
 import { nextFreePid } from '../../api/pids'
 import { applyCommitRows } from '../../utils/applyCommitRows'
 import { playersArrivingForTeamYear, classOriginTid } from '../../utils/classArrivals'
-import { findRecommitDuplicate, findRecommitOriginal, isExplicitRecommit } from '../../utils/portalRecommit'
+import { findRecommitDuplicate, findRecommitOriginal, isExplicitRecommit, recommitRecruitProfile } from '../../utils/portalRecommit'
 import { carryRecruitingNilForward } from '../../data/playerNilModel'
 import ScoutBoard from './ScoutBoard'
 // Scout Staff is an opt-in (League Preferences) replacement for the MaxPlaysCFB
@@ -991,12 +991,11 @@ export default function Recruiting() {
         // A recommit entered on the signing-day list as a transfer left a
         // second "portal pickup" record for the same person. Show him once,
         // as the real player, with the pickup's recruiting ranks.
-        const shellFor = new Map()
         const shellPids = new Set()
         for (const { player: p, arrival } of arrivals) {
           if (arrival.kind !== 'recommit') continue
           const shell = findRecommitDuplicate(players, p, selectedTid, y)
-          if (shell) { shellFor.set(p.pid, shell); shellPids.add(String(shell.pid)) }
+          if (shell) shellPids.add(String(shell.pid))
         }
         for (const { player: p, arrival } of arrivals) {
           if (p.pid != null && shellPids.has(String(p.pid))) continue
@@ -1008,9 +1007,7 @@ export default function Recruiting() {
           const isRecommit = arrival.kind === 'recommit'
           // A recommit's card shows the profile he was re-recruited under,
           // never his original high-school ranking.
-          const profile = isRecommit
-            ? { ...(shellFor.get(p.pid) || {}), ...(p.portalRecruitByYear?.[y] || p.portalRecruitByYear?.[String(y)] || {}) }
-            : p
+          const profile = isRecommit ? recommitRecruitProfile(p, players, selectedTid, y) : p
           commitments.push(ensurePortalStatus({
             name: p.name, firstName: p.firstName, lastName: p.lastName,
             position: p.position, devTrait: p.devTrait, archetype: p.archetype,
@@ -1044,11 +1041,11 @@ export default function Recruiting() {
         const original = findRecommitOriginal(players, p, selectedTid, y)
         const target = original || (isExplicitRecommit(p, selectedTid, y) ? p : null)
         if (!target) continue
-        const profile = target.portalRecruitByYear?.[y] || target.portalRecruitByYear?.[String(y)] || {}
-        // The stored recommit profile first; a row resolved straight to the
-        // player carries his ORIGINAL recruiting ranks, which aren't this one.
-        const has = (v) => v != null && v !== '' && v !== 0
-        const pick = (field) => has(profile[field]) ? profile[field] : (original ? c[field] : null)
+        // His recommit profile, never the row's overlaid fields: a row
+        // resolved straight to the player carries his ORIGINAL recruiting
+        // ranks, which aren't this cycle's.
+        const profile = recommitRecruitProfile(target, players, selectedTid, y)
+        const pick = (field) => profile[field] ?? null
         commitments[i] = {
           ...c,
           pid: target.pid,

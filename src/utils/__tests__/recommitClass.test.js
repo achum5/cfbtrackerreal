@@ -3,6 +3,7 @@ import { classArrivalForTeamYear, playersArrivingForTeamYear } from '../classArr
 import {
   isPortalArrivalShell, findRecommitDuplicate, findRecommitOriginal,
   absorbRecommitDuplicate, absorbRecommitDuplicates, latestRecommit, markRecommit,
+  recommitRecruitProfile,
 } from '../portalRecommit'
 import { applyCommitRows } from '../applyCommitRows'
 import { mergeDuplicatePlayers } from '../playerMerge'
@@ -166,5 +167,37 @@ describe('signing-day entry of a recommit', () => {
     const transfer = { name: 'New Guy', class: 'So', isPortal: true, previousTeam: '' }
     const out = applyCommitRows({ rows: [transfer], players: [nichols()], selectedTid: UK, teamAbbr: 'UK', selectedYear: 2026, teams: {}, startPID: 500 })
     expect(out.players.map(p => p.pid)).toEqual([9, 500])
+  })
+})
+
+describe('one read for a recommit\'s rankings', () => {
+  it('player page, class card and editor all see the pickup record\'s ranks before the fold-in', () => {
+    const players = [nicholsShell(), nichols()]
+    expect(recommitRecruitProfile(nichols(), players, UK, 2026)).toEqual({ stars: 3, nationalRank: 390, positionRank: 34, stateRank: 17 })
+  })
+
+  it('stored values win over the pickup record, field by field', () => {
+    const edited = { ...nichols(), portalRecruitByYear: { 2026: { nationalRank: 400 } } }
+    expect(recommitRecruitProfile(edited, [nicholsShell(), edited], UK, 2026)).toEqual({ stars: 3, nationalRank: 400, positionRank: 34, stateRank: 17 })
+  })
+
+  it('reads a recommit the Dashboard recorded before it used portalRecruitByYear', () => {
+    const legacy = { ...nichols(), isPortal: true, isRecruit: true, recruitYear: 2026, stars: 4, nationalRank: 210 }
+    expect(recommitRecruitProfile(legacy, [legacy], UK, 2026)).toEqual({ stars: 4, nationalRank: 210 })
+    // ...but never borrows an ORIGINAL high-school ranking for it.
+    const hsRanked = { ...nichols(), isPortal: false, recruitYear: 2024, stars: 5, nationalRank: 12 }
+    expect(recommitRecruitProfile(hsRanked, [hsRanked], UK, 2026)).toEqual({})
+  })
+
+  it('folding the pickup in never overwrites rankings edited in the editor', () => {
+    const edited = { ...nichols(), portalRecruitByYear: { 2026: { nationalRank: 400 } } }
+    const merged = absorbRecommitDuplicate(edited, nicholsShell(), { tid: UK, classYear: 2026 })
+    expect(merged.portalRecruitByYear[2026]).toEqual({ nationalRank: 400, stars: 3, positionRank: 34, stateRank: 17 })
+  })
+
+  it('a fresh commit row does replace the stored ranks', () => {
+    const edited = { ...nichols(), portalRecruitByYear: { 2026: { nationalRank: 400 } } }
+    const next = markRecommit(edited, { tid: UK, classYear: 2026, recruit: { nationalRank: 380 } })
+    expect(next.portalRecruitByYear[2026].nationalRank).toBe(380)
   })
 })

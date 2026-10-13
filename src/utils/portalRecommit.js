@@ -161,14 +161,18 @@ const RECRUIT_FIELDS = ['stars', 'nationalRank', 'positionRank', 'stateRank', 'g
 const FILL_IF_MISSING = ['height', 'weight', 'hometown', 'state', 'archetype', 'pictureUrl', 'jerseyNumber', 'devTrait', 'position']
 const blank = (v) => v == null || v === ''
 
+const isRankValue = (f, v) => !blank(v) && !(f !== 'gemBust' && Number(v) === 0)
+
 /**
  * Record `original` as recommitting to `tid` in the classYear cycle, with the
  * recruiting profile he was listed under (`recruit`: stars / ranks / gemBust,
  * e.g. the commit row or the shell record). Pure; the recruit profile lives in
  * portalRecruitByYear[classYear] so it never overwrites his original
- * high-school recruiting data.
+ * high-school recruiting data. recruitWins: the incoming values replace the
+ * stored ones (a fresh commit row); otherwise they only fill gaps, so a
+ * profile already edited in the player editor is never overwritten.
  */
-export function markRecommit(original, { tid, classYear, recruit = null }) {
+export function markRecommit(original, { tid, classYear, recruit = null, recruitWins = true }) {
   const y = Number(classYear)
   const prev = read(original.movementByYear, y)
   const reason = prev?.reason
@@ -186,7 +190,8 @@ export function markRecommit(original, { tid, classYear, recruit = null }) {
     const profile = { ...(read(original.portalRecruitByYear, y) || {}) }
     for (const f of RECRUIT_FIELDS) {
       const v = recruit[f]
-      if (!blank(v) && !(f !== 'gemBust' && Number(v) === 0)) profile[f] = v
+      if (!isRankValue(f, v)) continue
+      if (recruitWins || !isRankValue(f, profile[f])) profile[f] = v
     }
     if (Object.keys(profile).length) {
       next.portalRecruitByYear = { ...(original.portalRecruitByYear || {}), [y]: profile }
@@ -203,7 +208,7 @@ export function markRecommit(original, { tid, classYear, recruit = null }) {
  * The original's own values always win. Pure.
  */
 export function absorbRecommitDuplicate(original, dup, { tid, classYear }) {
-  let merged = markRecommit(original, { tid, classYear, recruit: dup })
+  let merged = markRecommit(original, { tid, classYear, recruit: dup, recruitWins: false })
   for (const [field, map] of Object.entries(dup || {})) {
     if (!field.endsWith('ByYear') || !isPlainObject(map)) continue
     if (field === 'teamsByYear' || field === 'movementByYear' || field === 'statsByYear') continue
@@ -282,4 +287,28 @@ export function latestRecommit(player) {
   }
   cycles.sort((a, b) => b.classYear - a.classYear)
   return cycles[0] || null
+}
+
+/**
+ * The recruiting profile (stars / ranks / gemBust) a player was re-recruited
+ * under for his classYear recommit to `tid`. The ONE read the class card, the
+ * player page and the editor share, so the three can't disagree. Each field
+ * comes from the first source that has it:
+ *   1. his record's portalRecruitByYear[classYear] (where every save path
+ *      now writes it);
+ *   2. a signing-day pickup record not yet folded into him;
+ *   3. his top-level recruiting fields, when they were stamped as this
+ *      cycle's portal signing (recruitYear === classYear, isPortal) — how the
+ *      Dashboard's signing-day save recorded a recommit before it used (1).
+ */
+export function recommitRecruitProfile(player, players, tid, classYear) {
+  const stored = read(player?.portalRecruitByYear, classYear) || {}
+  const shell = findRecommitDuplicate(players, player, tid, classYear)
+  const legacy = (player?.isPortal === true && Number(player?.recruitYear) === Number(classYear)) ? player : null
+  const out = {}
+  for (const f of RECRUIT_FIELDS) {
+    const v = [stored[f], shell?.[f], legacy?.[f]].find(x => isRankValue(f, x))
+    if (v !== undefined) out[f] = v
+  }
+  return out
 }

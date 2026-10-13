@@ -38,8 +38,11 @@ const ImageUpload = forwardRef(function ImageUpload({
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef(null)
 
+  // Text ON the light primary button (dark), and text on the transparent
+  // dropzone (light). The dropzone text used the surface color, which made the
+  // "Click to select / drag & drop" hint invisible on the dark theme.
   const primaryBgText = 'var(--surface-1)'
-  const secondaryBgText = 'var(--surface-1)'
+  const secondaryBgText = 'var(--text-secondary)'
 
   // Upload image to Firebase Storage (replaces the imgbb path).
   const uploadToCloud = async (file) => {
@@ -369,8 +372,8 @@ const ImageUpload = forwardRef(function ImageUpload({
           className="flex-1 px-3 py-2 rounded border focus:outline-none focus:ring-2 disabled:opacity-50"
           style={{
             borderColor: 'var(--text-primary)',
-            backgroundColor: '#fff',
-            color: '#000'
+            backgroundColor: 'var(--surface-2)',
+            color: 'var(--text-primary)'
           }}
         />
         <input
@@ -539,8 +542,8 @@ const ImageUpload = forwardRef(function ImageUpload({
           className="flex-1 px-3 py-2 rounded border focus:outline-none focus:ring-2 text-sm"
           style={{
             borderColor: 'var(--surface-5)',
-            backgroundColor: '#fff',
-            color: '#000'
+            backgroundColor: 'var(--surface-2)',
+            color: 'var(--text-primary)'
           }}
         />
         {value && !disabled && (

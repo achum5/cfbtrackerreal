@@ -260,7 +260,7 @@ export function legacyMovementToCanonical(m) {
       return { type: 'arrival', arrival: 'juco' }
     case 'recommit':
     case 'recommitted':
-      return { type: 'recommit' }
+      return { type: 'recommit', ...(m.reason ? { reason: m.reason } : {}) }
     case 'departure': {
       const reason = m.reason || ''
       if (reason === 'Graduating') return { type: 'departure', departure: 'graduated' }

@@ -85,7 +85,9 @@ export function buildTransferDestinationsSave(dynasty, destinations) {
 
     if (isRecommit) {
       const updatedMovementByYear = { ...(player.movementByYear || {}) }
-      updatedMovementByYear[Number(year)] = { type: 'recommit' }
+      // Keep the portal reason he left with — it's part of the recommit.
+      const priorReason = (player.movementByYear?.[Number(year)] ?? player.movementByYear?.[String(year)])?.reason
+      updatedMovementByYear[Number(year)] = { type: 'recommit', ...(priorReason ? { reason: priorReason } : {}) }
       updatedPlayers[playerIndex] = {
         ...player,
         movementByYear: updatedMovementByYear,

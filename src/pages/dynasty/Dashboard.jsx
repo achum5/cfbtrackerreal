@@ -64,6 +64,7 @@ import DraftResultsModal from '../../components/DraftResultsModal'
 import TransferDestinationsModal from '../../components/TransferDestinationsModal'
 import RecruitingCommitmentsModal from '../../components/RecruitingCommitmentsModal'
 import { applyPreviousSchool } from '../../utils/previousSchool'
+import { markRecommit } from '../../utils/portalRecommit'
 import RecruitingInsightLink from '../../components/ui/RecruitingInsightLink'
 import { useToast } from '../../components/ui/Toast'
 import SellVsSendCalculator, { SellVsSendButton } from '../../components/SellVsSendCalculator'
@@ -2306,14 +2307,14 @@ export default function Dashboard() {
           // specific fields. v2 canonical writes only — the sync layer
           // strips legacy movements[] / leftTeam / leavingYear / etc.
           void newMovement // computed above for readability; not persisted
-          const updatedPlayer = {
+          let updatedPlayer = {
             ...p, // Preserve everything: pid, name, statsByYear, classByYear, overall, etc.
-            movementByYear: {
-              ...(p.movementByYear || {}),
-              [Number(year)]: isFromDifferentTeam
-                ? { type: 'departure', departure: 'transfer_out', toTid: teamTid }
-                : { type: 'recommit' }
-            },
+            ...(isFromDifferentTeam && {
+              movementByYear: {
+                ...(p.movementByYear || {}),
+                [Number(year)]: { type: 'departure', departure: 'transfer_out', toTid: teamTid }
+              },
+            }),
             team: teamTid, // derived mirror
             teamsByYear: {
               ...p.teamsByYear,
@@ -2321,21 +2322,37 @@ export default function Dashboard() {
             },
             // Entry reason for the new system
             entryReason: isFromDifferentTeam ? 'transfer_in' : (p.entryReason || 'recruited'),
-            // Mark as returning recruit for this year
-            isRecruit: true,
-            recruitYear: year,
-            isPortal: true, // Returning players are portal transfers
+            // A transfer in from another school is this cycle's portal
+            // signee. A same-team return is NOT: flagging him as one made the
+            // year flip route him through the Portal Transfer Class step
+            // instead of moving him up a class like any returning player.
+            ...(isFromDifferentTeam && {
+              isRecruit: true,
+              recruitYear: year,
+              isPortal: true,
+            }),
             // Set previousTeam for portal filtering - use the team they came from
             previousTeam: isFromDifferentTeam ? getOriginalTeamAbbr(mostRecentTeamTid) : (p.previousTeam || null),
             // Only update position if explicitly provided and different
             ...(recruitData?.position && recruitData.position !== p.position && { position: recruitData.position })
           }
 
-          // Update ranks from the sheet data (these are new for this recruiting cycle)
-          if (recruitData?.stars) updatedPlayer.stars = recruitData.stars
-          if (recruitData?.nationalRank) updatedPlayer.nationalRank = recruitData.nationalRank
-          if (recruitData?.stateRank) updatedPlayer.stateRank = recruitData.stateRank
-          if (recruitData?.positionRank) updatedPlayer.positionRank = recruitData.positionRank
+          if (isFromDifferentTeam) {
+            // Update ranks from the sheet data (these are new for this recruiting cycle)
+            if (recruitData?.stars) updatedPlayer.stars = recruitData.stars
+            if (recruitData?.nationalRank) updatedPlayer.nationalRank = recruitData.nationalRank
+            if (recruitData?.stateRank) updatedPlayer.stateRank = recruitData.stateRank
+            if (recruitData?.positionRank) updatedPlayer.positionRank = recruitData.positionRank
+            if (recruitData?.gemBust) updatedPlayer.gemBust = recruitData.gemBust
+          } else {
+            // A recommit, recorded exactly as the Recruiting page records one
+            // (utils/portalRecommit.js): the portal reason he left with is
+            // kept, and this cycle's stars/ranks go to
+            // portalRecruitByYear[year] instead of overwriting his original
+            // recruiting profile. The class card, his player page and the
+            // editor's timeline all read them from there.
+            updatedPlayer = markRecommit(updatedPlayer, { tid: teamTid, classYear: year, recruit: recruitData })
+          }
           if (recruitData?.devTrait) {
             updatedPlayer.devTrait = recruitData.devTrait
             const enrollYear = year + 1
@@ -2344,7 +2361,6 @@ export default function Dashboard() {
               [enrollYear]: recruitData.devTrait
             }
           }
-          if (recruitData?.gemBust) updatedPlayer.gemBust = recruitData.gemBust
 
           // Explicitly ensure critical data is preserved (defensive)
           if (p.statsByYear) updatedPlayer.statsByYear = p.statsByYear
