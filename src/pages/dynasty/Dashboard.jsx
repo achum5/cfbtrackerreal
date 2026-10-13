@@ -88,7 +88,7 @@ import { normalizeLeavingReason } from '../../utils/leavingReason'
 import { findRosterPlayerByName } from '../../utils/playerMatching'
 import { buildPlayersLeavingSave } from '../../api/playersLeaving'
 import { buildTransferDestinationsSave } from '../../api/transferDestinations'
-import { buildPortalTransferClassSave, buildFringeCaseClassSave } from '../../api/classAssignments'
+import { buildPortalTransferClassSave, buildFringeCaseClassSave, getFringeCasePlayers } from '../../api/classAssignments'
 import { buildDraftResultsSave } from '../../api/draftResults'
 import { buildRecruitingClassRankSave } from '../../api/recruitingClassRank'
 import { buildPositionChangesSave } from '../../api/positionChanges'
@@ -7060,14 +7060,8 @@ export default function Dashboard() {
 
                 // Fringe Case Class Assignment
                 const teamTidF = getUserTeamTid(currentDynasty)
-                const allPlayersF = currentDynasty?.players || []
-                const fringeCasePlayers = allPlayersF.filter(player => {
-                  if (!isPlayerOnRoster(player, teamTidF, offseasonDataYear, currentDynasty)) return false
-                  const preProgressionClass = player.classByYear?.[offseasonDataYear] || player.year
-                  if (!['Fr', 'So', 'Jr'].includes(preProgressionClass)) return false
-                  const gamesPlayed = player.statsByYear?.[offseasonDataYear]?.gamesPlayed || 0
-                  return gamesPlayed >= 5 && gamesPlayed <= 9
-                })
+                // Same list the modal shows and the save applies to.
+                const fringeCasePlayers = getFringeCasePlayers(currentDynasty, teamTidF, offseasonDataYear)
                 const hasFringeCases = fringeCasePlayers.length > 0
                 const hasFringeCaseClassData = currentDynasty?.fringeCaseClassByYear?.[offseasonDataYear]?.length > 0
                 const fringeBlocked = !hasCommitmentsData
@@ -9912,43 +9906,10 @@ export default function Dashboard() {
         onSave={handleFringeCaseClassSave}
         currentYear={offseasonDataYear}
         teamColors={teamColors}
-        fringeCasePlayers={(() => {
-          // Get players with 5-9 games who might be fringe cases for redshirting
-          // ONLY non-redshirt classes (Fr, So, Jr) who played 5-9 games
-          const teamTid = getUserTeamTid(currentDynasty)
-          const year = offseasonDataYear
-
-          // Get all players and filter for fringe cases
-          const allPlayers = currentDynasty?.players || []
-          return allPlayers.filter(player => {
-            // Must have been on the team for this year (use isPlayerOnRoster for stint support)
-            if (!isPlayerOnRoster(player, teamTid, year, currentDynasty)) return false
-
-            // Use classByYear to get the PRE-progression class (what they were during the season)
-            // On Signing Day, player.year is POST-progression, so we need the previous class
-            const preProgressionClass = player.classByYear?.[year] || player.year
-
-            // ONLY non-redshirt underclassmen (Fr, So, Jr) - NOT RS classes or seniors
-            const validClasses = ['Fr', 'So', 'Jr']
-            if (!validClasses.includes(preProgressionClass)) return false
-
-            // Get games from player.statsByYear (the correct source)
-            const gamesPlayed = player.statsByYear?.[year]?.gamesPlayed || 0
-
-            // Fringe case: 5-9 games (might have used redshirt if ≤4 reg season games)
-            return gamesPlayed >= 5 && gamesPlayed <= 9
-          }).map(player => {
-            const gamesPlayed = player.statsByYear?.[year]?.gamesPlayed || 0
-            // Use classByYear to get the PRE-progression class
-            const preProgressionClass = player.classByYear?.[year] || player.year
-            return {
-              name: player.name,
-              position: player.position,
-              currentClass: preProgressionClass,
-              gameCount: gamesPlayed
-            }
-          })
-        })()}
+        // Returning Fr/So/Jr from the season just played with 5–9 games —
+        // one definition shared with the task row and the save
+        // (api/classAssignments.js getFringeCasePlayers).
+        fringeCasePlayers={getFringeCasePlayers(currentDynasty, getUserTeamTid(currentDynasty), offseasonDataYear)}
       />
 
       {/* Encourage Transfers Modal (Offseason Week 8) */}

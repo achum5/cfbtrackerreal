@@ -4,6 +4,13 @@
 // for the rationale; behavior is pinned by __tests__/classAssignments.test.js.
 
 import { getUserTeamTid } from '../data/teamRegistry'
+import {
+  isPlayerOnRoster,
+  getPlayerClassForYear,
+  getPlayersLeaving,
+  hasRecommitForYear,
+  hasUnresolvedDeparture,
+} from '../context/DynastyContext'
 import { normalizePlayerName, findRowPlayerIndex, withRowPid } from '../utils/playerMatching'
 import { getPortalTransferClassOptions, isKnownTransferClass } from '../utils/transferClassOptions'
 
@@ -85,22 +92,88 @@ export function buildPortalTransferClassSave(dynasty, classSelections) {
   return { updates, updatedCount, year }
 }
 
+// ─── Fringe Case Class ─────────────────────────────────────────────────────
+//
+// Who the step is about: the team's players from the season just played who
+// are COMING BACK, were a non-redshirted underclassman (Fr / So / Jr) that
+// season, and played 5–9 games — the band where the game may or may not have
+// spent their redshirt. One definition for the Dashboard row's count, the
+// modal's grid and the save, so the three can't disagree.
+//
+// "Coming back" uses the year flip's own leaving rule (the Players Leaving
+// list, then any unresolved departure in the movement records; a recommit
+// always stays), and once the flip has run, a season on next year's roster.
+// The list used to take anyone on last season's roster: players who'd left
+// through the portal or graduated showed up as juniors with "Sr" pre-filled,
+// and saving stamped a new-season class onto them.
+
+const FRINGE_CLASSES = new Set(['Fr', 'So', 'Jr'])
+
+/** On `tid`'s roster in `year` and not leaving it for `year + 1`. */
+export function isReturningRosterPlayer(dynasty, player, tid, year) {
+  if (!player || player.isHonorOnly || tid == null) return false
+  if (!isPlayerOnRoster(player, tid, year, dynasty)) return false
+  const y = Number(year)
+  if (!hasRecommitForYear(player, y)) {
+    const leaving = getPlayersLeaving(dynasty, tid, y) || []
+    if (leaving.some(l => l?.pid != null && String(l.pid) === String(player.pid))) return false
+    if (leaving.some(l => l?.pid == null && l?.name && nameEq(l.name, player.name))) return false
+    if (hasUnresolvedDeparture(player, tid, y, dynasty)) return false
+  }
+  const next = player.teamsByYear?.[y + 1] ?? player.teamsByYear?.[String(y + 1)]
+  if (next != null && next !== '' && Number(next) !== Number(tid)) return false
+  // After the flip, next season's roster is the record of who came back.
+  const flipped = Number(dynasty?.currentYear) > y
+  if (flipped && (next == null || next === '')) return false
+  return true
+}
+
+/** The player's class DURING `year` — never the current-class mirror after the flip. */
+function seasonClass(dynasty, player, year) {
+  const resolved = getPlayerClassForYear(player, year)
+  if (resolved) return resolved
+  // Before the flip the mirror is still this season's class; after it, it's
+  // next season's, so it can't stand in.
+  return Number(dynasty?.currentYear) === Number(year) ? (player.year || null) : null
+}
+
 /**
- * Fringe Case Class: matches ANY player by name and stamps the class for the
- * joining year. (Deliberately not restricted to recruits — that is the
- * existing behavior.)
+ * The fringe cases for `tid`'s `year` season, shaped for the modal:
+ * { pid, name, position, currentClass, gameCount }.
+ */
+export function getFringeCasePlayers(dynasty, tid, year) {
+  const out = []
+  for (const player of dynasty?.players || []) {
+    if (!isReturningRosterPlayer(dynasty, player, tid, year)) continue
+    const currentClass = seasonClass(dynasty, player, year)
+    if (!FRINGE_CLASSES.has(currentClass)) continue
+    const stats = player.statsByYear?.[year] ?? player.statsByYear?.[String(year)]
+    const gamesPlayed = Number(stats?.gamesPlayed) || 0
+    if (gamesPlayed < 5 || gamesPlayed > 9) continue
+    out.push({ pid: player.pid, name: player.name, position: player.position, currentClass, gameCount: gamesPlayed })
+  }
+  return out
+}
+
+/**
+ * Fringe Case Class save: stamps each row's class for the joining year on the
+ * matching player — only a returning player from the user's roster that
+ * season, so a pasted row can't land on a departed player or a same-named
+ * player on another team. Unmatched rows are still stored, just not applied.
  * @returns {{ updates: object, updatedCount: number, year: number }}
  */
 export function buildFringeCaseClassSave(dynasty, classSelections) {
   const { year, joiningYear } = signingYears(dynasty)
+  const userTid = getUserTeamTid(dynasty)
   const updatedPlayers = [...(dynasty.players || [])]
   let updatedCount = 0
   const rows = classSelections || []
   const storedRows = [...rows]
+  const predicate = (p) => isReturningRosterPlayer(dynasty, p, userTid, year)
 
   for (let i = 0; i < rows.length; i++) {
     const selection = rows[i]
-    const playerIndex = findRowPlayerIndex(updatedPlayers, selection, { nameEq })
+    const playerIndex = findRowPlayerIndex(updatedPlayers, selection, { nameEq, predicate })
     if (playerIndex === -1) continue
     storedRows[i] = withRowPid(selection, updatedPlayers[playerIndex])
     if (!selection.selectedClass) continue
