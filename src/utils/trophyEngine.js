@@ -17,6 +17,7 @@ import { TROPHIES, TROPHY_BY_ID } from '../data/trophies'
 import { TEAMS, getTidFromTeamName, getTidFromAbbr } from '../data/teamRegistry'
 import { stripMascotFromName } from '../data/teams'
 import { normalizeAwardName } from './playerHeal'
+import { normalizePlayerName } from './playerMatching'
 
 // game.conference string → conference trophy id
 const CONFERENCE_TROPHY = {
@@ -189,8 +190,8 @@ function resolveRivalryTidSets(dynasty) {
 function findAwardPlayerPid(dynasty, name, year, tid) {
   if (!name) return null
   const players = dynasty?.players || []
-  const norm = String(name).toLowerCase().trim()
-  const named = players.filter((p) => (p.name || '').toLowerCase().trim() === norm)
+  const norm = normalizePlayerName(name)
+  const named = players.filter((p) => normalizePlayerName(p?.name) === norm)
   if (!named.length) return null
   for (const p of named) {
     const ty = p.teamsByYear?.[year] ?? p.teamsByYear?.[String(year)]

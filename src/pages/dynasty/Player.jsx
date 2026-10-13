@@ -33,7 +33,7 @@ import { getPlayerGameLog } from '../../utils/boxScoreAggregator'
 import { canonicalBoxScore } from '../../utils/boxScoreHelpers'
 import { sortPlaysChronologically, resolveScoringTeamTids, buildScorerTidResolver } from '../../utils/scoringPlayOrder'
 import { healPlayer, PLAYER_HEAL_VERSION, normalizeAwardName } from '../../utils/playerHeal'
-import { computeLiveHonorsByPid, mergeHonorLists } from '../../utils/honorMatch'
+import { computeLiveHonorsByPid, mergeHonorLists, computeLiveAwardsByPid, mergeAccoladeLists } from '../../utils/honorMatch'
 import { buildTimelineEvents, eventsForYear, labelForEventKind } from '../../utils/playerTimeline'
 import { computeSeasonAV } from '../../utils/approximateValue'
 import ScoutScorePanel from '../../components/ScoutScorePanel'
@@ -376,6 +376,15 @@ function PlayerInner() {
       allConference: mergeHonorLists(player.allConference || [], live?.allConference || []),
     }
   }, [player, liveHonorsByPid])
+
+  // Same idea for major awards: a synced award lives only in
+  // dynasty.awardsByYear, so re-derive it here and merge it with the
+  // player's stored accolades for the hero plates and the Awards tab.
+  const liveAwardsByPid = useMemo(() => computeLiveAwardsByPid(dynasty), [dynasty?.awardsByYear, dynasty?.players])
+  const playerAccolades = useMemo(() => {
+    if (!player) return []
+    return mergeAccoladeLists(player.accolades || [], liveAwardsByPid.get(player.pid) || [])
+  }, [player, liveAwardsByPid])
 
 // True only while the player is a committed recruit who hasn't yet
   // joined the roster. Once they have a teamsByYear entry for the
@@ -1731,9 +1740,9 @@ function PlayerInner() {
   // were saved as accolades but never matched on display) — that's the
   // bug JayServesYah reported.
   const awardPlates = (() => {
-    const accolades = player?.accolades || []
-    const allAmericans = player?.allAmericans || []
-    const allConference = player?.allConference || []
+    const accolades = playerAccolades
+    const allAmericans = playerHonors.allAmericans
+    const allConference = playerHonors.allConference
 
     // Canonical-key → display label map. Every accolade's `award`
     // value is normalized via normalizeAwardName before lookup, so
@@ -5075,7 +5084,7 @@ function PlayerInner() {
         }
 
         // Get accolades from new format
-        const accolades = player.accolades || []
+        const accolades = playerAccolades
         const allAmericans = playerHonors.allAmericans
         const allConference = playerHonors.allConference
 

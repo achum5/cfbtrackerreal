@@ -21448,12 +21448,12 @@ export function DynastyProvider({ children }) {
       const teamTid = newPlayer.entry?.schoolTid != null
         ? Number(newPlayer.entry.schoolTid)
         : (getTidFromAbbr(newPlayer.team, dynasty) || newPlayer.team)
-      const normalizedName = newPlayer.name?.toLowerCase().trim()
+      const normalizedName = normalizePlayerName(newPlayer.name)
 
       // Check if we already created this player in this batch (same name + team)
       // This prevents duplicates when re-syncing or when same player has multiple honors
       const existingInBatch = updatedPlayers.find(p => {
-        const pName = p.name?.toLowerCase().trim()
+        const pName = normalizePlayerName(p.name)
         const pTeamMatches = p.team === teamTid || p.team === newPlayer.team ||
           (p.teamsByYear && Object.values(p.teamsByYear).some(t => t === teamTid || t === newPlayer.team))
         return pName === normalizedName && pTeamMatches

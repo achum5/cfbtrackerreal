@@ -12,6 +12,29 @@
 
 import { getTidFromAbbr } from '../data/teamRegistry'
 
+// Characters that render as nothing (zero-width space/joiners, BOM, word
+// joiner, soft hyphen, bidi marks) plus the non-whitespace control
+// characters. Tabs/newlines are left alone — they collapse to one space
+// below, keeping first and last name apart. A name pasted from a web page, a
+// spreadsheet, or an AI response can carry one of these invisibly; the two
+// copies then look identical on screen while comparing unequal, which is how
+// one player split into two profiles that the duplicate scan couldn't see.
+const INVISIBLE_CHARS = /[\u0000-\u0008\u000E-\u001F\u007F-\u009F\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180E\u200B-\u200F\u202A-\u202E\u2060-\u206F\u3164\uFE00-\uFE0F\uFEFF\uFFA0]/g
+
+// Cyrillic/Greek letters that are drawn identically to Latin ones. OCR and
+// AI-transcribed rosters occasionally emit them mid-name.
+const LOOKALIKE_LETTERS = {
+  '\u0430': 'a', '\u0435': 'e', '\u043E': 'o', '\u0440': 'p', '\u0441': 'c', '\u0443': 'y',
+  '\u0445': 'x', '\u0456': 'i', '\u0458': 'j', '\u0455': 's', '\u04BB': 'h', '\u0501': 'd',
+  '\u0410': 'a', '\u0412': 'b', '\u0415': 'e', '\u041A': 'k', '\u041C': 'm', '\u041D': 'h',
+  '\u041E': 'o', '\u0420': 'p', '\u0421': 'c', '\u0422': 't', '\u0425': 'x', '\u0406': 'i',
+  '\u0408': 'j', '\u0405': 's',
+  '\u03BF': 'o', '\u0391': 'a', '\u0392': 'b', '\u0395': 'e', '\u0396': 'z', '\u0397': 'h',
+  '\u0399': 'i', '\u039A': 'k', '\u039C': 'm', '\u039D': 'n', '\u039F': 'o', '\u03A1': 'p',
+  '\u03A4': 't', '\u03A5': 'y', '\u03A7': 'x',
+}
+const LOOKALIKE_RE = new RegExp(`[${Object.keys(LOOKALIKE_LETTERS).join('')}]`, 'g')
+
 // Normalize player name for comparison - handles whitespace, case, and special characters
 //
 // Comparison-only (always lowercased — never used for display), so it can be
@@ -22,13 +45,20 @@ import { getTidFromAbbr } from '../data/teamRegistry'
 // conversely, inconsistent suffixes could split one player into two.
 export const normalizePlayerName = (name) => {
   if (!name) return ''
-  return name
+  return String(name)
+    .replace(INVISIBLE_CHARS, '')
+    .replace(LOOKALIKE_RE, ch => LOOKALIKE_LETTERS[ch])
+    // Split accented letters into base + combining mark, then drop the mark,
+    // so "José" == "Jose" and a precomposed é == an e followed by U+0301.
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036F]/g, '')
     .toLowerCase()
-    .replace(/['']/g, "'")       // Normalize curly apostrophes to straight
-    .replace(/[""]/g, '"')       // Normalize curly quotes to straight
+    .replace(/[\u2018\u2019\u201A\u201B\u2032\u0060\u00B4]/g, "'") // Curly/prime/backtick apostrophes to straight
+    .replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"')              // Curly quotes to straight
+    .replace(/[\u2010-\u2015\u2212]/g, '-')                          // Unicode dashes to hyphen
     .replace(/\./g, '')          // Drop periods so "Jr." == "Jr" and "A.J." == "AJ"
     .replace(/,/g, ' ')          // Comma to space so "Smith, Jr" == "Smith Jr"
-    .replace(/\s+/g, ' ')        // Collapse whitespace (incl. gaps left above)
+    .replace(/\s+/g, ' ')        // Collapse whitespace (incl. NBSP and gaps left above)
     .trim()
 }
 

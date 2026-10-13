@@ -21,7 +21,20 @@
 
 import { isOpenTarget } from './recruitingTargets'
 import { normalizePlayerName } from './playerMatching'
+import { normalizeAwardName } from './playerHeal'
 import { TEAMS } from '../data/teamRegistry'
+
+// normalizePlayerName is called once per (honor entry x roster player) below,
+// which runs into the millions on a long dynasty. Cache each player's key on
+// the record object, re-deriving only if its name changes.
+const playerNameKeyCache = new WeakMap()
+const playerNameKey = (p) => {
+  const cached = playerNameKeyCache.get(p)
+  if (cached && cached.name === p.name) return cached.key
+  const key = normalizePlayerName(p.name)
+  playerNameKeyCache.set(p, { name: p.name, key })
+  return key
+}
 
 const cleanPlayerName = (name) => {
   if (!name) return ''
@@ -70,7 +83,7 @@ export function matchHonorToPlayer(dynasty, playerName, school, schoolTid = null
   }
 
   const nameMatches = dynasty.players.filter(p =>
-    !isOpenTarget(p) && normalizePlayerName(p.name) === normalizedName
+    p && !isOpenTarget(p) && playerNameKey(p) === normalizedName
   )
 
   if (nameMatches.length === 0) return null
@@ -137,6 +150,76 @@ export function mergeHonorLists(stored = [], live = []) {
       seen.add(k)
       merged.push(h)
     }
+  }
+  return merged
+}
+
+// Coach awards go to a head coach / coordinator, never a roster player.
+const COACH_AWARD_KEYS = new Set(['bearBryantCoachOfTheYear', 'broyles'])
+
+/**
+ * Re-derive every player's major awards (Heisman, Nagurski, Butkus, ...)
+ * straight from dynasty.awardsByYear, keyed by pid — the award-side twin of
+ * computeLiveHonorsByPid.
+ *
+ * player.accolades is only written when awards are saved through the Awards
+ * modal (processHonorPlayers). cfb27 auto-sync writes awardsByYear directly
+ * and never touches the player, so a synced award showed on the Awards page
+ * but on no profile. A stored accolade stays authoritative: an award already
+ * recorded on ANY player's accolades for that season is left alone here, so
+ * a "different player" decision made in the modal is never second-guessed.
+ *
+ * @returns {Map<number, Array<{year:number, award:string, team?:string, position?:string, class?:string}>>}
+ */
+export function computeLiveAwardsByPid(dynasty) {
+  const byPid = new Map()
+  const byYear = dynasty?.awardsByYear
+  if (!byYear || !Array.isArray(dynasty?.players)) return byPid
+
+  const claimed = new Set()
+  for (const p of dynasty.players) {
+    for (const a of (Array.isArray(p?.accolades) ? p.accolades : [])) {
+      const key = normalizeAwardName(a?.award)
+      if (key && a?.year != null) claimed.add(`${Number(a.year)}|${key}`)
+    }
+  }
+
+  for (const [year, awards] of Object.entries(byYear)) {
+    const yr = Number(year)
+    if (!Number.isFinite(yr) || !awards || typeof awards !== 'object') continue
+    for (const [rawKey, entry] of Object.entries(awards)) {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue
+      if (typeof entry.player !== 'string' || !entry.player.trim()) continue
+      const award = normalizeAwardName(rawKey)
+      if (!award || COACH_AWARD_KEYS.has(award)) continue
+      if (claimed.has(`${yr}|${award}`)) continue
+      const matched = matchHonorToPlayer(dynasty, entry.player, entry.team, entry.tid ?? null)
+      if (!matched?.pid) continue
+      if (!byPid.has(matched.pid)) byPid.set(matched.pid, [])
+      byPid.get(matched.pid).push({
+        year: yr,
+        award,
+        team: entry.team,
+        position: entry.position,
+        class: entry.class,
+      })
+    }
+  }
+
+  return byPid
+}
+
+// A player's stored accolades plus the live-derived ones, one row per
+// season+award (labels and legacy keys collapse via normalizeAwardName).
+export function mergeAccoladeLists(stored = [], live = []) {
+  const key = (a) => `${Number(a?.year)}|${normalizeAwardName(a?.award)}`
+  const merged = Array.isArray(stored) ? [...stored] : []
+  const seen = new Set(merged.map(key))
+  for (const a of (Array.isArray(live) ? live : [])) {
+    const k = key(a)
+    if (seen.has(k)) continue
+    seen.add(k)
+    merged.push(a)
   }
   return merged
 }

@@ -14,6 +14,7 @@ import { swapBoxScoreTeams, hasAnyPlayerStats, hasAnyTeamStats } from '../../uti
 import TeambuilderEditModal from '../../components/TeambuilderEditModal'
 import { SEED_TO_SLOT, getCFPGameId, DEFAULT_BOWL_CONFIG, getBowlForSlot } from '../../data/cfpConstants'
 import { findMatchingPlayer, normalizePlayerName } from '../../utils/playerMatching'
+import { findDuplicatePlayerGroups, mergeDuplicatePlayers } from '../../utils/playerMerge'
 import { migrateDynastyToV2 } from '../../data/migrateDynastyV2'
 import { buildIntegrityReport, formatIntegrityReport } from '../../utils/integrityReport'
 import { syncDerivedFieldsFromV2 } from '../../data/rosterModel'
@@ -2389,28 +2390,9 @@ export default function DangerZone() {
   const handleDetectDuplicates = () => {
     setDuplicateMergeStatus('running')
     try {
-      const players = currentDynasty.players || []
-
-      // Group players by normalized name
-      const playersByName = new Map()
-      players.forEach(p => {
-        if (!p.name) return
-        const normalizedName = p.name.toLowerCase().trim()
-        if (!playersByName.has(normalizedName)) {
-          playersByName.set(normalizedName, [])
-        }
-        playersByName.get(normalizedName).push(p)
-      })
-
-      // Find duplicates (names with more than one player)
-      const groups = []
-      playersByName.forEach((group, name) => {
-        if (group.length > 1) {
-          // Sort by pid (lowest = oldest = primary)
-          const sorted = [...group].sort((a, b) => (a.pid || 999999) - (b.pid || 999999))
-          groups.push({ name, players: sorted })
-        }
-      })
+      // Same name key every honor/award matcher uses (see utils/playerMerge.js),
+      // so a pair the Awards page treats as one person also shows up here.
+      const groups = findDuplicatePlayerGroups(currentDynasty.players || [])
 
       if (groups.length === 0) {
         setDuplicateMergeStatus({ success: true, message: 'No duplicate players found.' })
@@ -2441,15 +2423,6 @@ export default function DangerZone() {
     setDuplicateMergeStatus('running')
     try {
       const players = currentDynasty.players || []
-      const playersByName = new Map()
-      players.forEach(p => {
-        if (!p.name) return
-        const normalizedName = p.name.toLowerCase().trim()
-        if (!playersByName.has(normalizedName)) {
-          playersByName.set(normalizedName, [])
-        }
-        playersByName.get(normalizedName).push(p)
-      })
 
       let mergedCount = 0
       const pidsToRemove = new Set()
@@ -2461,91 +2434,16 @@ export default function DangerZone() {
 
         console.log(`[Duplicate Merge] Processing: ${group.name} (${group.players.length} entries)`)
 
-        const primary = group.players[0] // Already sorted by pid
-        const duplicates = group.players.slice(1)
+        // Re-read each record from the live player list so an edit made
+        // between Detect and Merge isn't overwritten by the snapshot.
+        const live = group.players.map(gp => players.find(p => p.pid === gp.pid) || gp)
+        const primary = live[0] // Already sorted by pid
+        const duplicates = live.slice(1)
 
-        // Merge all duplicates into primary
-        let merged = { ...primary }
-
-        for (const dup of duplicates) {
-          // Merge teamsByYear
-          if (dup.teamsByYear) {
-            merged.teamsByYear = { ...merged.teamsByYear, ...dup.teamsByYear }
-          }
-          // Merge statsByYear: deep-merge per year so different categories in the
-          // same season (e.g. primary has passing, duplicate has rushing) are
-          // both preserved instead of one side winning wholesale.
-          if (dup.statsByYear) {
-            const mergedStatsByYear = { ...(merged.statsByYear || {}) }
-            Object.entries(dup.statsByYear).forEach(([year, dupYearStats]) => {
-              const existingYearStats = mergedStatsByYear[year] || {}
-              const mergedYearStats = { ...existingYearStats }
-              Object.entries(dupYearStats || {}).forEach(([category, dupCatStats]) => {
-                if (dupCatStats && typeof dupCatStats === 'object' && !Array.isArray(dupCatStats)) {
-                  mergedYearStats[category] = {
-                    ...(existingYearStats[category] || {}),
-                    ...dupCatStats
-                  }
-                } else if (mergedYearStats[category] === undefined) {
-                  mergedYearStats[category] = dupCatStats
-                }
-              })
-              mergedStatsByYear[year] = mergedYearStats
-            })
-            merged.statsByYear = mergedStatsByYear
-          }
-          // Merge classByYear
-          if (dup.classByYear) {
-            merged.classByYear = { ...merged.classByYear, ...dup.classByYear }
-          }
-          // Merge overallByYear
-          if (dup.overallByYear) {
-            merged.overallByYear = { ...merged.overallByYear, ...dup.overallByYear }
-          }
-          // Merge movements — prefer the canonical movementByYear map.
-          // Year-by-year merge: dup wins only when merged is empty for
-          // that year, so we don't clobber a known-good entry with a
-          // legacy stub. syncDerivedFieldsFromV2 strips the legacy
-          // movements[] array on save, so writing it here is dead;
-          // merging movementByYear is the actual single-source-of-truth.
-          if (dup.movementByYear && typeof dup.movementByYear === 'object') {
-            const mergedByYear = { ...(merged.movementByYear || {}) }
-            for (const [yr, mv] of Object.entries(dup.movementByYear)) {
-              if (mv && !mergedByYear[yr] && !mergedByYear[String(yr)]) {
-                mergedByYear[yr] = mv
-              }
-            }
-            merged.movementByYear = mergedByYear
-          }
-          // Keep highest overall rating
-          if (dup.overall && (!merged.overall || dup.overall > merged.overall)) {
-            merged.overall = dup.overall
-          }
-          // Merge honors
-          if (dup.honors) {
-            const existingHonors = merged.honors || []
-            const existingHonorKeys = new Set(existingHonors.map(h => `${h.year}-${h.honorType}`))
-            const newHonors = dup.honors.filter(h => !existingHonorKeys.has(`${h.year}-${h.honorType}`))
-            merged.honors = [...existingHonors, ...newHonors]
-          }
-          // Keep any recruiting info that might be missing
-          if (!merged.stars && dup.stars) merged.stars = dup.stars
-          if (!merged.nationalRank && dup.nationalRank) merged.nationalRank = dup.nationalRank
-          if (!merged.stateRank && dup.stateRank) merged.stateRank = dup.stateRank
-          if (!merged.positionRank && dup.positionRank) merged.positionRank = dup.positionRank
-          if (!merged.previousTeam && dup.previousTeam) merged.previousTeam = dup.previousTeam
-          if (!merged.devTrait && dup.devTrait) merged.devTrait = dup.devTrait
-          if (!merged.archetype && dup.archetype) merged.archetype = dup.archetype
-          if (!merged.height && dup.height) merged.height = dup.height
-          if (!merged.weight && dup.weight) merged.weight = dup.weight
-
-          pidsToRemove.add(dup.pid)
-        }
-
-        // Sort movements by year
-        if (merged.movements) {
-          merged.movements.sort((a, b) => (a.year || 0) - (b.year || 0))
-        }
+        // Merge all duplicates into primary — honors and every per-season
+        // map included (see utils/playerMerge.js).
+        const merged = mergeDuplicatePlayers(primary, duplicates)
+        duplicates.forEach(dup => pidsToRemove.add(dup.pid))
 
         mergedPlayers.push(merged)
         mergedCount++
@@ -3223,7 +3121,7 @@ export default function DangerZone() {
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {duplicateGroups.map((group, idx) => (
               <div
-                key={group.name}
+                key={group.key || group.name}
                 className="rounded-md p-3"
                 style={{ backgroundColor: 'var(--surface-3)', border: '1px solid var(--surface-4)' }}
               >
@@ -3236,7 +3134,7 @@ export default function DangerZone() {
                     style={{ accentColor: 'var(--text-primary)' }}
                   />
                   <div className="flex-1 min-w-0">
-                    <div className="label-sm text-txt-primary capitalize">
+                    <div className="label-sm text-txt-primary">
                       {group.name} <span className="text-xs font-normal text-txt-tertiary tabular">({group.players.length} entries)</span>
                     </div>
                     <div className="mt-1 space-y-1">
