@@ -23,6 +23,7 @@
 
 import { getPlayerTid, getMovement } from '../data/rosterModel'
 import { resolvePreviousSchoolTid } from './previousSchool'
+import { isRecommitMovement } from './portalRecommit'
 
 const sameTid = (a, b) => a != null && b != null && a !== '' && b !== '' && Number(a) === Number(b)
 
@@ -70,19 +71,6 @@ function firstRosterYear(player) {
     if (Number.isFinite(n)) years.push(n)
   }
   return years.length ? Math.min(...years) : null
-}
-
-// A movement that, for a player on `tid` both this season and next, means
-// "entered the portal and came back". Only portal exits qualify — a graduated
-// or drafted player with a next-season row is not a recommit.
-function isRecommitMovement(mv, tid) {
-  if (!mv || typeof mv !== 'object') return false
-  if (mv.type === 'recommit' || mv.type === 'recommitted') return true
-  const portalExit = (mv.type === 'departure' && mv.departure === 'transfer_out')
-    || mv.type === 'entered_portal' || mv.type === 'transferred_out'
-  if (!portalExit) return false
-  const to = mv.toTid ?? mv.toTeamTid
-  return to == null || to === '' || sameTid(to, tid)
 }
 
 /**

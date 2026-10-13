@@ -25,6 +25,20 @@ const isPortalExit = (m) => !!m && (
 )
 
 /**
+ * A movement that, for a player on `tid` this season and back there next
+ * season, means "entered the portal and came back": an explicit recommit, or
+ * a portal exit naming no other school. Graduations and draft departures
+ * never qualify. The one definition the class page and the helpers below use.
+ */
+export function isRecommitMovement(m, tid) {
+  if (!m || typeof m !== 'object') return false
+  if (m.type === 'recommit' || m.type === 'recommitted') return true
+  if (!isPortalExit(m)) return false
+  const to = m.toTid ?? m.toTeamTid
+  return to == null || to === '' || sameTid(to, tid)
+}
+
+/**
  * Pure. Returns the player (or form data) with every "portal exit, then the
  * next season on the same team" movement rewritten as an explicit recommit.
  * A portal exit naming a DIFFERENT destination, graduations, and draft
@@ -116,12 +130,7 @@ export function isRecommitCandidate(p, tid, classYear) {
   if (!sameTid(read(p.teamsByYear, y), tid)) return false
   const next = read(p.teamsByYear, y + 1)
   if (next != null && next !== '' && !sameTid(next, tid)) return false
-  const m = read(p.movementByYear, y)
-  if (!m) return false
-  if (m.type === 'recommit' || m.type === 'recommitted') return true
-  if (!isPortalExit(m)) return false
-  const to = m.toTid ?? m.toTeamTid
-  return to == null || to === '' || sameTid(to, tid)
+  return isRecommitMovement(read(p.movementByYear, y), tid)
 }
 
 /** The one shell record duplicating `original`'s classYear recommit, or null. */

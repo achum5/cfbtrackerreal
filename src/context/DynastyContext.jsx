@@ -141,7 +141,7 @@ import { CFB27_TEAM_RATINGS } from '../data/cfb27TeamRatings'
 import { CFB27_TEAM_ABBRS } from '../data/cfb27TeamAbbrs'
 import { CFB27_CONFERENCES } from '../data/cfb27Conferences'
 import { CFB27_NIL_BUDGETS } from '../data/cfb27NilBudgets'
-import { normalizeAwardName } from '../utils/playerHeal'
+import { normalizeAwardName, COACH_AWARD_KEYS } from '../utils/playerHeal'
 import { getFirstRoundSlotId, getSlotIdFromBowlName, getCFPGameId, CFP_BRACKET_SLOTS, DEFAULT_BOWL_CONFIG, getBowlForSlot, CFP_BRACKET_FLOW, getBracketFlowConfig } from '../data/cfpConstants'
 import { migrateDynastyToEditors, needsEditorsMigration, getMemberTeams, snapshotAllMembersForYear, getCoachNameForUid, canManageMembers, getMemberPhoto, setMemberPhotoValue } from '../data/leagueModel'
 import { migrateDynastyToCoaches, makeCoach, deriveMemberTeamsIndex, getCoaches, getCoachesControlledBy, getCurrentTeamsForControlledCoaches, getActiveCoachForTeam, setCoachSeason, carryForwardControlledCoaches, applyStaffMovesToCoaches, syncCoordinatorCoachesForTeamYear, assignCoachToRole, deriveCoachingStaffNames, reconcileOwnerCoachWithSeasonRecord } from '../data/coachModel'
@@ -13301,7 +13301,6 @@ export function DynastyProvider({ children }) {
     // players with no position/ovr/stats sitting in the roster. The current
     // save path skips them — this sweep removes any that pre-exist.
     if (!dynasty._coachAwardGhostsCleanedAt) {
-      const COACH_AWARD_KEYS = new Set(['bearBryantCoachOfTheYear', 'broyles'])
       const players = dynasty.players || []
       const isCoachAwardGhost = (p) => {
         const accolades = p.accolades || []
@@ -21249,7 +21248,6 @@ export function DynastyProvider({ children }) {
     // Coach awards — recipients are head coaches / coordinators, not roster
     // players. They live on the Awards page already (read from awardsByYear
     // directly) and must NOT be created as player records.
-    const COACH_AWARD_KEYS = new Set(['bearBryantCoachOfTheYear', 'broyles'])
 
     // Process each entry
     for (let i = 0; i < entries.length; i++) {

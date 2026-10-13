@@ -21,7 +21,7 @@
 
 import { isOpenTarget } from './recruitingTargets'
 import { normalizePlayerName } from './playerMatching'
-import { normalizeAwardName } from './playerHeal'
+import { normalizeAwardName, COACH_AWARD_KEYS } from './playerHeal'
 import { TEAMS } from '../data/teamRegistry'
 
 // normalizePlayerName is called once per (honor entry x roster player) below,
@@ -153,9 +153,6 @@ export function mergeHonorLists(stored = [], live = []) {
   }
   return merged
 }
-
-// Coach awards go to a head coach / coordinator, never a roster player.
-const COACH_AWARD_KEYS = new Set(['bearBryantCoachOfTheYear', 'broyles'])
 
 /**
  * Re-derive every player's major awards (Heisman, Nagurski, Butkus, ...)

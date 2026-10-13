@@ -206,6 +206,36 @@ const statProduction = (category, s) => {
   }
 }
 
+// Pieces of the hero-banner recruitment strip (original recruitment and
+// portal recommit share them). `color` is the banner's contrast text color.
+const STRIP_STAR_PATH = "M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+
+const StripLabel = ({ color, children }) => (
+  <span
+    className="text-[10px] font-bold uppercase tracking-widest"
+    style={{ fontFamily: "var(--font-display)", letterSpacing: '1.5px', color, opacity: 0.72 }}
+  >
+    {children}
+  </span>
+)
+
+const StripStars = ({ count, color }) => (count > 0 ? (
+  <div className="flex items-center gap-0.5" aria-label={`${count} star recruit`}>
+    {[...Array(5)].map((_, i) => (
+      <svg key={i} className="w-3.5 h-3.5" fill={i < count ? '#FFD700' : `${color}40`} viewBox="0 0 20 20">
+        <path d={STRIP_STAR_PATH} />
+      </svg>
+    ))}
+  </div>
+) : null)
+
+const StripRankPill = ({ value, label, color }) => (
+  <span className="text-sm" style={{ color }}>
+    <span className="font-bold tabular-nums">#{value}</span>
+    <span className="text-[10px] ml-1 uppercase tracking-widest" style={{ color, opacity: 0.6 }}>{label}</span>
+  </span>
+)
+
 function PlayerInner() {
   const { id: dynastyId, pid } = useParams()
   const { dynasties, currentDynasty, updatePlayer, syncAllPlayersStats, isViewOnly } = useDynasty()
@@ -1655,35 +1685,15 @@ function PlayerInner() {
       )
     })() : null
 
-    const RankPill = ({ value, label }) => (
-      <span className="text-sm" style={{ color: rc }}>
-        <span className="font-bold tabular-nums">#{value}</span>
-        <span className="text-[10px] ml-1 uppercase tracking-widest" style={{ color: rc, opacity: 0.6 }}>{label}</span>
-      </span>
-    )
-
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <span
-          className="text-[10px] font-bold uppercase tracking-widest"
-          style={{ fontFamily: "var(--font-display)", letterSpacing: '1.5px', color: rc, opacity: 0.72 }}
-        >
-          {isPortalEntry ? 'Transfer Portal' : 'Recruitment'}
-        </span>
+        <StripLabel color={rc}>{isPortalEntry ? 'Transfer Portal' : 'Recruitment'}</StripLabel>
 
-        {starCount > 0 && (
-          <div className="flex items-center gap-0.5" aria-label={`${starCount} star recruit`}>
-            {[...Array(5)].map((_, i) => (
-              <svg key={i} className="w-3.5 h-3.5" fill={i < starCount ? '#FFD700' : `${rc}40`} viewBox="0 0 20 20">
-                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-              </svg>
-            ))}
-          </div>
-        )}
+        <StripStars count={starCount} color={rc} />
 
-        {Number(recruitmentInfo.nationalRank) > 0 && <RankPill value={recruitmentInfo.nationalRank} label="Natl" />}
-        {Number(recruitmentInfo.positionRank) > 0 && <RankPill value={recruitmentInfo.positionRank} label={player.position} />}
-        {Number(recruitmentInfo.stateRank) > 0 && <RankPill value={recruitmentInfo.stateRank} label={recruitmentInfo.state || player.state} />}
+        {Number(recruitmentInfo.nationalRank) > 0 && <StripRankPill value={recruitmentInfo.nationalRank} label="Natl" color={rc} />}
+        {Number(recruitmentInfo.positionRank) > 0 && <StripRankPill value={recruitmentInfo.positionRank} label={player.position} color={rc} />}
+        {Number(recruitmentInfo.stateRank) > 0 && <StripRankPill value={recruitmentInfo.stateRank} label={recruitmentInfo.state || player.state} color={rc} />}
 
         {prevTeamNode}
 
@@ -1738,33 +1748,13 @@ function PlayerInner() {
     if (!rc) return null
     const rcText = teamBgText
     const profile = rc.profile || {}
-    const starCount = Number(profile.stars) || 0
-    const RankPill = ({ value, label }) => (
-      <span className="text-sm" style={{ color: rcText }}>
-        <span className="font-bold tabular-nums">#{value}</span>
-        <span className="text-[10px] ml-1 uppercase tracking-widest" style={{ color: rcText, opacity: 0.6 }}>{label}</span>
-      </span>
-    )
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <span
-          className="text-[10px] font-bold uppercase tracking-widest"
-          style={{ fontFamily: "var(--font-display)", letterSpacing: '1.5px', color: rcText, opacity: 0.72 }}
-        >
-          Portal Recommit
-        </span>
-        {starCount > 0 && (
-          <div className="flex items-center gap-0.5" aria-label={`${starCount} star recruit`}>
-            {[...Array(5)].map((_, i) => (
-              <svg key={i} className="w-3.5 h-3.5" fill={i < starCount ? '#FFD700' : `${rcText}40`} viewBox="0 0 20 20">
-                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-              </svg>
-            ))}
-          </div>
-        )}
-        {Number(profile.nationalRank) > 0 && <RankPill value={profile.nationalRank} label="Natl" />}
-        {Number(profile.positionRank) > 0 && <RankPill value={profile.positionRank} label={player.position} />}
-        {Number(profile.stateRank) > 0 && <RankPill value={profile.stateRank} label={player.state} />}
+        <StripLabel color={rcText}>Portal Recommit</StripLabel>
+        <StripStars count={Number(profile.stars) || 0} color={rcText} />
+        {Number(profile.nationalRank) > 0 && <StripRankPill value={profile.nationalRank} label="Natl" color={rcText} />}
+        {Number(profile.positionRank) > 0 && <StripRankPill value={profile.positionRank} label={player.position} color={rcText} />}
+        {Number(profile.stateRank) > 0 && <StripRankPill value={profile.stateRank} label={player.state} color={rcText} />}
         <Link
           to={`${pathPrefix}/recruiting/${rc.tid}/${rc.classYear}`}
           className="ml-auto text-[10px] font-bold uppercase tracking-widest hover:opacity-80 transition-opacity"

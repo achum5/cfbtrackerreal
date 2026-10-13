@@ -820,6 +820,29 @@ export default function Recruiting() {
       }
       return out
     }
+    // One stored commitment row → a class card, overlaid with its player
+    // record's live fields when one resolves (the record wins; the row is the
+    // fallback). Shared by every store the rows are read from below.
+    const fromCommitRow = (commit, year, weekKey, recruitYear) => {
+      const currentPlayer = playersByName._findPlayer(commit.name, year, commit.pid)
+      return ensurePortalStatus({
+        ...commit,
+        ...(currentPlayer && {
+          name: currentPlayer.name, firstName: currentPlayer.firstName, lastName: currentPlayer.lastName,
+          position: currentPlayer.position, devTrait: currentPlayer.devTrait,
+          archetype: currentPlayer.archetype, height: currentPlayer.height, weight: currentPlayer.weight,
+          hometown: currentPlayer.hometown, state: currentPlayer.state, pictureUrl: currentPlayer.pictureUrl,
+          stars: currentPlayer.stars, nationalRank: currentPlayer.nationalRank, stateRank: currentPlayer.stateRank,
+          positionRank: currentPlayer.positionRank, gemBust: currentPlayer.gemBust,
+          previousTeam: currentPlayer.previousTeam || commit.previousTeam,
+          // Durable origin-school identity for portal transfers, so the
+          // FROM-chip resolves the school's live logo/name off tid.
+          previousTeamTid: originTid(currentPlayer, Number(year)),
+          isPortal: currentPlayer.isPortal ?? commit.isPortal, pid: currentPlayer.pid
+        }),
+        commitmentWeek: weekKey, recruitYear
+      })
+    }
 
     if (isAllSeasons) {
       const processedYears = new Set()
@@ -831,24 +854,7 @@ export default function Recruiting() {
           Object.entries(yearData.recruitingCommitments).forEach(([key, weekCommitments]) => {
             if (Array.isArray(weekCommitments)) {
               weekCommitments.forEach(commit => {
-                const currentPlayer = playersByName._findPlayer(commit.name, Number(year), commit.pid)
-                commitments.push(ensurePortalStatus({
-                  ...commit,
-                  ...(currentPlayer && {
-                    name: currentPlayer.name, firstName: currentPlayer.firstName, lastName: currentPlayer.lastName,
-                    position: currentPlayer.position, devTrait: currentPlayer.devTrait,
-                    archetype: currentPlayer.archetype, height: currentPlayer.height, weight: currentPlayer.weight,
-                    hometown: currentPlayer.hometown, state: currentPlayer.state, pictureUrl: currentPlayer.pictureUrl,
-                    stars: currentPlayer.stars, nationalRank: currentPlayer.nationalRank, stateRank: currentPlayer.stateRank,
-                    positionRank: currentPlayer.positionRank, gemBust: currentPlayer.gemBust,
-                    previousTeam: currentPlayer.previousTeam || commit.previousTeam,
-                    // Durable origin-school identity for portal transfers, so the
-                    // FROM-chip resolves the school's live logo/name off tid.
-                    previousTeamTid: originTid(currentPlayer, Number(year)),
-                    isPortal: currentPlayer.isPortal ?? commit.isPortal, pid: currentPlayer.pid
-                  }),
-                  commitmentWeek: key, recruitYear: Number(year)
-                }))
+                commitments.push(fromCommitRow(commit, Number(year), key, Number(year)))
               })
             }
           })
@@ -867,22 +873,7 @@ export default function Recruiting() {
         Object.entries(yearCommitments).forEach(([key, weekCommitments]) => {
           if (Array.isArray(weekCommitments)) {
             weekCommitments.forEach(commit => {
-              const currentPlayer = playersByName._findPlayer(commit.name, Number(year), commit.pid)
-              commitments.push(ensurePortalStatus({
-                ...commit,
-                ...(currentPlayer && {
-                  name: currentPlayer.name, firstName: currentPlayer.firstName, lastName: currentPlayer.lastName,
-                  position: currentPlayer.position, devTrait: currentPlayer.devTrait,
-                  archetype: currentPlayer.archetype, height: currentPlayer.height, weight: currentPlayer.weight,
-                  hometown: currentPlayer.hometown, state: currentPlayer.state, pictureUrl: currentPlayer.pictureUrl,
-                  stars: currentPlayer.stars, nationalRank: currentPlayer.nationalRank, stateRank: currentPlayer.stateRank,
-                  positionRank: currentPlayer.positionRank, gemBust: currentPlayer.gemBust,
-                  previousTeam: currentPlayer.previousTeam || commit.previousTeam,
-                  previousTeamTid: originTid(currentPlayer, Number(year)),
-                  isPortal: currentPlayer.isPortal ?? commit.isPortal, pid: currentPlayer.pid
-                }),
-                commitmentWeek: key, recruitYear: Number(year)
-              }))
+              commitments.push(fromCommitRow(commit, Number(year), key, Number(year)))
             })
           }
         })
@@ -892,34 +883,7 @@ export default function Recruiting() {
       Object.entries(commitmentsForYear).forEach(([key, weekCommitments]) => {
         if (Array.isArray(weekCommitments)) {
           weekCommitments.forEach(commit => {
-            const currentPlayer = playersByName._findPlayer(commit.name, selectedYear, commit.pid)
-            commitments.push(ensurePortalStatus({
-              ...commit,
-              ...(currentPlayer && {
-                name: currentPlayer.name,
-                firstName: currentPlayer.firstName,
-                lastName: currentPlayer.lastName,
-                position: currentPlayer.position,
-                devTrait: currentPlayer.devTrait,
-                archetype: currentPlayer.archetype,
-                height: currentPlayer.height,
-                weight: currentPlayer.weight,
-                hometown: currentPlayer.hometown,
-                state: currentPlayer.state,
-                pictureUrl: currentPlayer.pictureUrl,
-                stars: currentPlayer.stars,
-                nationalRank: currentPlayer.nationalRank,
-                stateRank: currentPlayer.stateRank,
-                positionRank: currentPlayer.positionRank,
-                gemBust: currentPlayer.gemBust,
-                previousTeam: currentPlayer.previousTeam || commit.previousTeam,
-                previousTeamTid: originTid(currentPlayer, Number(selectedYear)),
-                isPortal: currentPlayer.isPortal ?? commit.isPortal,
-                pid: currentPlayer.pid
-              }),
-              commitmentWeek: key,
-              recruitYear: selectedYear
-            }))
+            commitments.push(fromCommitRow(commit, selectedYear, key, selectedYear))
           })
         }
       })

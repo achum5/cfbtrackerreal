@@ -408,6 +408,11 @@ const AWARD_LEGACY_KEY_TO_KEY = {
   shaunAlexanderAward:    'shaunAlexander',
 }
 
+// Coach awards go to a head coach / coordinator, never a roster player: the
+// honor-save flow must not create player records for them, and nothing may
+// attach them to a player's profile.
+export const COACH_AWARD_KEYS = new Set(['bearBryantCoachOfTheYear', 'broyles'])
+
 // Exported so processHonorPlayers (and any future writer) can convert
 // inbound award names to the canonical key BEFORE comparing/storing —
 // without it the dupe check would miss label-vs-key (or legacy-key
