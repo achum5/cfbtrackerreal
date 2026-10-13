@@ -149,3 +149,39 @@ export function classOriginTid(player, tid, classYear, { currentYear, teams } = 
   if (player.isPortal !== true && !arrival) return null
   return resolvePreviousSchoolTid(player.previousTeam, teams, { joiningTid: tid })
 }
+
+/**
+ * The team whose recruiting class `player` signed with for his recruitYear
+ * cycle: the team he played for the season AFTER the class year. For a portal
+ * transfer that is the school he moved TO — his class-year season is the one
+ * he played at the school he left (the origin season the previous-school
+ * entry adds). Falls back to the commitment, then the class-year team, then
+ * the current-team mirror.
+ */
+export function recruitClassTid(player) {
+  const ry = Number(player?.recruitYear)
+  if (!Number.isFinite(ry)) return null
+  const read = (y) => {
+    const v = player.teamsByYear?.[y] ?? player.teamsByYear?.[String(y)]
+    return v == null || v === '' ? null : v
+  }
+  return read(ry + 1)
+    ?? (player.commitmentTid != null && player.commitmentTid !== '' ? player.commitmentTid : null)
+    ?? read(ry)
+    ?? player.team
+    ?? null
+}
+
+/**
+ * True when the player's recruitYear class was a portal move: he played the
+ * class year for one school and the next season for another. His recruiting
+ * profile then describes the commitment to the NEW school, not the season
+ * he played at the old one.
+ */
+export function isTransferClassCommit(player) {
+  const ry = Number(player?.recruitYear)
+  if (!Number.isFinite(ry)) return false
+  const during = player.teamsByYear?.[ry] ?? player.teamsByYear?.[String(ry)]
+  const after = player.teamsByYear?.[ry + 1] ?? player.teamsByYear?.[String(ry + 1)]
+  return during != null && during !== '' && after != null && after !== '' && !sameTid(during, after)
+}

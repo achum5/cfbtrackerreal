@@ -102,18 +102,6 @@ function SectionCard({ title, subtitle, action, bodyClassName = '', children }) 
   )
 }
 
-// A status line in the player page timeline's style: small colored dot,
-// uppercase label, optional italic detail.
-function MovementLine({ label, color, detail }) {
-  return (
-    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-      <span className="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} aria-hidden="true" />
-      <span className="font-black uppercase text-[10px]" style={{ color, letterSpacing: '1.5px' }}>{label}</span>
-      {detail && <span className="italic text-txt-tertiary">{detail}</span>}
-    </span>
-  )
-}
-
 // Helper to check if a stint reason indicates a transfer
 const isTransferReason = (reason) => ['portal_in', 'transfer', 'juco_in'].includes(reason)
 
@@ -2073,63 +2061,6 @@ export default function PlayerEdit() {
                 }))
               }
 
-              // How the player got onto this season's roster (chip on the
-              // season card).
-              const arrivalStatus = (year, idx) => {
-                const teamTid = formData.teamsByYear?.[year]
-                if (idx === 0) {
-                  const er = formData.entryReason
-                  if (er === 'recruited') return { text: 'Recruited', color: '#22c55e' }
-                  if (er === 'transfer_in') {
-                    const prevTid = formData.previousTeam
-                    const prevName = prevTid ? getMascotName(prevTid, teams) : null
-                    return { text: prevName ? `Portal from ${prevName}` : 'Portal Transfer', color: '#3b82f6' }
-                  }
-                  if (er === 'juco_in') return { text: 'JUCO Transfer', color: '#3b82f6' }
-                  if (er === 'walk_on') return { text: 'Walk-On', color: '#a78bfa' }
-                  if (er === 'created') return { text: 'Created', color: '#94a3b8' }
-                  return null
-                }
-                const prevYear = activeYears[idx - 1]
-                const prevMovement = formData.movementByYear?.[prevYear] || formData.movementByYear?.[String(prevYear)] || {}
-                const prevType = normalizeMovementType(prevMovement?.type, prevMovement)
-                const prevTeamTid = formData.teamsByYear?.[prevYear]
-                const sameTeamAsPrev = prevTeamTid && teamTid && Number(prevTeamTid) === Number(teamTid)
-                if (prevType === 'recommit') return { text: 'Returned from Portal', color: '#8b5cf6' }
-                if (prevType === 'entered_portal') {
-                  if (sameTeamAsPrev) return { text: 'Returned from Portal', color: '#8b5cf6' }
-                  const prevName = prevTeamTid ? getMascotName(prevTeamTid, teams) : null
-                  return { text: prevName ? `Portal from ${prevName}` : 'Portal Transfer In', color: '#3b82f6' }
-                }
-                if (prevType === 'encouraged_to_transfer' && prevTeamTid) {
-                  const prevName = getMascotName(prevTeamTid, teams)
-                  return { text: prevName ? `Transferred from ${prevName}` : 'Transferred In', color: '#3b82f6' }
-                }
-                return { text: 'Returning', color: '#22c55e' }
-              }
-
-              // What the move after `year` led to, read off the next season
-              // (only what the dropdowns don't already say).
-              const moveOutcome = (year, idx, movementType) => {
-                const teamTid = formData.teamsByYear?.[year]
-                const nextYear = idx < activeYears.length - 1 ? activeYears[idx + 1] : null
-                const nextTeamTid = nextYear ? formData.teamsByYear?.[nextYear] : null
-                const sameAsNext = teamTid && nextTeamTid && Number(teamTid) === Number(nextTeamTid)
-                const nextName = nextTeamTid ? getMascotName(nextTeamTid, teams) : null
-                if (movementType === 'recommit') {
-                  return nextYear ? { text: `Back for ${nextYear}`, color: '#8b5cf6' } : null
-                }
-                if (movementType === 'entered_portal') {
-                  if (!nextYear) return { text: 'Destination not set', color: '#f59e0b' }
-                  if (sameAsNext) return { text: `Came back for ${nextYear}`, color: '#8b5cf6', detail: 'saves as a recommit' }
-                  return { text: nextName ? `Transferred to ${nextName}` : 'Transferred', color: '#3b82f6' }
-                }
-                if (!movementType && nextYear && nextTeamTid && teamTid && !sameAsNext) {
-                  return { text: nextName ? `Next season at ${nextName}` : 'Changed teams', color: '#94a3b8', detail: 'no move recorded' }
-                }
-                return null
-              }
-
               const nextSeasonYear = activeYears.length > 0 ? Math.max(...activeYears) + 1 : dynCurrentYear
 
               return (
@@ -2214,7 +2145,6 @@ export default function PlayerEdit() {
                         const nil = formData.nilByYear?.[year] ?? formData.nilByYear?.[String(year)] ?? ''
                         const ovrChange = getOvrChange(year, idx)
                         const logoUrl = teamTid ? getTeamLogoByTid(teamTid, teams) : null
-                        const status = arrivalStatus(year, idx)
                         const isLast = idx === activeYears.length - 1
 
                         // The move after this season. Same read-time
@@ -2249,7 +2179,6 @@ export default function PlayerEdit() {
                         const reason = movement.reason || ''
                         const needsTeam = movementType === 'encouraged_to_transfer'
                         const showsPortalReason = ['entered_portal', 'recommit', 'encouraged_to_transfer'].includes(movementType)
-                        const outcome = moveOutcome(year, idx, movementType)
                         const recruitProfile = formData.portalRecruitByYear?.[year] || {}
 
                         return (
@@ -2273,8 +2202,6 @@ export default function PlayerEdit() {
 
                             {/* Season */}
                             <div className="min-w-0 space-y-3">
-                              {status && <MovementLine label={status.text} color={status.color} />}
-
                               <div className={`grid grid-cols-2 gap-3 ${seasonGrid}`}>
                                 <Field label="Team" className="col-span-2 sm:col-span-1">
                                   <select
@@ -2403,7 +2330,6 @@ export default function PlayerEdit() {
                                     </select>
                                   </>
                                 )}
-                                {outcome && <MovementLine label={outcome.text} color={outcome.color} detail={outcome.detail} />}
                               </div>
 
                               {/* A recommit is re-recruited: the stars and

@@ -35,6 +35,7 @@ import { sortPlaysChronologically, resolveScoringTeamTids, buildScorerTidResolve
 import { healPlayer, PLAYER_HEAL_VERSION, normalizeAwardName } from '../../utils/playerHeal'
 import { computeLiveHonorsByPid, mergeHonorLists, computeLiveAwardsByPid, mergeAccoladeLists } from '../../utils/honorMatch'
 import { latestRecommit, recommitRecruitProfile } from '../../utils/portalRecommit'
+import { recruitClassTid, isTransferClassCommit } from '../../utils/classArrivals'
 import { buildTimelineEvents, eventsForYear, labelForEventKind } from '../../utils/playerTimeline'
 import { computeSeasonAV } from '../../utils/approximateValue'
 import ScoutScorePanel from '../../components/ScoutScorePanel'
@@ -578,9 +579,6 @@ function PlayerInner() {
       .sort((a, b) => (b.year || 0) - (a.year || 0))[0] || null
   })()
 
-  // Determine if player has transferred out (to another team)
-  const hasTransferredOut = departureMovement?.type === 'transfer' && departureMovement?.to
-
   // Has the transfer portal signing window closed without a destination being entered?
   // True if we're past offseason week 1 (Transfer Destinations phase) for the portal year.
   const isPostSigningDay = (() => {
@@ -658,11 +656,6 @@ function PlayerInner() {
   // Effective abbr for legacy display lookups: prefer the registry's
   // current value over any drifted snapshot.
   const playerTeamAbbr = playerTeam?.abbr || (typeof playerTeamRaw === 'string' ? playerTeamRaw : '')
-
-  // For outgoing transfers, get the team they transferred FROM
-  const transferredFromTeam = hasTransferredOut
-    ? departureMovement?.from
-    : null
 
   // Get the full team name (prefer the registry team's name; fall back to
   // mascot resolution from the resolved abbr).
@@ -1656,8 +1649,10 @@ function PlayerInner() {
     const starCount = Number(recruitmentInfo.stars) || 0
     const isPortalEntry = recruitmentInfo.isPortal || player.isPortal
     const classYear = player.recruitYear || player.yearStarted
+    // The class he signed with — for a portal transfer, the team he moved
+    // to, not the one he played the class year for.
     const recruitingClassTid = player.recruitYear
-      ? resolveTid(player.teamsByYear?.[player.recruitYear] || playerTeamAbbr, currentDynasty?.teams || TEAMS)
+      ? resolveTid(recruitClassTid(player) || playerTeamAbbr, currentDynasty?.teams || TEAMS)
       : null
 
     // Rendered ON the team-color hero banner, so every token is derived
@@ -2219,31 +2214,6 @@ function PlayerInner() {
                     Transfer: {departureMovement.reason}
                   </span>
                 )}
-                {/* Transfer badge - show where player transferred FROM */}
-                {transferredFromTeam && (() => {
-                  const teamsData = dynasty?.teams || dynasty?.customTeams
-                  const prevTeamName = getMascotName(transferredFromTeam, teamsData) || transferredFromTeam
-                  const prevTeamColors = getTeamColors(prevTeamName, teamsData) || { primary: '#4b5563', secondary: '#6b7280' }
-                  const prevTeamTextColor = getContrastTextColor(prevTeamColors.primary)
-                  const prevTeamAbbr = typeof transferredFromTeam === 'number'
-                    ? (teamsData?.[transferredFromTeam]?.abbr || getOriginalTeamAbbr(transferredFromTeam) || transferredFromTeam)
-                    : transferredFromTeam
-                  return (
-                    <Link
-                      to={`${pathPrefix}/team/${resolveTid(transferredFromTeam, currentDynasty?.teams || TEAMS)}/${currentYear - 1}`}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold hover:opacity-80 transition-opacity"
-                      style={{ backgroundColor: prevTeamColors.primary, color: prevTeamTextColor }}
-                    >
-                      <span>←</span>
-                      {getTeamLogo(prevTeamName, teamsData) && (
-                        <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.95)', boxShadow: '0 0 0 1px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.2)', padding: '2px' }}>
-                          <img src={getTeamLogo(prevTeamName, teamsData)} alt="" className="w-full h-full object-contain" />
-                        </div>
-                      )}
-                      <span>{prevTeamAbbr}</span>
-                    </Link>
-                  )
-                })()}
               </div>
 
               {/* Meta row — jersey / position / archetype / class / dev / size / hometown */}
@@ -3208,7 +3178,10 @@ function PlayerInner() {
         const hasRecruitNodeData = !!(recruitmentInfo || player.recruitYear) && recruitYearValid
         const recruitmentNode = hasRecruitNodeData ? (() => {
           const rYear = Number(player.recruitYear) || years[0]
-          const rTeam = player.teamsByYear?.[rYear] || teamsByYear[years[0]]
+          // The team he committed to in that cycle (where he enrolled next
+          // season) — for a portal transfer, the new school, never the one he
+          // spent the class year playing for.
+          const rTeam = (player.recruitYear ? recruitClassTid(player) : null) || player.teamsByYear?.[rYear] || teamsByYear[years[0]]
           const rTeamName = getMascotName(rTeam, teamsData)
           const rSchool = getSchoolName(rTeam, teamsData)
           const rLogo = rTeamName ? getTeamLogo(rTeamName, teamsData) : null
@@ -3734,12 +3707,17 @@ function PlayerInner() {
         // If the recruitment node and the first season share a year + team, fold the recruit
         // into that season row so we don't show two near-identical "Kentucky" cards back to back.
         const firstSeason = yearData[0]
+        // A portal commitment (he played the class year somewhere else) is
+        // shown on the season he arrives — the "Kentucky ← Northwestern" row
+        // carries its stars and ranks — so it gets no "Committed" row of its
+        // own, and the season he played at his old school stays just that.
+        const recruitIsTransferCommit = isTransferClassCommit(player)
         const mergeRecruitIntoFirstSeason = !!(
-          recruitmentNode && firstSeason &&
+          recruitmentNode && firstSeason && !recruitIsTransferCommit &&
           Number(recruitmentNode.year) === Number(firstSeason.year) &&
           sameTid(recruitmentNode.team, firstSeason.team)
         )
-        const showRecruitRow = !!recruitmentNode && !mergeRecruitIntoFirstSeason
+        const showRecruitRow = !!recruitmentNode && !mergeRecruitIntoFirstSeason && !recruitIsTransferCommit
 
         const totalRows = (showRecruitRow ? 1 : 0) + yearData.length + postCareerEntries.length
 

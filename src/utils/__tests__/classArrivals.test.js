@@ -130,3 +130,28 @@ describe('portal recommits belong to the class', () => {
     expect(classArrivalForTeamYear(p, KY, 2027)).toBeNull()
   })
 })
+
+import { recruitClassTid, isTransferClassCommit } from '../classArrivals'
+
+describe('the class a player signed with', () => {
+  const NW = 80
+  it('a portal transfer signed with the team he moved to, not the one he played the class year for', () => {
+    const p = { recruitYear: 2026, isPortal: true, previousTeam: NW, teamsByYear: { 2026: NW, 2027: UMASS } }
+    expect(recruitClassTid(p)).toBe(UMASS)
+    expect(isTransferClassCommit(p)).toBe(true)
+  })
+  it('a high-school recruit signed with the team he enrolled at', () => {
+    const p = { recruitYear: 2026, teamsByYear: { 2027: UMASS } }
+    expect(recruitClassTid(p)).toBe(UMASS)
+    expect(isTransferClassCommit(p)).toBe(false)
+  })
+  it('falls back to the commitment, then the class-year team, then the mirror', () => {
+    expect(recruitClassTid({ recruitYear: 2026, commitmentTid: BAMA, teamsByYear: {} })).toBe(BAMA)
+    expect(recruitClassTid({ recruitYear: 2026, teamsByYear: { 2026: BAMA } })).toBe(BAMA)
+    expect(recruitClassTid({ recruitYear: 2026, team: UMASS })).toBe(UMASS)
+    expect(recruitClassTid({ teamsByYear: { 2027: UMASS } })).toBeNull()
+  })
+  it('a player who stayed put is not a transfer commit', () => {
+    expect(isTransferClassCommit({ recruitYear: 2026, teamsByYear: { 2026: UMASS, 2027: UMASS } })).toBe(false)
+  })
+})
