@@ -21,6 +21,7 @@ import { partitionRecruitingRows, reconcileRecruitingRows, isOpenTarget, isMyTar
 import { nextFreePid } from '../../api/pids'
 import { applyCommitRows } from '../../utils/applyCommitRows'
 import { playersArrivingForTeamYear, classOriginTid } from '../../utils/classArrivals'
+import { findRecommitDuplicate, findRecommitOriginal, isExplicitRecommit } from '../../utils/portalRecommit'
 import { carryRecruitingNilForward } from '../../data/playerNilModel'
 import ScoutBoard from './ScoutBoard'
 // Scout Staff is an opt-in (League Preferences) replacement for the MaxPlaysCFB
@@ -545,7 +546,11 @@ export default function Recruiting() {
       }),
     }
 
-    await updateDynasty(currentDynasty.id, updates, { changedPlayerPids })
+    // A recommit's leftover pickup record was folded into his real record
+    // (applyCommitRows.removedPids). The changed-pids save only writes, it
+    // never deletes, so let the diff save handle this one: it writes the
+    // changed records and deletes exactly the removed ones.
+    await updateDynasty(currentDynasty.id, updates, applied.removedPids?.length ? {} : { changedPlayerPids })
   }
 
   // In-app target resolution (Phase 4). `resolutions` is { pid: commitmentTid }.
@@ -1018,26 +1023,78 @@ export default function Recruiting() {
         classYears.add(Number(selectedYear))
       }
       for (const y of classYears) {
-        for (const { player: p, arrival } of playersArrivingForTeamYear(players, selectedTid, y, { currentYear })) {
+        const arrivals = playersArrivingForTeamYear(players, selectedTid, y, { currentYear })
+        // A recommit entered on the signing-day list as a transfer left a
+        // second "portal pickup" record for the same person. Show him once,
+        // as the real player, with the pickup's recruiting ranks.
+        const shellFor = new Map()
+        const shellPids = new Set()
+        for (const { player: p, arrival } of arrivals) {
+          if (arrival.kind !== 'recommit') continue
+          const shell = findRecommitDuplicate(players, p, selectedTid, y)
+          if (shell) { shellFor.set(p.pid, shell); shellPids.add(String(shell.pid)) }
+        }
+        for (const { player: p, arrival } of arrivals) {
+          if (p.pid != null && shellPids.has(String(p.pid))) continue
           const key = p.name?.toLowerCase().trim()
           if ((p.pid != null && knownPids.has(String(p.pid))) || (key && knownNames.has(key))) continue
           if (p.pid != null) knownPids.add(String(p.pid))
           if (key) knownNames.add(key)
           const isTransfer = arrival.kind === 'transfer'
           const isRecommit = arrival.kind === 'recommit'
+          // A recommit's card shows the profile he was re-recruited under,
+          // never his original high-school ranking.
+          const profile = isRecommit
+            ? { ...(shellFor.get(p.pid) || {}), ...(p.portalRecruitByYear?.[y] || p.portalRecruitByYear?.[String(y)] || {}) }
+            : p
           commitments.push(ensurePortalStatus({
             name: p.name, firstName: p.firstName, lastName: p.lastName,
             position: p.position, devTrait: p.devTrait, archetype: p.archetype,
             height: p.height, weight: p.weight, hometown: p.hometown, state: p.state,
-            pictureUrl: p.pictureUrl, stars: p.stars, nationalRank: p.nationalRank,
-            stateRank: p.stateRank, positionRank: p.positionRank, gemBust: p.gemBust,
-            class: p.class, previousTeam: isTransfer ? (p.previousTeam || arrival.fromTid) : '',
+            pictureUrl: p.pictureUrl, stars: profile.stars, nationalRank: profile.nationalRank,
+            stateRank: profile.stateRank, positionRank: profile.positionRank, gemBust: profile.gemBust,
+            class: isRecommit ? (p.classByYear?.[y] ?? p.classByYear?.[String(y)] ?? p.class) : p.class,
+            previousTeam: isTransfer ? (p.previousTeam || arrival.fromTid) : '',
             previousTeamTid: isTransfer ? arrival.fromTid : null,
             // A recommit is a portal commitment (counts under Portal), shown
             // with a RECOMMIT chip rather than a FROM school.
             isPortal: isTransfer || isRecommit, isRecommit, pid: p.pid,
             commitmentWeek: null, recruitYear: y,
           }))
+        }
+      }
+    }
+
+    // A commitment row (or earlier pass) that resolved to a recommit's
+    // pickup record, or to the recommitted player himself, is that player's
+    // recommit: point it at his real record and label it as a recommit.
+    {
+      const players = currentDynasty?.players || []
+      const byPid = new Map(players.filter(Boolean).map(p => [String(p.pid), p]))
+      for (let i = 0; i < commitments.length; i++) {
+        const c = commitments[i]
+        if (c.pid == null || c.isRecommit) continue
+        const p = byPid.get(String(c.pid))
+        const y = Number(c.recruitYear)
+        if (!p || !Number.isFinite(y)) continue
+        const original = findRecommitOriginal(players, p, selectedTid, y)
+        const target = original || (isExplicitRecommit(p, selectedTid, y) ? p : null)
+        if (!target) continue
+        const profile = target.portalRecruitByYear?.[y] || target.portalRecruitByYear?.[String(y)] || {}
+        // The stored recommit profile first; a row resolved straight to the
+        // player carries his ORIGINAL recruiting ranks, which aren't this one.
+        const has = (v) => v != null && v !== '' && v !== 0
+        const pick = (field) => has(profile[field]) ? profile[field] : (original ? c[field] : null)
+        commitments[i] = {
+          ...c,
+          pid: target.pid,
+          isRecommit: true,
+          isPortal: true,
+          previousTeam: '',
+          previousTeamTid: null,
+          class: target.classByYear?.[y] ?? target.classByYear?.[String(y)] ?? c.class,
+          stars: pick('stars'), nationalRank: pick('nationalRank'), stateRank: pick('stateRank'),
+          positionRank: pick('positionRank'), gemBust: pick('gemBust'),
         }
       }
     }

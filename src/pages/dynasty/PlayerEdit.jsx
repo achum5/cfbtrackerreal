@@ -6,7 +6,7 @@ import { useDynasty, getPlayerBoxScoreTotals } from '../../context/DynastyContex
 import { getEditionConfig } from '../../editions'
 import { resolveTargetCommitment, isTargetPlayer } from '../../utils/recruitingTargets'
 import { materializeTransferOrigin } from '../../utils/previousSchool'
-import { canonicalizeRecommits } from '../../utils/portalRecommit'
+import { canonicalizeRecommits, absorbRecommitDuplicates } from '../../utils/portalRecommit'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -1023,7 +1023,12 @@ export default function PlayerEdit() {
       // as an explicit recommit — the only shape the year flip keeps on the
       // roster (see portalRecommit.js).
       const withOrigin = materializeTransferOrigin(canonicalizeRecommits(updatedPlayer), { teams: dynasty?.teams, currentYear: dynasty?.currentYear, trainingLedger: dynasty?.trainingResultsByYear })
-      await updatePlayer(targetDynastyId, withOrigin)
+      // A recommit entered on the signing-day list also left behind a second
+      // "transferred in from the portal" record for the same person. Fold it
+      // into this one (its recruiting ranks included) and drop it, so he has
+      // one profile and that profile is the one in the class.
+      const { player: toSave, absorbedPids } = absorbRecommitDuplicates(withOrigin, dynasty?.players || [], { explicitOnly: true })
+      await updatePlayer(targetDynastyId, toSave, null, { removePids: absorbedPids })
       navigate(navigateTo || `${pathPrefix}/player/${pid}`)
     } catch (error) {
       console.error('Error saving player:', error)

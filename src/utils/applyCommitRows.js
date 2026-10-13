@@ -1,6 +1,9 @@
 // The Recruiting page's "apply commit rows to the player list" step, pulled
 // out of handleRecruitingSave so it can be exercised in a test. Row shape is
-// parseRecruitingRow's output. Three cases per row, unchanged from the page:
+// parseRecruitingRow's output. Cases per row:
+//   0. a college-class / portal row naming a player who left THIS team
+//      through the portal this cycle (or is already marked recommitted)
+//                                        → his recommit (no new record)
 //   1. name already on THIS team        → update the record's recruit fields
 //   2. name on ANOTHER team's record    → cross-team transfer into this team
 //   3. unknown name                     → new recruit record
@@ -9,6 +12,8 @@
 // the arrival movement's fromTid — the fields the cards and timeline read.
 
 import { applyPreviousSchool } from './previousSchool'
+import { normalizePlayerName } from './playerMatching'
+import { isRecommitCandidate, isPortalArrivalShell, markRecommit, findRecommitDuplicate, absorbRecommitDuplicate } from './portalRecommit'
 
 const CLASS_TO_YEAR = {
   'HS': 'Fr', 'JUCO Fr': 'So', 'JUCO So': 'Jr', 'JUCO Jr': 'Sr',
@@ -17,6 +22,22 @@ const CLASS_TO_YEAR = {
 }
 
 const normName = (n) => (n || '').toLowerCase().trim()
+
+// A high-school or JUCO signee is never a recommit.
+const COLLEGE_CLASS = /^(RS )?(Fr|So|Jr|Sr)$/i
+const isCollegeRow = (row) => row?.isPortal === true || COLLEGE_CLASS.test(String(row?.class || '').trim())
+
+// The one real record a portal row is this player's recommit for.
+function recommitOriginalFor(players, name, tid, year) {
+  const key = normalizePlayerName(name)
+  if (!key) return null
+  const matches = players.filter(p =>
+    p && normalizePlayerName(p.name) === key
+    && isRecommitCandidate(p, tid, year)
+    && !isPortalArrivalShell(p, tid, year)
+  )
+  return matches.length === 1 ? matches[0] : null
+}
 const onTeam = (p, tid, abbr) =>
   (p.team != null && p.team !== '' && Number(p.team) === Number(tid)) || (abbr && p.team === abbr)
 
@@ -35,8 +56,10 @@ function nilPatch(row, existing, year) {
 }
 
 /**
- * @returns {{ players: Array, nextPID: number }} the full next player list
- *   (untouched records keep their identity, so callers can diff by reference)
+ * @returns {{ players: Array, nextPID: number, removedPids: number[] }} the
+ *   full next player list (untouched records keep their identity, so callers
+ *   can diff by reference) and any duplicate records folded away — callers
+ *   must delete those from storage too.
  */
 export function applyCommitRows({ rows, players, selectedTid, teamAbbr, selectedYear, teams, startPID }) {
   const year = Number(selectedYear)
@@ -49,13 +72,37 @@ export function applyCommitRows({ rows, players, selectedTid, teamAbbr, selected
     if (onTeam(p, selectedTid, teamAbbr)) sameTeamByName[key] = p
   }
 
-  const updated = [...(players || [])]
+  let updated = [...(players || [])]
   const added = []
+  const removedPids = []
   let nextPID = Number(startPID)
 
   for (const recruit of rows || []) {
     if (!recruit?.name) continue
     const key = normName(recruit.name)
+
+    // In the game a player who entered the portal and came back is listed on
+    // signing day as a transfer commit. He's still the same player: record
+    // the recommit on his own record (with the ranks he was listed under)
+    // instead of minting a second "transferred in" profile for him.
+    if (isCollegeRow(recruit)) {
+      const original = recommitOriginalFor(updated, recruit.name, selectedTid, year)
+      if (original) {
+        const i = updated.findIndex((p) => p.pid === original.pid)
+        let next = markRecommit(updated[i], { tid: selectedTid, classYear: year, recruit })
+        next = { ...next, ...nilPatch(recruit, next, year) }
+        // A pickup record an earlier save created for him folds in here.
+        const shell = findRecommitDuplicate(updated, next, selectedTid, year)
+        if (shell) {
+          next = absorbRecommitDuplicate(next, shell, { tid: selectedTid, classYear: year })
+          removedPids.push(shell.pid)
+        }
+        updated[i] = next
+        if (shell) updated = updated.filter((p) => p.pid !== shell.pid)
+        continue
+      }
+    }
+
     const sameTeam = sameTeamByName[key]
     const anyTeam = existingByName[key]
 
@@ -172,5 +219,5 @@ export function applyCommitRows({ rows, players, selectedTid, teamAbbr, selected
     added.push(fresh)
   }
 
-  return { players: [...updated, ...added], nextPID }
+  return { players: [...updated, ...added], nextPID, removedPids }
 }

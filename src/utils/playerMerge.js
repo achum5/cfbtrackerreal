@@ -12,10 +12,12 @@
 // The merge folds every duplicate into the primary (lowest pid). It carries
 // the honors (accolades / All-American / All-Conference) and every per-season
 // map, not just teams/stats/class/OVR — previously a merge dropped the
-// duplicate's awards entirely.
+// duplicate's awards entirely. A duplicate that is only a portal recommit's
+// signing-day pickup is folded in as that recommit (see portalRecommit.js).
 
 import { normalizePlayerName } from './playerMatching'
 import { normalizeAwardName } from './playerHeal'
+import { recommitCycles, isPortalArrivalShell, absorbRecommitDuplicate } from './portalRecommit'
 
 const isPlainObject = (v) => v != null && typeof v === 'object' && !Array.isArray(v)
 
@@ -73,6 +75,14 @@ export function mergeDuplicatePlayers(primary, duplicates = []) {
 
   for (const dup of duplicates) {
     if (!dup) continue
+    // A portal recommit entered on the signing-day list as a transfer: the
+    // duplicate is only that cycle's pickup. Fold it in as the recommit it
+    // is rather than overlaying its "transferred in" season on his record.
+    const cycle = recommitCycles(merged).find(c => isPortalArrivalShell(dup, c.tid, c.classYear))
+    if (cycle) {
+      merged = absorbRecommitDuplicate(merged, dup, cycle)
+      continue
+    }
     // Merge teamsByYear
     if (dup.teamsByYear) {
       merged.teamsByYear = { ...merged.teamsByYear, ...dup.teamsByYear }

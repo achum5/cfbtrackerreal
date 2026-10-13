@@ -99,8 +99,15 @@ export function classArrivalForTeamYear(player, tid, classYear, { currentYear } 
   const mv = getMovement(player, yearNum)
   if (sameTid(priorTid, tid)) {
     // Already on the team: a class member only if they went into the portal
-    // and recommitted; otherwise just a returning player.
-    return isRecommitMovement(mv, tid) ? { kind: 'recommit', fromTid: null } : null
+    // and recommitted; otherwise just a returning player. The return has to
+    // be on the record itself (teamsByYear / a stint) — the `team` mirror
+    // getPlayerTid falls back to for the current season is NOT evidence: a
+    // player who left through the portal keeps his old team there until his
+    // record is next re-saved, and reading it as "back next season" turned
+    // every unresolved portal departure into a recommit.
+    if (!isRecommitMovement(mv, tid)) return null
+    if (!sameTid(rosterTidForYear(player, enrollYear), tid)) return null
+    return { kind: 'recommit', fromTid: null }
   }
 
   const kind = arrivalKind(mv)

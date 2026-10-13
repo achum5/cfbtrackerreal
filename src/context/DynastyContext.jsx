@@ -19341,8 +19341,14 @@ export function DynastyProvider({ children }) {
     return result
   }
 
-  const updatePlayer = async (dynastyId, updatedPlayer, yearStats = null) => {
+  // options.removePids: records to drop in the SAME write (e.g. a duplicate
+  // folded into this player). Done here rather than with a follow-up
+  // deletePlayer call, which would read the pre-save dynasty from its closure
+  // and write the old copy of this player back.
+  const updatePlayer = async (dynastyId, updatedPlayer, yearStats = null, options = {}) => {
     if (blockIfReadOnly(dynastyId, 'update player')) return
+    const removeSet = new Set((options?.removePids || []).filter(x => x != null && String(x) !== String(updatedPlayer?.pid)).map(String))
+    const keepPlayer = (player) => !removeSet.has(String(player?.pid))
     // Use helper functions for consistent storage routing based on dynasty.storageType
     const dynasty = await findDynastyById(dynastyId)
 
@@ -19424,12 +19430,15 @@ export function DynastyProvider({ children }) {
 
         // Save single player to Firestore subcollection (1 write instead of N)
         await savePlayerToSubcollection(dynastyId, finalPlayer)
+        for (const removePid of removeSet) {
+          await deletePlayerFromSubcollection(dynastyId, removePid)
+        }
         lastPlayersUpdateTimestampRef.current = Date.now()
 
         // Update local React state
         const updatedPlayers = (dynasty.players || []).map(player =>
           player.pid === finalPlayer.pid ? finalPlayer : player
-        )
+        ).filter(keepPlayer)
 
         const updatedDynasty = { ...dynasty, players: updatedPlayers, lastModified: Date.now() }
 
@@ -19452,7 +19461,7 @@ export function DynastyProvider({ children }) {
     // Update the player in the players array
     const updatedPlayers = (dynasty.players || []).map(player =>
       player.pid === finalPlayer.pid ? finalPlayer : player
-    )
+    ).filter(keepPlayer)
 
     // Build the update object
     const updateData = { players: updatedPlayers }
@@ -19554,6 +19563,9 @@ export function DynastyProvider({ children }) {
 
           // Save the player
           await savePlayerToSubcollection(dynastyId, finalPlayer)
+          for (const removePid of removeSet) {
+            await deletePlayerFromSubcollection(dynastyId, removePid)
+          }
 
           // Find and save only the games that actually had the player's name
           const affectedGames = updatedGames.filter(game => gameHasPlayerName(game, newName))
