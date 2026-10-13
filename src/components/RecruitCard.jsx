@@ -103,7 +103,10 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, team
     : null
 
   const isPortalRecruit = recruit.isPortal === true
-  const showFromChip = isPortalRecruit && !!previousTeamName
+  // A portal recommit is back with the same school — a FROM chip would just
+  // name that school (or the generic portal placeholder), so it gets its own.
+  const showRecommitChip = recruit.isRecommit === true
+  const showFromChip = isPortalRecruit && !!previousTeamName && !showRecommitChip
   // A JUCO recruit isn't a High School recruit — covers both the CFB27 sync
   // path (isHighSchoolRecruit: false) and the manual/sheet-entry path, which
   // has never had that flag and instead encodes it directly in the class
@@ -111,9 +114,9 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, team
   // etc — see mapRecruitClassLabel in cfb27SaveImport.js).
   const isJucoRecruit = recruit.isHighSchoolRecruit === false ||
     (typeof recruit.class === 'string' && (recruit.class.toUpperCase().startsWith('JUCO') || recruit.class.startsWith('JC (')))
-  const showHsMarker = !showFromChip && !isJucoRecruit
-  const showJucoMarker = !showFromChip && isJucoRecruit
-  const showBottomChips = showFromChip || showHsMarker || showJucoMarker
+  const showHsMarker = !showFromChip && !showRecommitChip && !isJucoRecruit
+  const showJucoMarker = !showFromChip && !showRecommitChip && isJucoRecruit
+  const showBottomChips = showFromChip || showRecommitChip || showHsMarker || showJucoMarker
   const starCount = Number(recruit.stars) || 0
 
   return (
@@ -328,7 +331,14 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, team
                   <span className="truncate" style={{ color: themed ? prevSecondary : undefined }}>{previousTeamName}</span>
                 </span>
               )
-            })() : showJucoMarker ? (
+            })() : showRecommitChip ? (
+              <span
+                className="inline-flex items-center px-1.5 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-widest"
+                style={{ letterSpacing: '1.5px', color: teamAccent, backgroundColor: teamBgText, border: `1px solid ${teamBgText}` }}
+              >
+                Portal Recommit
+              </span>
+            ) : showJucoMarker ? (
               <span
                 className="inline-flex items-center px-1.5 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-widest"
                 style={{ letterSpacing: '1.5px', color: teamAccent, backgroundColor: teamBgText, border: `1px solid ${teamBgText}` }}

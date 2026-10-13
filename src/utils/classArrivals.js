@@ -14,6 +14,11 @@
 //   • they have no prior season but were recorded as this class's recruit
 //     (recruitYear === classYear with a recruit flag), or their first season
 //     is classYear+1 with entryReason transfer_in / juco_in.
+//   • they entered the portal after classYear and RECOMMITTED to `tid` — the
+//     game re-recruits them, so they belong to that cycle's class (kind
+//     'recommit'). Read the same way the player page's timeline labels a
+//     RECOMMIT: an explicit recommit movement, or a portal departure whose
+//     next season is back on the same team.
 // Walk-ons and 'created' roster seeds never count.
 
 import { getPlayerTid, getMovement } from '../data/rosterModel'
@@ -67,9 +72,22 @@ function firstRosterYear(player) {
   return years.length ? Math.min(...years) : null
 }
 
+// A movement that, for a player on `tid` both this season and next, means
+// "entered the portal and came back". Only portal exits qualify — a graduated
+// or drafted player with a next-season row is not a recommit.
+function isRecommitMovement(mv, tid) {
+  if (!mv || typeof mv !== 'object') return false
+  if (mv.type === 'recommit' || mv.type === 'recommitted') return true
+  const portalExit = (mv.type === 'departure' && mv.departure === 'transfer_out')
+    || mv.type === 'entered_portal' || mv.type === 'transferred_out'
+  if (!portalExit) return false
+  const to = mv.toTid ?? mv.toTeamTid
+  return to == null || to === '' || sameTid(to, tid)
+}
+
 /**
  * How `player` joined `tid`'s classYear class, or null if they didn't.
- * @returns {{ kind: 'recruit'|'transfer'|'juco', fromTid: number|null } | null}
+ * @returns {{ kind: 'recruit'|'transfer'|'juco'|'recommit', fromTid: number|null } | null}
  */
 export function classArrivalForTeamYear(player, tid, classYear, { currentYear } = {}) {
   if (!player || tid == null || player.isHonorOnly) return null
@@ -78,9 +96,13 @@ export function classArrivalForTeamYear(player, tid, classYear, { currentYear } 
   const enrollYear = yearNum + 1
   if (!sameTid(rosterTidForYear(player, enrollYear, { currentYear }), tid)) return null
   const priorTid = rosterTidForYear(player, yearNum, { currentYear })
-  if (sameTid(priorTid, tid)) return null // returning player, not a class member
-
   const mv = getMovement(player, yearNum)
+  if (sameTid(priorTid, tid)) {
+    // Already on the team: a class member only if they went into the portal
+    // and recommitted; otherwise just a returning player.
+    return isRecommitMovement(mv, tid) ? { kind: 'recommit', fromTid: null } : null
+  }
+
   const kind = arrivalKind(mv)
   if (kind) {
     const fromTid = kind === 'recruit' ? null : (mv.fromTid ?? mv.fromTeamTid ?? priorTid ?? null)
@@ -126,7 +148,7 @@ export function classOriginTid(player, tid, classYear, { currentYear, teams } = 
   if (!player) return null
   const arrival = classArrivalForTeamYear(player, tid, classYear, { currentYear })
   if (arrival) {
-    if (arrival.kind === 'recruit') return null
+    if (arrival.kind === 'recruit' || arrival.kind === 'recommit') return null
     if (arrival.fromTid != null) return arrival.fromTid
   }
   if (player.isPortal !== true && !arrival) return null

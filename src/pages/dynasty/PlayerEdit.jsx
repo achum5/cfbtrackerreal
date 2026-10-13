@@ -6,6 +6,7 @@ import { useDynasty, getPlayerBoxScoreTotals } from '../../context/DynastyContex
 import { getEditionConfig } from '../../editions'
 import { resolveTargetCommitment, isTargetPlayer } from '../../utils/recruitingTargets'
 import { materializeTransferOrigin } from '../../utils/previousSchool'
+import { canonicalizeRecommits } from '../../utils/portalRecommit'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -1018,7 +1019,10 @@ export default function PlayerEdit() {
       // before the first one recorded here — put it on the timeline so the
       // class page, the team pages and the player's own history all read the
       // same origin.
-      const withOrigin = materializeTransferOrigin(updatedPlayer, { teams: dynasty?.teams, currentYear: dynasty?.currentYear, trainingLedger: dynasty?.trainingResultsByYear })
+      // A portal exit followed by a season back on the same team is stored
+      // as an explicit recommit — the only shape the year flip keeps on the
+      // roster (see portalRecommit.js).
+      const withOrigin = materializeTransferOrigin(canonicalizeRecommits(updatedPlayer), { teams: dynasty?.teams, currentYear: dynasty?.currentYear, trainingLedger: dynasty?.trainingResultsByYear })
       await updatePlayer(targetDynastyId, withOrigin)
       navigate(navigateTo || `${pathPrefix}/player/${pid}`)
     } catch (error) {
@@ -1922,9 +1926,13 @@ export default function PlayerEdit() {
                 if (!m || !m.type) return null
                 const toTid = m.toTid ?? m.toTeamTid ?? null
                 switch (m.type) {
+                  case 'recommit':
+                  case 'recommitted':
+                    // Clean recommit — drop any departure/destination fields
+                    // left over from the option it was switched from.
+                    return { type: 'recommit', ...(m.reason ? { reason: m.reason } : {}) }
                   case 'departure':
                   case 'arrival':
-                  case 'recommit':
                     // Already canonical — pass through (but normalize the
                     // destination tid field name in case a stale toTeamTid
                     // crept in via a partial patch).
@@ -1979,7 +1987,7 @@ export default function PlayerEdit() {
                       delete merged.toTeamTid
                       delete merged.toTid
                     }
-                    const reasonTypes = ['entered_portal', 'encouraged_to_transfer', 'transferred_out', 'departure']
+                    const reasonTypes = ['entered_portal', 'recommit', 'encouraged_to_transfer', 'transferred_out', 'departure']
                     if (!reasonTypes.includes(merged.type)) {
                       delete merged.reason
                     }
@@ -1993,6 +2001,20 @@ export default function PlayerEdit() {
                     if (yearIdx >= 0 && yearIdx < activeYears.length - 1) {
                       const nextYear = activeYears[yearIdx + 1]
                       next.teamsByYear = { ...(prev.teamsByYear || {}), [nextYear]: Number(destTid) }
+                    }
+                  }
+                  // A recommit means next season is on the same team — add that
+                  // season row when it isn't there yet, the same blank row
+                  // "+ Add Season" makes.
+                  if (merged.type === 'recommit') {
+                    const nextYear = Number(year) + 1
+                    const here = prev.teamsByYear?.[year] ?? prev.teamsByYear?.[String(year)]
+                    const there = prev.teamsByYear?.[nextYear] ?? prev.teamsByYear?.[String(nextYear)]
+                    if (here != null && here !== '' && (there == null || there === '')) {
+                      next.teamsByYear = { ...(next.teamsByYear || prev.teamsByYear || {}), [nextYear]: here }
+                      next.classByYear = { ...(prev.classByYear || {}), [nextYear]: prev.classByYear?.[nextYear] ?? '' }
+                      next.overallByYear = { ...(prev.overallByYear || {}), [nextYear]: prev.overallByYear?.[nextYear] ?? '' }
+                      next.devTraitByYear = { ...(prev.devTraitByYear || {}), [nextYear]: prev.devTraitByYear?.[nextYear] ?? '' }
                     }
                   }
                   return next
@@ -2016,9 +2038,9 @@ export default function PlayerEdit() {
                   if (m.departure === 'transfer_out') return 'entered_portal'
                   return 'entered_portal'
                 }
-                if (t === 'recommit') return 'entered_portal'
+                if (t === 'recommit' || t === 'recommitted') return 'recommit'
                 if (t === 'arrival') return ''
-                if (t === 'transferred_out' || t === 'recommitted') return 'entered_portal'
+                if (t === 'transferred_out') return 'entered_portal'
                 return t
               }
 
@@ -2124,7 +2146,7 @@ export default function PlayerEdit() {
                 const toTeamTid = movement.toTeamTid ?? movement.toTid ?? ''
                 const reason = movement.reason || ''
                 const needsTeam = movementType === 'encouraged_to_transfer'
-                const showsPortalReason = ['entered_portal', 'encouraged_to_transfer'].includes(movementType)
+                const showsPortalReason = ['entered_portal', 'recommit', 'encouraged_to_transfer'].includes(movementType)
 
                 return (
                   <div className="flex flex-wrap items-center gap-1.5 px-4 py-1 group">
@@ -2136,6 +2158,7 @@ export default function PlayerEdit() {
                     >
                       <option value="">—</option>
                       <option value="entered_portal">Entered Portal</option>
+                      <option value="recommit">Recommitted</option>
                       <option value="encouraged_to_transfer">Encouraged to Transfer</option>
                       <option value="declared_for_draft">Declared for Draft</option>
                       <option value="graduated">Graduated</option>
@@ -2264,6 +2287,7 @@ export default function PlayerEdit() {
                             if (er === 'created') return { text: 'Created', color: 'var(--text-tertiary)' }
                             return null
                           }
+                          if (prevType === 'recommit') return { text: 'Returned from Portal', color: '#8b5cf6' }
                           if (prevType === 'entered_portal') {
                             if (sameTeamAsPrev) return { text: 'Returned from Portal', color: '#8b5cf6' }
                             const prevName = prevTeamTid ? getMascotName(prevTeamTid, teams) : null
@@ -2283,6 +2307,9 @@ export default function PlayerEdit() {
                         const nextTeamTid = nextYear ? formData.teamsByYear?.[nextYear] : null
                         const sameTeamAsNext = teamTid && nextTeamTid && Number(teamTid) === Number(nextTeamTid)
                         const exitChip = (() => {
+                          if (curType === 'recommit') {
+                            return { text: 'Entered Portal, Recommitted', color: '#8b5cf6', reason: curMovement.reason }
+                          }
                           if (curType === 'entered_portal') {
                             if (!nextYear) return { text: 'Entered Portal', color: '#f59e0b', reason: curMovement.reason }
                             if (sameTeamAsNext) return { text: 'Entered Portal Returned', color: '#8b5cf6', reason: curMovement.reason }

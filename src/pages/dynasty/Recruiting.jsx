@@ -1024,6 +1024,7 @@ export default function Recruiting() {
           if (p.pid != null) knownPids.add(String(p.pid))
           if (key) knownNames.add(key)
           const isTransfer = arrival.kind === 'transfer'
+          const isRecommit = arrival.kind === 'recommit'
           commitments.push(ensurePortalStatus({
             name: p.name, firstName: p.firstName, lastName: p.lastName,
             position: p.position, devTrait: p.devTrait, archetype: p.archetype,
@@ -1032,7 +1033,9 @@ export default function Recruiting() {
             stateRank: p.stateRank, positionRank: p.positionRank, gemBust: p.gemBust,
             class: p.class, previousTeam: isTransfer ? (p.previousTeam || arrival.fromTid) : '',
             previousTeamTid: isTransfer ? arrival.fromTid : null,
-            isPortal: isTransfer, pid: p.pid,
+            // A recommit is a portal commitment (counts under Portal), shown
+            // with a RECOMMIT chip rather than a FROM school.
+            isPortal: isTransfer || isRecommit, isRecommit, pid: p.pid,
             commitmentWeek: null, recruitYear: y,
           }))
         }

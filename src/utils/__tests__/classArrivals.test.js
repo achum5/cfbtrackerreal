@@ -37,11 +37,9 @@ describe('classArrivalForTeamYear', () => {
     const walkOn = { teamsByYear: { 2027: UMASS }, movementByYear: { 2026: { type: 'arrival', arrival: 'walk_on' } } }
     const seeded = { teamsByYear: { 2027: UMASS }, entryReason: 'created' }
     const returning = { teamsByYear: { 2026: UMASS, 2027: UMASS } }
-    const recommit = { teamsByYear: { 2026: UMASS, 2027: UMASS }, movementByYear: { 2026: { type: 'recommit' } } }
     expect(classArrivalForTeamYear(walkOn, UMASS, 2026)).toBeNull()
     expect(classArrivalForTeamYear(seeded, UMASS, 2026)).toBeNull()
     expect(classArrivalForTeamYear(returning, UMASS, 2026)).toBeNull()
-    expect(classArrivalForTeamYear(recommit, UMASS, 2026)).toBeNull()
   })
 
   it('a recruit record with no seasons yet counts via recruitYear', () => {
@@ -104,5 +102,31 @@ describe('classOriginTid — one origin for the FROM chip', () => {
     const p = { team: 54, isPortal: true, entryReason: 'transfer_in', teamsByYear: { 2026: 130, 2027: 54 } }
     expect(classArrivalForTeamYear(p, 130, 2025)).toBeNull()
     expect(classArrivalForTeamYear(p, 54, 2026)).toEqual({ kind: 'transfer', fromTid: 130 })
+  })
+})
+
+describe('portal recommits belong to the class', () => {
+  const KY = 109, BAMA = 1
+  it('an explicit recommit is a class member with no origin school', () => {
+    const p = { team: KY, teamsByYear: { 2026: KY, 2027: KY }, movementByYear: { 2026: { type: 'recommit' } } }
+    expect(classArrivalForTeamYear(p, KY, 2026)).toEqual({ kind: 'recommit', fromTid: null })
+    expect(classOriginTid(p, KY, 2026)).toBeNull()
+  })
+  it('a portal exit followed by a season back on the same team reads as a recommit (as the timeline shows it)', () => {
+    const p = { team: KY, teamsByYear: { 2026: KY, 2027: KY }, movementByYear: { 2026: { type: 'departure', departure: 'transfer_out', reason: 'Playing Time' } } }
+    expect(classArrivalForTeamYear(p, KY, 2026)).toEqual({ kind: 'recommit', fromTid: null })
+    const toSelf = { ...p, movementByYear: { 2026: { type: 'departure', departure: 'transfer_out', toTid: KY } } }
+    expect(classArrivalForTeamYear(toSelf, KY, 2026)).toEqual({ kind: 'recommit', fromTid: null })
+  })
+  it('graduation, the draft, a named different destination, or no return are not recommits', () => {
+    const base = { team: KY, teamsByYear: { 2026: KY, 2027: KY } }
+    expect(classArrivalForTeamYear({ ...base, movementByYear: { 2026: { type: 'departure', departure: 'graduated' } } }, KY, 2026)).toBeNull()
+    expect(classArrivalForTeamYear({ ...base, movementByYear: { 2026: { type: 'departure', departure: 'pro_draft' } } }, KY, 2026)).toBeNull()
+    expect(classArrivalForTeamYear({ ...base, movementByYear: { 2026: { type: 'departure', departure: 'transfer_out', toTid: BAMA } } }, KY, 2026)).toBeNull()
+    expect(classArrivalForTeamYear({ team: BAMA, teamsByYear: { 2026: KY, 2027: BAMA }, movementByYear: { 2026: { type: 'recommit' } } }, KY, 2026)).toBeNull()
+  })
+  it('a recommit is not counted for the next cycle', () => {
+    const p = { team: KY, teamsByYear: { 2026: KY, 2027: KY, 2028: KY }, movementByYear: { 2026: { type: 'recommit' } } }
+    expect(classArrivalForTeamYear(p, KY, 2027)).toBeNull()
   })
 })

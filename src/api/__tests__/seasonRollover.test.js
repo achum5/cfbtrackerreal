@@ -410,3 +410,25 @@ describe('an incoming transfer with an origin season survives the year flip', ()
     expect(p.teamsByYear[PREV]).toBe(OLD)    // origin season untouched
   })
 })
+
+describe('a portal recommit survives the advance', () => {
+  // Why the player editor now stores a recommit explicitly: the advance
+  // keeps a pre-filled next-season row only when the movement says recommit.
+  const input = { previousSeasonYear: PREV, currentSeasonYear: NEXT, teamTid: USER, teamAbbr: 'IU' }
+  const back = (mv) => ({
+    pid: 77, name: 'Terhyon Nichols', position: 'CB', year: 'Sr', team: USER,
+    teamsByYear: { [PREV]: USER, [NEXT]: USER },
+    classByYear: { [PREV]: 'Jr', [NEXT]: 'Sr' },
+    movementByYear: { [PREV]: mv },
+  })
+  it('an explicit recommit keeps next season on the roster', () => {
+    const d = { ...fixture(), currentYear: NEXT, currentWeek: 8, players: [back({ type: 'recommit' })] }
+    const p = advanceSeasonPlayers(d, input).players.find(x => x.pid === 77)
+    expect(p.teamsByYear[NEXT]).toBe(USER)
+  })
+  it('a bare portal departure with a pre-filled row is treated as leaving', () => {
+    const d = { ...fixture(), currentYear: NEXT, currentWeek: 8, players: [back({ type: 'departure', departure: 'transfer_out' })] }
+    const p = advanceSeasonPlayers(d, input).players.find(x => x.pid === 77)
+    expect(p.teamsByYear[NEXT]).toBeUndefined()
+  })
+})
