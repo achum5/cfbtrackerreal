@@ -5,7 +5,7 @@ import { proxyImageUrl } from '../utils/imageProxy'
 import { getTidFromAbbr } from '../data/teamRegistry'
 import { getTeamLogoByTid, stripMascotFromName } from '../data/teams'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../utils/recruitAttributes'
-import { scoutGrade, scoutLetter, scoutReport } from '../utils/scoutGrade'
+import { scoutReport } from '../utils/scoutGrade'
 import { computeScore } from './archetypeWeights'
 
 const SS_GRADES = [
@@ -70,7 +70,6 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, team
     .filter((name) => recruit.attributes?.[name] != null && recruit.attributes[name] !== '')
     .map((name) => ({ name, abbr: ATTRIBUTE_ABBR[name] || name, value: Number(recruit.attributes[name]) }))
   const hasAttrs = attrEntries.length > 0
-  const grade = scoutGrade(recruit, model) // { score, tier } — null score when unscouted
   const report = scoutReport(recruit, playStyle, null, model) // generated blurb, null when unscouted
 
   // Scout Staff grade (computeScore) — only when enabled and player has attrs.
@@ -244,17 +243,6 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, team
               style={{ letterSpacing: '1.5px', color: teamAccent, backgroundColor: teamBgText, border: `1px solid ${teamBgText}` }}
             >
               Verbal
-            </span>
-          )}
-          {/* Scout grade — score + tier, color-coded. Only when scouted. */}
-          {grade.score != null && (
-            <span
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase mt-0.5"
-              style={{ letterSpacing: '0.08em', backgroundColor: grade.tier.color, color: '#0a0a0a' }}
-              title={`Scout grade ${grade.score} — ${grade.tier.label}`}
-            >
-              <span className="tabular-nums">{grade.score}</span>
-              <span style={{ opacity: 0.85 }}>{scoutLetter(grade.score)}</span>
             </span>
           )}
         </div>
