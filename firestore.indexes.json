@@ -183,6 +183,151 @@
       "collectionGroup": "dynasties",
       "fieldPath": "schemeBuilder",
       "indexes": []
+    },
+    {
+      "collectionGroup": "players",
+      "fieldPath": "attributesByYear",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "players",
+      "fieldPath": "attributes",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "players",
+      "fieldPath": "statsByYear",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "players",
+      "fieldPath": "movementByYear",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "players",
+      "fieldPath": "classByYear",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "players",
+      "fieldPath": "teamsByYear",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "players",
+      "fieldPath": "overallByYear",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "players",
+      "fieldPath": "devTraitByYear",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "players",
+      "fieldPath": "positionByYear",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "players",
+      "fieldPath": "nilByYear",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "players",
+      "fieldPath": "portalRecruitByYear",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "players",
+      "fieldPath": "allAmericans",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "players",
+      "fieldPath": "allConference",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "players",
+      "fieldPath": "accolades",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "players",
+      "fieldPath": "abilities",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "players",
+      "fieldPath": "cards",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "players",
+      "fieldPath": "photos",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "players",
+      "fieldPath": "highlights",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "games",
+      "fieldPath": "boxScore",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "games",
+      "fieldPath": "statsContributed",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "games",
+      "fieldPath": "quarters",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "games",
+      "fieldPath": "overtimes",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "games",
+      "fieldPath": "photoTags",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "games",
+      "fieldPath": "photos",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "games",
+      "fieldPath": "scoreGraphics",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "games",
+      "fieldPath": "playerStatsSheetIdByTid",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "recruitingDatabase",
+      "fieldPath": "attributes",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "recruitingDatabase",
+      "fieldPath": "attributesByYear",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "recruitingClasses",
+      "fieldPath": "roster",
+      "indexes": []
     }
   ]
 }

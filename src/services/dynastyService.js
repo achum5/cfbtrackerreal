@@ -27,7 +27,8 @@ import {
 } from 'firebase/firestore'
 import { db } from '../config/firebase'
 import { indexedDBStorage } from './storage'
-import { firestoreDocSize } from '../utils/firestoreSize'
+import { firestoreDocSize, firestoreIndexEntryBytes } from '../utils/firestoreSize'
+import { isTransactionTooBigError } from '../utils/firestoreErrors'
 import {
   getSeasonsSubcollection,
   rehydrateSeasonalShapes,
@@ -134,23 +135,62 @@ export function commitBatch(batch) {
 // cover (each write's document path/resource name, request envelope), which
 // is on the order of tens of bytes per document, not megabytes.
 const MAX_BATCH_BYTES = 3 * 1024 * 1024
-function chunkForFirestoreBatch(items, sizeOf) {
+// A second, separate budget: what the commit is charged for including the
+// index entries its writes generate (firestoreIndexEntryBytes). Firestore
+// rejects an over-budget commit as "Transaction too big. Decrease transaction
+// size." even when every document is small — confirmed on a full-league
+// dynasty (11,744 players, ~1 KB each) whose 450-player batches failed. Kept
+// well under the ~10 MiB a commit is allowed; commitChunkAdaptive below
+// halves a batch and retries if the estimate is ever still too high.
+const MAX_BATCH_COST = 6 * 1024 * 1024
+function chunkForFirestoreBatch(items, sizeOf, costOf = sizeOf) {
   const chunks = []
   let current = []
   let currentBytes = 0
+  let currentCost = 0
   for (const item of items) {
     const itemBytes = sizeOf(item)
-    if (current.length > 0 && (current.length >= BATCH_SIZE || currentBytes + itemBytes > MAX_BATCH_BYTES)) {
+    const itemCost = costOf(item)
+    if (current.length > 0 && (
+      current.length >= BATCH_SIZE
+      || currentBytes + itemBytes > MAX_BATCH_BYTES
+      || currentCost + itemCost > MAX_BATCH_COST
+    )) {
       chunks.push(current)
       current = []
       currentBytes = 0
+      currentCost = 0
     }
     current.push(item)
     currentBytes += itemBytes
+    currentCost += itemCost
   }
   if (current.length > 0) chunks.push(current)
   console.log(`[chunkForFirestoreBatch] ${items.length} item(s) -> ${chunks.length} batch(es), largest ~${(Math.max(...chunks.map(c => c.reduce((s, it) => s + sizeOf(it), 0)), 0) / 1e6).toFixed(2)} MB`)
   return chunks
+}
+
+/**
+ * Commit one chunk of document writes; if Firestore refuses it as too big for
+ * a single commit, split it in half and commit each half (recursively, down to
+ * one document). The safety net under chunkForFirestoreBatch's estimate — the
+ * exact per-commit budget isn't published. `addToBatch(batch, item)` stages one
+ * write; `extra(batch)` (e.g. the main-doc lastModified bump) rides on the LAST
+ * piece so it still lands after every write it announces.
+ */
+async function commitChunkAdaptive(chunk, addToBatch, extra = null) {
+  const batch = writeBatch(db)
+  for (const item of chunk) addToBatch(batch, item)
+  if (extra) extra(batch)
+  try {
+    await commitBatch(batch)
+  } catch (err) {
+    if (!isTransactionTooBigError(err) || chunk.length < 2) throw err
+    const mid = Math.ceil(chunk.length / 2)
+    console.warn(`[commitChunkAdaptive] ${chunk.length}-write commit refused as too big — retrying as ${mid} + ${chunk.length - mid}`)
+    await commitChunkAdaptive(chunk.slice(0, mid), addToBatch, null)
+    await commitChunkAdaptive(chunk.slice(mid), addToBatch, extra)
+  }
 }
 
 /**
@@ -1160,19 +1200,16 @@ export async function savePlayersToSubcollection(dynastyId, players, options = {
       const { _firestoreId, ...rawPlayerData } = player
       const playerData = sanitizeForFirestore(rawPlayerData)
       const bytes = firestoreDocSize(playerData)
-      preparedPlayers.push({ pid: String(player.pid), data: playerData, bytes })
+      preparedPlayers.push({ pid: String(player.pid), data: playerData, bytes, cost: bytes + firestoreIndexEntryBytes(playerData) })
     }
 
-    const playerChunks = chunkForFirestoreBatch(preparedPlayers, p => p.bytes)
+    const playerChunks = chunkForFirestoreBatch(preparedPlayers, p => p.bytes, p => p.cost)
     let playersSaved = 0
     for (let batchNum = 0; batchNum < playerChunks.length; batchNum++) {
       const chunk = playerChunks[batchNum]
-      const batch = writeBatch(db)
-      for (const p of chunk) {
+      await commitChunkAdaptive(chunk, (batch, p) => {
         batch.set(doc(db, DYNASTIES_COLLECTION, dynastyId, PLAYERS_SUBCOLLECTION, p.pid), p.data)
-      }
-
-      await commitBatch(batch)
+      })
       playersSaved += chunk.length
       console.log(`[savePlayersToSubcollection] Batch ${batchNum + 1}/${playerChunks.length} committed locally (${chunk.length} players)`)
       // Report progress so the create UI can show a moving bar during a big seed.
@@ -1345,18 +1382,27 @@ export async function saveRecruitingDatabaseSubcollection(dynastyId, players) {
     // Write only the changed/new recruits (batched, small delay between batches
     // to stay under the same write-stream ceiling savePlayersToSubcollection
     // guards against).
-    const totalBatches = Math.ceil(changed.length / BATCH_SIZE)
-    for (let i = 0; i < changed.length; i += BATCH_SIZE) {
-      const batch = writeBatch(db)
-      changed.slice(i, i + BATCH_SIZE).forEach(({ pid, data }) => {
-        batch.set(doc(db, DYNASTIES_COLLECTION, dynastyId, RECRUITING_DATABASE_SUBCOLLECTION, pid), data)
-      })
-      // Bump the main doc's lastModified in the SAME batch as the last chunk so
-      // other devices' dynasty listener notices the change.
-      if (i + BATCH_SIZE >= changed.length) bumpDynastyLastModifiedInBatch(batch, dynastyId)
-      await commitBatch(batch)
-      if (i + BATCH_SIZE < changed.length) {
-        await new Promise(resolve => setTimeout(resolve, totalBatches > 3 ? 300 : 200))
+    // Chunked by size and index cost like players/games — scouted recruits
+    // carry a full attribute map each.
+    const recruitChunks = chunkForFirestoreBatch(
+      changed.map(c => {
+        const bytes = firestoreDocSize(c.data)
+        return { ...c, bytes, cost: bytes + firestoreIndexEntryBytes(c.data) }
+      }),
+      c => c.bytes,
+      c => c.cost,
+    )
+    for (let n = 0; n < recruitChunks.length; n++) {
+      const isLast = n === recruitChunks.length - 1
+      await commitChunkAdaptive(
+        recruitChunks[n],
+        (batch, { pid, data }) => batch.set(doc(db, DYNASTIES_COLLECTION, dynastyId, RECRUITING_DATABASE_SUBCOLLECTION, pid), data),
+        // Bump the main doc's lastModified in the SAME batch as the last chunk
+        // so other devices' dynasty listener notices the change.
+        isLast ? (batch) => bumpDynastyLastModifiedInBatch(batch, dynastyId) : null,
+      )
+      if (!isLast) {
+        await new Promise(resolve => setTimeout(resolve, recruitChunks.length > 3 ? 300 : 200))
       }
     }
     // Only orphans were deleted (no doc writes) — still bump lastModified so the
@@ -1528,20 +1574,19 @@ export async function saveChangedPlayers(dynastyId, changedPlayers = []) {
     throw new Error(`saveChangedPlayers: too many players (${changedPlayers.length}), cap is 500. Use savePlayersToSubcollection for full-roster writes.`)
   }
 
-  const batch = writeBatch(db)
-  let count = 0
+  const writes = []
   for (const player of changedPlayers) {
     if (!player?.pid) continue
     const playerRef = doc(db, DYNASTIES_COLLECTION, dynastyId, PLAYERS_SUBCOLLECTION, String(player.pid))
     const { _firestoreId: _fid, ...rawPlayer } = player
-    batch.set(playerRef, sanitizeForFirestore(rawPlayer))
-    count++
+    writes.push({ ref: playerRef, data: sanitizeForFirestore(rawPlayer) })
   }
+  const count = writes.length
 
   if (count === 0) return
-  // Cross-device sync trigger — see bumpDynastyLastModifiedInBatch.
-  bumpDynastyLastModifiedInBatch(batch, dynastyId)
-  await commitBatch(batch)
+  // One batch, split only if Firestore refuses it as too big. The
+  // cross-device sync trigger (bumpDynastyLastModifiedInBatch) rides last.
+  await commitChunkAdaptive(writes, (batch, w) => (w.data === undefined ? batch.delete(w.ref) : batch.set(w.ref, w.data)), (batch) => bumpDynastyLastModifiedInBatch(batch, dynastyId))
   await waitForPendingWrites(db)
   console.log(`[saveChangedPlayers] Wrote ${count} changed players in 1 batch`)
 }
@@ -1570,23 +1615,23 @@ export async function saveWeeklyGamesChanges(dynastyId, gamesToSet = [], gameIds
   // Firestore caps writeBatch at 500 ops. ~60-130 game inserts plus a
   // handful of deletions stays comfortably under that on every realistic
   // weekly slate; if that ever grows, split into multiple batches.
-  const batch = writeBatch(db)
-
+  // A full-league slate with box scores can still be too big for ONE commit
+  // once index entries are counted, so the batch splits in half (and again)
+  // if Firestore refuses it. Deletes never target an id being set (filtered
+  // above), so splitting can't make a delete undo a set.
+  const writes = []
   for (const game of gamesToSet || []) {
     if (!game?.id) continue
     const gameRef = doc(db, DYNASTIES_COLLECTION, dynastyId, GAMES_SUBCOLLECTION, String(game.id))
     const rawGame = stripTransientGameFields(game)
-    batch.set(gameRef, sanitizeForFirestore(rawGame))
+    writes.push({ ref: gameRef, data: sanitizeForFirestore(rawGame) })
   }
-
   for (const gameId of safeDeletes) {
-    const gameRef = doc(db, DYNASTIES_COLLECTION, dynastyId, GAMES_SUBCOLLECTION, String(gameId))
-    batch.delete(gameRef)
+    writes.push({ ref: doc(db, DYNASTIES_COLLECTION, dynastyId, GAMES_SUBCOLLECTION, String(gameId)), data: undefined })
   }
 
   // Cross-device sync trigger — see bumpDynastyLastModifiedInBatch.
-  bumpDynastyLastModifiedInBatch(batch, dynastyId)
-  await commitBatch(batch)
+  await commitChunkAdaptive(writes, (batch, w) => (w.data === undefined ? batch.delete(w.ref) : batch.set(w.ref, w.data)), (batch) => bumpDynastyLastModifiedInBatch(batch, dynastyId))
   await waitForPendingWrites(db)
   console.log(`[saveWeeklyGamesChanges] Committed ${gamesToSet?.length || 0} sets + ${safeDeletes.length} deletes (${(gameIdsToDelete?.length || 0) - safeDeletes.length} delete-then-set duplicates filtered) in 1 batch`)
 }
@@ -1622,12 +1667,11 @@ export async function saveChangedPlayersAndGame(dynastyId, changedPlayers, game)
     throw new Error('Game must have an id')
   }
 
-  const batch = writeBatch(db)
-
-  // The single game doc.
+  // The single game doc, then each changed player — one batch, split only if
+  // Firestore refuses it as too big for a single commit.
   const gameRef = doc(db, DYNASTIES_COLLECTION, dynastyId, GAMES_SUBCOLLECTION, String(game.id))
   const { _firestoreId: _gFid, ...rawGame } = game
-  batch.set(gameRef, sanitizeForFirestore(rawGame))
+  const writes = [{ ref: gameRef, data: sanitizeForFirestore(rawGame) }]
 
   // Each changed player. Skip entries without a pid (defensive — same
   // guard savePlayersToSubcollection has).
@@ -1636,13 +1680,12 @@ export async function saveChangedPlayersAndGame(dynastyId, changedPlayers, game)
     if (!player?.pid) continue
     const playerRef = doc(db, DYNASTIES_COLLECTION, dynastyId, PLAYERS_SUBCOLLECTION, String(player.pid))
     const { _firestoreId: _pFid, ...rawPlayer } = player
-    batch.set(playerRef, sanitizeForFirestore(rawPlayer))
+    writes.push({ ref: playerRef, data: sanitizeForFirestore(rawPlayer) })
     playerCount++
   }
 
   // Cross-device sync trigger — see bumpDynastyLastModifiedInBatch.
-  bumpDynastyLastModifiedInBatch(batch, dynastyId)
-  await commitBatch(batch)
+  await commitChunkAdaptive(writes, (batch, w) => (w.data === undefined ? batch.delete(w.ref) : batch.set(w.ref, w.data)), (batch) => bumpDynastyLastModifiedInBatch(batch, dynastyId))
   // Single waitForPendingWrites covers the whole batch.
   await waitForPendingWrites(db)
   console.log(`[saveChangedPlayersAndGame] Wrote 1 game + ${playerCount} changed players in one batch`)
@@ -1748,17 +1791,15 @@ export async function saveGamesToSubcollection(dynastyId, games, options = {}) {
       const { _firestoreId, ...rawGameData } = game
       const gameData = sanitizeForFirestore(rawGameData)
       const bytes = firestoreDocSize(gameData)
-      preparedGames.push({ id: String(game.id), data: gameData, bytes })
+      preparedGames.push({ id: String(game.id), data: gameData, bytes, cost: bytes + firestoreIndexEntryBytes(gameData) })
     }
 
-    const gameChunks = chunkForFirestoreBatch(preparedGames, g => g.bytes)
+    const gameChunks = chunkForFirestoreBatch(preparedGames, g => g.bytes, g => g.cost)
     for (let batchNum = 0; batchNum < gameChunks.length; batchNum++) {
       const chunk = gameChunks[batchNum]
-      const batch = writeBatch(db)
-      for (const g of chunk) {
+      await commitChunkAdaptive(chunk, (batch, g) => {
         batch.set(doc(db, DYNASTIES_COLLECTION, dynastyId, GAMES_SUBCOLLECTION, g.id), g.data)
-      }
-      await commitBatch(batch)
+      })
 
       // Add delay between batches to prevent "Write stream exhausted" error
       // — same protection savePlayersToSubcollection already has, and the
@@ -1972,19 +2013,19 @@ export async function saveRecruitingClassesSubcollection(dynastyId, recruitingCl
     for (const [yearKey, roster] of Object.entries(yearMap)) {
       if (!yearKey) continue
       const data = sanitizeForFirestore({ roster: Array.isArray(roster) ? roster : [] })
-      prepared.push({ id: recruitingClassDocId(tidKey, yearKey), data, bytes: firestoreDocSize(data) })
+      const bytes = firestoreDocSize(data)
+      prepared.push({ id: recruitingClassDocId(tidKey, yearKey), data, bytes, cost: bytes + firestoreIndexEntryBytes(data) })
     }
   }
   if (prepared.length === 0) return
 
-  const chunks = chunkForFirestoreBatch(prepared, p => p.bytes)
+  const chunks = chunkForFirestoreBatch(prepared, p => p.bytes, p => p.cost)
   for (let batchNum = 0; batchNum < chunks.length; batchNum++) {
-    const batch = writeBatch(db)
-    for (const p of chunks[batchNum]) {
-      batch.set(doc(db, DYNASTIES_COLLECTION, dynastyId, RECRUITING_CLASSES_SUBCOLLECTION, p.id), p.data)
-    }
-    bumpDynastyLastModifiedInBatch(batch, dynastyId)
-    await commitBatch(batch)
+    await commitChunkAdaptive(
+      chunks[batchNum],
+      (batch, p) => batch.set(doc(db, DYNASTIES_COLLECTION, dynastyId, RECRUITING_CLASSES_SUBCOLLECTION, p.id), p.data),
+      (batch) => bumpDynastyLastModifiedInBatch(batch, dynastyId),
+    )
     if (batchNum + 1 < chunks.length) {
       const delayMs = chunks.length > 3 ? 300 : 200
       await new Promise(resolve => setTimeout(resolve, delayMs))

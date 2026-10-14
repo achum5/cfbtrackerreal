@@ -62,3 +62,55 @@ export function firestoreDocSize(docData) {
   }
   return sum
 }
+
+// ─── Index entries ───────────────────────────────────────────────────────────
+//
+// A commit is also charged for the index entries its writes generate, and
+// under Firestore's default automatic indexing that dwarfs the documents
+// themselves for our data: every leaf value of every map gets an ascending
+// AND a descending single-field entry, every array element an array-contains
+// entry, and each entry costs about the document name + the field path + the
+// value + 32 bytes. A player record carrying a few seasons of attributes and
+// stats writes several times its own size in index entries — which is how a
+// 450-player batch of ~1 KB records came back "Transaction too big" on a
+// full-league dynasty (11,744 players) whose largest document was nowhere
+// near the 1 MiB cap.
+
+const utf8 = (s) => new TextEncoder().encode(String(s)).length
+// Typical `dynasties/{20-char id}/{collection}/{id}` document name, counted
+// the way Firestore sizes names (each segment + 1, plus 16).
+const DEFAULT_DOC_NAME_BYTES = 64
+
+/**
+ * Estimated bytes of single-field index entries Firestore writes for one
+ * document under default indexing. An over-estimate by design — it's a batch
+ * budget, and fields exempted from indexing are counted anyway.
+ */
+export function firestoreIndexEntryBytes(docData, docNameBytes = DEFAULT_DOC_NAME_BYTES) {
+  let total = 0
+  const entry = (pathBytes, valueBytes) => docNameBytes + pathBytes + valueBytes + 32
+  const walk = (value, pathBytes, seen) => {
+    if (value === undefined) return
+    if (Array.isArray(value)) {
+      if (seen.has(value)) return
+      seen.add(value)
+      for (const el of value) total += entry(pathBytes, firestoreValueSize(el))
+      return
+    }
+    if (value && typeof value === 'object' && !(value instanceof Date) && typeof value.toDate !== 'function') {
+      if (seen.has(value)) return
+      seen.add(value)
+      for (const [k, v] of Object.entries(value)) walk(v, pathBytes + utf8(k) + 1, seen)
+      return
+    }
+    total += 2 * entry(pathBytes, firestoreValueSize(value))
+  }
+  const seen = new WeakSet()
+  for (const [k, v] of Object.entries(docData || {})) walk(v, utf8(k) + 1, seen)
+  return total
+}
+
+/** What one document write costs a commit: the document plus its index entries. */
+export function firestoreWriteCost(docData) {
+  return firestoreDocSize(docData) + firestoreIndexEntryBytes(docData)
+}

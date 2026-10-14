@@ -72,3 +72,16 @@ export function describeOversizedWrite(err) {
   if (parts[0] === 'dynasties' && parts.length >= 4) return { ...out, kind: 'subcollection', collection: parts[2] }
   return out
 }
+
+/**
+ * A commit refused for its TOTAL size (documents plus the index entries they
+ * generate), not for any one document. Fixed by splitting the batch, never by
+ * shrinking a document.
+ */
+export function isTransactionTooBigError(err) {
+  if (!err) return false
+  const msg = String(err.message || err || '')
+  return /transaction too big/i.test(msg)
+    || /decrease transaction size/i.test(msg)
+    || /request payload size exceeds the limit/i.test(msg)
+}
