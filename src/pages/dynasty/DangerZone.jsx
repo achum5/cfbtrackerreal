@@ -73,6 +73,11 @@ const IDAHO_TEAM = {
   logo: 'https://i.imgur.com/Fk9sVs0.png',
 }
 
+// Firestore's per-document cap, and the size the storage report starts
+// warning at (90%).
+const FIRESTORE_DOC_CAP_BYTES = 1024 * 1024
+const SEASON_DOC_WARN_BYTES = Math.round(FIRESTORE_DOC_CAP_BYTES * 0.9)
+
 export default function DangerZone() {
   const { currentDynasty, dynasties, analyzeDocumentSize, optimizeDocumentSize, migrateToSubcollections, migrateConferencesToPerTeam, updateDynasty, updateTeambuilderTeam, exportDynasty, isViewOnly, syncAllPlayersStats, saveWeekRecap, deleteWeekRecap, addGame, recoverRecruitData, recoverRosterData, restoreDynastyFromBackup, restoreDynastyFromBackupReplace } = useDynasty()
   const { user } = useAuth()
@@ -479,6 +484,33 @@ export default function DangerZone() {
               return `${f}:${count}`
             })
             lines.push(`  ${('seasons/' + id).padEnd(20)} ${fmt(docBytes).padStart(10)}   ${fieldSummaries.join(' ')}`)
+            // Every season doc has its own 1 MiB cap. Flag the ones at or
+            // near it and name their biggest fields — that's the record a
+            // "saves are NOT reaching the cloud" banner points at when the
+            // main doc is small.
+            if (docBytes >= SEASON_DOC_WARN_BYTES) {
+              const flag = docBytes >= FIRESTORE_DOC_CAP_BYTES ? 'OVER THE 1 MiB CAP — saves to this season are rejected' : 'NEAR THE 1 MiB CAP'
+              lines.push(`    ⚠️ ${flag}. Largest fields:`)
+              fieldNames
+                .map(f => ({ f, bytes: sizeOf(data[f]) }))
+                .sort((a, b) => b.bytes - a.bytes)
+                .slice(0, 6)
+                .forEach(({ f, bytes }) => lines.push(`      ${f.padEnd(36)} ${fmt(bytes).padStart(10)}`))
+            }
+            // Team-scoped data for the season lives in shard docs under it,
+            // each with its own cap.
+            try {
+              const shardSnap = await getDocsFromServer(collection(db, 'dynasties', currentDynasty.id, 'seasons', id, 'teamShards'))
+              if (!shardSnap.empty) {
+                const shardSizes = shardSnap.docs.map(d => ({ id: d.id, bytes: sizeOf(d.data() || {}) }))
+                const biggest = shardSizes.reduce((m, x) => (x.bytes > m.bytes ? x : m), shardSizes[0])
+                const total = shardSizes.reduce((sum, x) => sum + x.bytes, 0)
+                lines.push(`    teamShards: ${shardSizes.length} docs, ${fmt(total)} total, largest ${fmt(biggest.bytes)} (shard ${biggest.id})${biggest.bytes >= SEASON_DOC_WARN_BYTES ? '  ⚠️ near/over the cap' : ''}`)
+              }
+            } catch {
+              // Shards are optional (older seasons have none); a failed probe
+              // shouldn't sink the rest of the report.
+            }
           }
         }
       } catch (err) {
@@ -2922,7 +2954,7 @@ export default function DangerZone() {
             <div className="mb-3">
               <h3 className="label-sm text-txt-primary m-0">Analyze Storage Size</h3>
               <p className="text-xs mt-1 text-txt-tertiary leading-relaxed m-0">
-                Reports how many bytes each top-level dynasty field is using on the main Firestore doc (1 MiB cap). Run this if writes are failing with "document too big", or to see which field will be the next migration target.
+                Reports how big the main dynasty save and each season record are (every one has its own 1 MiB cap) and flags any that are near or over it. Run this if saves are failing with "document too big" or the "saves are NOT reaching the cloud" banner, and copy the report into a bug report.
               </p>
             </div>
             <div className="mt-auto space-y-2">
@@ -2936,6 +2968,19 @@ export default function DangerZone() {
                 {storageAnalysisStatus === 'running' ? 'Analyzing...' : 'Analyze Size'}
               </Button>
               <StatusLine status={storageAnalysisStatus} />
+              {storageAnalysisDetail && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={async () => {
+                    try { await navigator.clipboard.writeText(storageAnalysisDetail); toast.success('Storage report copied') }
+                    catch { toast.error('Copy failed. Select the report text and copy it manually.') }
+                  }}
+                >
+                  Copy Report
+                </Button>
+              )}
               {storageAnalysisDetail && (
                 <pre
                   className="text-[11px] mt-2 p-3 rounded-md overflow-auto whitespace-pre font-mono"

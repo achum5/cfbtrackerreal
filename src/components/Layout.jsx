@@ -1257,7 +1257,7 @@ export default function Layout({ children }) {
       {/* Cloud sync health — a fixed banner that appears only when a write
           hasn't reached the server, so a wedged connection is visible instead
           of silently diverging. Renders nothing when synced. */}
-      <CloudSyncBanner />
+      <CloudSyncBanner subcollectionsMigrated={!!currentDynasty?._subcollectionsMigrated} />
 
       {/* Version Footer - tracked editorial treatment, hairline rule above. */}
       <footer

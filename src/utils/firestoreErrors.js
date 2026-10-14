@@ -28,3 +28,47 @@ export function isDocTooLargeError(err) {
     /document is too large/i.test(msg)
   )
 }
+
+/**
+ * Which document an oversized-write rejection is about. Firestore names it in
+ * the message ("Document 'projects/…/documents/dynasties/{id}/seasons/2027'
+ * cannot be written because its size (…) exceeds …"); a per-field rejection
+ * names the property instead ("The value of property "teams" is longer than
+ * … bytes"). Knowing which one matters because the remedies differ: only the
+ * MAIN dynasty doc is fixed by "Migrate to Subcollections" — telling a
+ * dynasty that already migrated to run it again is a dead end.
+ *
+ * @returns {null | {
+ *   kind: 'main' | 'season' | 'teamShard' | 'subcollection' | 'unknown',
+ *   path: string | null, year: number | null, collection: string | null,
+ *   property: string | null, bytes: number | null,
+ * }} null when the error isn't an oversized-write rejection at all.
+ */
+export function describeOversizedWrite(err) {
+  if (!isDocTooLargeError(err)) return null
+  const msg = String(err?.message || err || '')
+  const pathMatch = msg.match(/Document '([^']+)'/i)
+  const fullPath = pathMatch ? pathMatch[1] : null
+  const docPath = fullPath ? fullPath.replace(/^.*?\/documents\//, '') : null
+  const sizeMatch = msg.match(/size \(([\d,]+) bytes\)/i)
+  const bytes = sizeMatch ? Number(sizeMatch[1].replace(/,/g, '')) : null
+  const propMatch = msg.match(/property "([^"]+)"/i)
+  const property = propMatch ? propMatch[1] : null
+  const out = { kind: 'unknown', path: docPath, year: null, collection: null, property, bytes }
+  if (!docPath) return out
+  const parts = docPath.split('/')
+  // dynasties/{id}
+  if (parts.length === 2 && parts[0] === 'dynasties') return { ...out, kind: 'main' }
+  // dynasties/{id}/seasons/{year}[/teamShards/{n}]
+  if (parts[0] === 'dynasties' && parts[2] === 'seasons') {
+    const year = Number(parts[3])
+    return {
+      ...out,
+      kind: parts[4] === 'teamShards' ? 'teamShard' : 'season',
+      year: Number.isFinite(year) ? year : null,
+      collection: 'seasons',
+    }
+  }
+  if (parts[0] === 'dynasties' && parts.length >= 4) return { ...out, kind: 'subcollection', collection: parts[2] }
+  return out
+}

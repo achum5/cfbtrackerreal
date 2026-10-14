@@ -49,3 +49,40 @@ describe('isDocTooLargeError', () => {
     expect(isDocTooLargeError({})).toBe(false)
   })
 })
+
+import { describeOversizedWrite } from '../firestoreErrors'
+
+describe('describeOversizedWrite — which document was too big', () => {
+  const rejection = (path, size = '1,234,567') => ({
+    code: 'invalid-argument',
+    message: `Document 'projects/cfbtracker-200ab/databases/(default)/documents/${path}' cannot be written because its size (${size} bytes) exceeds the maximum allowed size of 1,048,576 bytes.`,
+  })
+
+  it('the main dynasty doc (the only one "Migrate to Subcollections" fixes)', () => {
+    expect(describeOversizedWrite(rejection('dynasties/abc123'))).toMatchObject({ kind: 'main', path: 'dynasties/abc123', bytes: 1234567 })
+  })
+
+  it('a season doc, with its year', () => {
+    expect(describeOversizedWrite(rejection('dynasties/abc123/seasons/2027'))).toMatchObject({ kind: 'season', year: 2027, collection: 'seasons' })
+  })
+
+  it('a team shard under a season', () => {
+    expect(describeOversizedWrite(rejection('dynasties/abc123/seasons/2027/teamShards/3'))).toMatchObject({ kind: 'teamShard', year: 2027 })
+  })
+
+  it('a record in another subcollection', () => {
+    expect(describeOversizedWrite(rejection('dynasties/abc123/players/42'))).toMatchObject({ kind: 'subcollection', collection: 'players' })
+  })
+
+  it('no path in the message: unknown, but the property is kept when named', () => {
+    expect(describeOversizedWrite({ code: 'invalid-argument', message: 'Document cannot be written because its size (1,234,567 bytes) exceeds the maximum allowed size of 1,048,576 bytes.' }))
+      .toMatchObject({ kind: 'unknown', path: null, bytes: 1234567 })
+    expect(describeOversizedWrite({ code: 'invalid-argument', message: 'The value of property "teams" is longer than 1048487 bytes.' }))
+      .toMatchObject({ kind: 'unknown', property: 'teams' })
+  })
+
+  it('null for anything that is not an oversized write', () => {
+    expect(describeOversizedWrite({ code: 'permission-denied', message: 'Missing or insufficient permissions.' })).toBeNull()
+    expect(describeOversizedWrite(null)).toBeNull()
+  })
+})

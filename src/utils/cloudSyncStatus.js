@@ -1,4 +1,4 @@
-import { isDocTooLargeError } from './firestoreErrors'
+import { describeOversizedWrite } from './firestoreErrors'
 
 // cloudSyncStatus — a tiny observable store of Firestore write-sync health.
 //
@@ -127,6 +127,9 @@ export function trackWriteFailed(id, err) {
   // preseason") was exactly this: the rejection arrived late, was recorded
   // here, and nothing rendered or logged it.
   console.error(`[cloudSync] write REJECTED by server${e?.label ? ` (${e.label})` : ''}:`, err)
-  lastError = { message: errText(err), label: e?.label || null, at: Date.now(), docTooLarge: isDocTooLargeError(err) }
+  // `oversized` says WHICH doc was over the cap (main / a season / …) so the
+  // banner gives the remedy that actually applies.
+  const oversized = describeOversizedWrite(err)
+  lastError = { message: errText(err), label: e?.label || null, at: Date.now(), docTooLarge: !!oversized, oversized }
   emit()
 }

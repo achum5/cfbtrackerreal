@@ -14,7 +14,32 @@ import { useCloudSyncStatus } from '../hooks/useCloudSyncStatus'
 // are safe and still syncing), so it was disabled. navigator.onLine cannot
 // false-positive that way: offline is offline. The stalled-ack detection
 // stays suppressed; the cloudSyncStatus store is kept for a future revisit.
-export default function CloudSyncBanner() {
+// Which save was too big, in words, and what fixes it. Only the MAIN dynasty
+// doc is fixed by "Migrate to Subcollections"; telling a dynasty that's
+// already migrated to run it again is a dead end (a user with a 133 KB main
+// doc got exactly that advice). Everything else names the record that's over
+// the cap and asks for the storage report, which lists every season doc's size.
+function oversizedCopy(oversized, subcollectionsMigrated) {
+  const kind = oversized?.kind || 'unknown'
+  const isMainDoc = kind === 'main' || (kind === 'unknown' && !subcollectionsMigrated)
+  if (isMainDoc) {
+    return {
+      what: 'This dynasty\u2019s core save has grown past Firestore\u2019s 1\u00a0MB limit, so the server is rejecting every save',
+      fix: 'Fix: open Admin Tools (Danger Zone) and run \u201cMigrate to Subcollections\u201d, then re-check this page.',
+    }
+  }
+  const record = (kind === 'season' || kind === 'teamShard')
+    ? `the ${oversized.year ?? ''} season record`.replace('  ', ' ')
+    : kind === 'subcollection'
+      ? `a record in ${oversized.collection}`
+      : 'one of this dynasty\u2019s records'
+  return {
+    what: `Saves that touch ${record} are being rejected because it has grown past Firestore\u2019s 1\u00a0MB limit`,
+    fix: 'Your main save is fine, so \u201cMigrate to Subcollections\u201d won\u2019t help here. Open Admin Tools (Danger Zone), run \u201cAnalyze Storage Size\u201d, and send the report (screenshot or copy) to support.',
+  }
+}
+
+export default function CloudSyncBanner({ subcollectionsMigrated = false }) {
   // The stalled-ack signal stays deliberately unused (see note above) — but
   // lastError.docTooLarge is a different animal: it's a definitive SERVER
   // REJECTION, not a maybe-wedged connection, so it cannot false-positive the
@@ -38,6 +63,8 @@ export default function CloudSyncBanner() {
   }, [])
 
   if (status?.lastError?.docTooLarge) {
+    const copy = oversizedCopy(status.lastError.oversized, subcollectionsMigrated)
+    const path = status.lastError.oversized?.path
     return (
       <div
         role="alert"
@@ -50,12 +77,12 @@ export default function CloudSyncBanner() {
             Your saves are NOT reaching the cloud
           </p>
           <p className="text-xs text-red-100/90 mt-0.5 leading-relaxed">
-            This dynasty&apos;s core save has grown past Firestore&apos;s 1&nbsp;MB limit, so the
-            server is rejecting every save — changes look saved on this device but will be
-            lost on reload. Fix: open Admin Tools (Danger Zone) and run
-            &ldquo;Migrate to Subcollections&rdquo;, then re-check this page. This banner
-            clears on the first save that reaches the cloud.
+            {copy.what} — changes look saved on this device but will be lost on reload.{' '}
+            {copy.fix} This banner clears on the first save that reaches the cloud.
           </p>
+          {path && (
+            <p className="text-[11px] text-red-100/70 mt-1 font-mono break-all">{path}</p>
+          )}
         </div>
       </div>
     )
