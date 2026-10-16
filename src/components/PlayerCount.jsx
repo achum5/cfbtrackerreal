@@ -306,7 +306,7 @@ export default function PlayerCount({ onSelectBucket = null, actionsRef = null, 
                                 className="bg-surface-2 border px-2.5 py-1 rounded-md text-xs font-display font-bold uppercase tracking-wide"
                                 style={has
                                   ? { borderColor: c.border, color: c.text }
-                                  : { borderColor: 'var(--surface-4)', color: 'var(--txt-tertiary)', opacity: 0.45 }
+                                  : { borderColor: 'var(--surface-4)', color: 'var(--text-tertiary)', opacity: 0.45 }
                                 }
                               >
                                 {dt}: {traitCounts[dt]}

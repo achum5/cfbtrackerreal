@@ -2641,7 +2641,7 @@ function PlayerInner() {
                                 )}
                               </div>
                               {inYear && (
-                                <div className="mt-1 inline-block text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded" style={{ color: secondaryText, backgroundColor: 'var(--bg-surface-3, #1c1c22)' }}>
+                                <div className="mt-1 inline-block text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded" style={{ color: secondaryText, backgroundColor: 'var(--surface-3)' }}>
                                   {inYear}
                                 </div>
                               )}
@@ -2653,7 +2653,7 @@ function PlayerInner() {
                                   below — i.e. between the two seasons it
                                   actually happened between. */}
                               {transition && (
-                                <div className="mt-2 inline-block text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded" style={{ color: secondaryText, backgroundColor: 'var(--bg-surface-3, #1c1c22)' }}>
+                                <div className="mt-2 inline-block text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded" style={{ color: secondaryText, backgroundColor: 'var(--surface-3)' }}>
                                   {transition}
                                 </div>
                               )}

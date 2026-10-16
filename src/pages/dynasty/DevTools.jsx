@@ -90,7 +90,7 @@ export default function DevTools() {
           {Object.entries(features).map(([key, on]) => (
             <div key={key} className="flex items-center justify-between gap-2 py-1 border-t border-surface-3">
               <span className="text-xs text-txt-secondary truncate">{key}</span>
-              <span className="text-xs font-bold" style={{ color: on ? 'var(--accent-success)' : 'var(--txt-tertiary)' }}>{on ? 'ON' : 'off'}</span>
+              <span className="text-xs font-bold" style={{ color: on ? 'var(--accent-success)' : 'var(--text-tertiary)' }}>{on ? 'ON' : 'off'}</span>
             </div>
           ))}
         </div>

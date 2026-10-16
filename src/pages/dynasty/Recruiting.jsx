@@ -1939,7 +1939,7 @@ export default function Recruiting() {
                         className="text-2xl font-black tabular leading-none pl-2"
                         style={{
                           fontFamily: "'Bebas Neue', sans-serif",
-                          color: isCurrent ? 'var(--text-primary)' : 'var(--txt-primary)',
+                          color: isCurrent ? 'var(--text-primary)' : 'var(--text-primary)',
                         }}
                       >
                         {row.year}
@@ -1947,7 +1947,7 @@ export default function Recruiting() {
                       <span
                         className="text-sm font-semibold tabular inline-flex items-center justify-center px-2 py-0.5 rounded-full"
                         style={{
-                          color: isTopTen ? 'var(--text-primary)' : 'var(--txt-secondary)',
+                          color: isTopTen ? 'var(--text-primary)' : 'var(--text-secondary)',
                           backgroundColor: isTopTen ? 'var(--surface-3)' : 'transparent',
                           border: isTopTen ? '1px solid var(--text-primary)' : '1px solid transparent',
                           minWidth: '2.5rem',
@@ -1970,7 +1970,7 @@ export default function Recruiting() {
                           className="text-base font-black tabular flex-shrink-0 text-right tabular-nums"
                           style={{
                             fontFamily: "'Bebas Neue', sans-serif",
-                            color: 'var(--txt-primary)',
+                            color: 'var(--text-primary)',
                             minWidth: '3.5rem',
                           }}
                         >

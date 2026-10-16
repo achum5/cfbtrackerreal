@@ -835,7 +835,7 @@ export default function CoachCareer() {
                 onClick={canEditPhoto ? openPhotoModal : undefined}
                 disabled={!canEditPhoto}
                 aria-label={canEditPhoto ? 'Edit coach photo' : undefined}
-                className={`group relative shrink-0 self-end overflow-hidden rounded-xl border border-surface-4 bg-surface-2 ${canEditPhoto ? 'cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-text-primary' : 'cursor-default'}`}
+                className={`group relative shrink-0 self-end overflow-hidden rounded-xl border border-surface-4 bg-surface-2 ${canEditPhoto ? 'cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-txt-primary' : 'cursor-default'}`}
                 style={{ width: 'clamp(56px, 9vw, 84px)', height: 'clamp(56px, 9vw, 84px)' }}
               >
                 {coachPhotoUrl ? (
@@ -870,7 +870,7 @@ export default function CoachCareer() {
                   tabIndex={canEditPhoto ? 0 : undefined}
                   onKeyDown={canEditPhoto ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openNameModal() } } : undefined}
                   aria-label={canEditPhoto ? 'Edit coach name' : undefined}
-                  className={`m-0 text-txt-primary leading-[0.9] uppercase break-words ${canEditPhoto ? 'cursor-pointer hover:opacity-80 transition-opacity focus:outline-none focus-visible:ring-1 focus-visible:ring-text-primary rounded' : ''}`}
+                  className={`m-0 text-txt-primary leading-[0.9] uppercase break-words ${canEditPhoto ? 'cursor-pointer hover:opacity-80 transition-opacity focus:outline-none focus-visible:ring-1 focus-visible:ring-txt-primary rounded' : ''}`}
                   style={{
                     fontFamily: "'Bebas Neue', sans-serif",
                     fontSize: 'clamp(2rem, 4.5vw, 3.25rem)',
@@ -924,7 +924,7 @@ export default function CoachCareer() {
                   setSelectedTeamForModal(null)
                   setShowGamesModal(true)
                 }}
-                className="career-stat-btn group text-left rounded-md focus:outline-none focus-visible:ring-1 focus-visible:ring-text-primary"
+                className="career-stat-btn group text-left rounded-md focus:outline-none focus-visible:ring-1 focus-visible:ring-txt-primary"
                 title="View every game of this career"
               >
                 <div

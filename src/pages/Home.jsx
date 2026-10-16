@@ -1355,21 +1355,21 @@ export default function Home() {
             const numberColor = isCurrent
               ? 'var(--text-primary)'
               : isComplete
-              ? 'var(--txt-secondary)'
-              : 'var(--txt-tertiary)'
+              ? 'var(--text-secondary)'
+              : 'var(--text-tertiary)'
 
             const labelColor = isCurrent
-              ? 'var(--txt-primary)'
+              ? 'var(--text-primary)'
               : isComplete
-              ? 'var(--txt-secondary)'
-              : 'var(--txt-tertiary)'
+              ? 'var(--text-secondary)'
+              : 'var(--text-tertiary)'
 
             const statusLabel = isComplete ? 'Done' : isCurrent ? 'Active' : '—'
             const statusColor = isComplete
-              ? 'var(--txt-tertiary)'
+              ? 'var(--text-tertiary)'
               : isCurrent
               ? 'var(--text-primary)'
-              : 'var(--txt-tertiary)'
+              : 'var(--text-tertiary)'
 
             return (
               <div

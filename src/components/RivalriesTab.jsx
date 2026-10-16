@@ -654,14 +654,14 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
                 <button
                   type="button"
                   onClick={() => copyText(buildNamesPrompt(dynasty, rivalry, myTid), setNamesCopied, 'names')}
-                  className="flex-1 py-2 px-3 rounded border border-border-subtle text-xs font-medium text-txt-secondary hover:text-txt-primary hover:bg-bg-hover transition-colors text-center"
+                  className="flex-1 py-2 px-3 rounded border border-surface-4 text-xs font-medium text-txt-secondary hover:text-txt-primary hover:bg-surface-3 transition-colors text-center"
                 >
                   {namesCopied ? 'Copied!' : 'Copy Rivalry & Trophy Name & Description Prompt'}
                 </button>
                 <button
                   type="button"
                   onClick={() => copyText(buildTrophyPrompt(dynasty, rivalry, myTid), setImageCopied, 'image')}
-                  className="flex-1 py-2 px-3 rounded border border-border-subtle text-xs font-medium text-txt-secondary hover:text-txt-primary hover:bg-bg-hover transition-colors text-center"
+                  className="flex-1 py-2 px-3 rounded border border-surface-4 text-xs font-medium text-txt-secondary hover:text-txt-primary hover:bg-surface-3 transition-colors text-center"
                 >
                   {imageCopied ? 'Copied!' : 'Copy Trophy Generator Prompt'}
                 </button>
@@ -673,7 +673,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
               <button
                 type="button"
                 onClick={handlePasteAiOutput}
-                className="w-full mt-2 py-2 px-3 rounded border border-border-subtle text-xs font-bold text-txt-primary hover:bg-bg-hover transition-colors text-center"
+                className="w-full mt-2 py-2 px-3 rounded border border-surface-4 text-xs font-bold text-txt-primary hover:bg-surface-3 transition-colors text-center"
               >
                 {pasteFilled ? 'Filled in!' : 'Paste AI Output'}
               </button>
@@ -683,7 +683,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
                 <div className="mt-2">
                   <textarea
                     autoFocus
-                    className="w-full bg-bg-input border border-border-subtle rounded px-3 py-2 text-xs text-txt-primary font-mono resize-none"
+                    className="w-full bg-surface-2 border border-surface-4 rounded px-3 py-2 text-xs text-txt-primary font-mono resize-none"
                     rows={6}
                     placeholder="Click here, then Ctrl+V / Cmd+V to paste the AI's reply, then Fill Fields…"
                     value={pasteText}
@@ -704,7 +704,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
                     <button
                       type="button"
                       onClick={() => { setShowPasteBox(false); setPasteText(''); setPasteFailed(false) }}
-                      className="flex-1 py-1.5 rounded text-xs text-txt-secondary border border-border-subtle hover:bg-bg-hover"
+                      className="flex-1 py-1.5 rounded text-xs text-txt-secondary border border-surface-4 hover:bg-surface-3"
                     >
                       Cancel
                     </button>
@@ -723,7 +723,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
                   </div>
                   <textarea
                     readOnly
-                    className="w-full bg-bg-input border border-border-subtle rounded px-3 py-2 text-xs text-txt-primary font-mono resize-none"
+                    className="w-full bg-surface-2 border border-surface-4 rounded px-3 py-2 text-xs text-txt-primary font-mono resize-none"
                     rows={8}
                     value={viewingPrompt === 'names'
                       ? buildNamesPrompt(dynasty, rivalry, myTid)
@@ -736,7 +736,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
               )}
             </div>
 
-            <div className="border-t border-border-subtle" />
+            <div className="border-t border-surface-4" />
 
             {/* Rivalry + Trophy side-by-side on wide screens so the whole
                 form fits without scrolling — stacks back to one column on
@@ -754,7 +754,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
                 </label>
                 <input
                   type="text"
-                  className="w-full bg-bg-input border border-border-subtle rounded px-3 py-2 text-sm text-txt-primary placeholder-txt-muted"
+                  className="w-full bg-surface-2 border border-surface-4 rounded px-3 py-2 text-sm text-txt-primary placeholder-txt-muted"
                   placeholder={canName ? 'e.g. The Battle for the Border' : 'Locked'}
                   value={name}
                   onChange={e => setName(e.target.value)}
@@ -765,7 +765,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
               <div>
                 <label className="label-xs text-txt-tertiary block mb-1">Description</label>
                 <textarea
-                  className="w-full bg-bg-input border border-border-subtle rounded px-3 py-2 text-sm text-txt-primary placeholder-txt-muted resize-none"
+                  className="w-full bg-surface-2 border border-surface-4 rounded px-3 py-2 text-sm text-txt-primary placeholder-txt-muted resize-none"
                   placeholder="Paste the rivalry description from AI here, or write your own…"
                   value={description}
                   onChange={e => setDescription(e.target.value)}
@@ -777,7 +777,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
                 <label className="label-xs text-txt-tertiary block mb-1">Formed Year</label>
                 <input
                   type="number"
-                  className="w-full bg-bg-input border border-border-subtle rounded px-3 py-2 text-sm text-txt-primary placeholder-txt-muted"
+                  className="w-full bg-surface-2 border border-surface-4 rounded px-3 py-2 text-sm text-txt-primary placeholder-txt-muted"
                   placeholder={`e.g. ${currentYear} — leave blank if unknown`}
                   value={formedYear}
                   onChange={e => setFormedYear(e.target.value)}
@@ -787,7 +787,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
             </div>
 
             {/* ── Trophy section ── */}
-            <div className="space-y-3 border-t border-border-subtle pt-5 lg:border-t-0 lg:pt-0 lg:border-l lg:pl-5 lg:border-border-subtle">
+            <div className="space-y-3 border-t border-surface-4 pt-5 lg:border-t-0 lg:pt-0 lg:border-l lg:pl-5 lg:border-surface-4">
               <p className="label-xs text-txt-tertiary" style={{ letterSpacing: '1px' }}>
                 TROPHY
                 {!canTrophy && <span className="ml-2 text-txt-muted font-normal normal-case">(unlocks in {RIVALRY_TROPHY_YEARS - yearsFormed} yr{RIVALRY_TROPHY_YEARS - yearsFormed !== 1 ? 's' : ''})</span>}
@@ -797,7 +797,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
                 <label className="label-xs text-txt-tertiary block mb-1">Name</label>
                 <input
                   type="text"
-                  className="w-full bg-bg-input border border-border-subtle rounded px-3 py-2 text-sm text-txt-primary placeholder-txt-muted"
+                  className="w-full bg-surface-2 border border-surface-4 rounded px-3 py-2 text-sm text-txt-primary placeholder-txt-muted"
                   placeholder={canTrophy ? 'e.g. The Golden Helmet Trophy' : 'Locked'}
                   value={trophy}
                   onChange={e => setTrophy(e.target.value)}
@@ -808,7 +808,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
               <div>
                 <label className="label-xs text-txt-tertiary block mb-1">Description</label>
                 <textarea
-                  className="w-full bg-bg-input border border-border-subtle rounded px-3 py-2 text-sm text-txt-primary placeholder-txt-muted resize-none disabled:opacity-40"
+                  className="w-full bg-surface-2 border border-surface-4 rounded px-3 py-2 text-sm text-txt-primary placeholder-txt-muted resize-none disabled:opacity-40"
                   placeholder={canTrophy ? 'Paste the trophy description from AI here, or describe it yourself...' : 'Locked'}
                   value={trophyDesc}
                   onChange={e => setTrophyDesc(e.target.value)}
@@ -828,7 +828,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
                   aria-checked={includeText}
                   onClick={() => setIncludeText(v => !v)}
                   disabled={!canTrophy}
-                  className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 disabled:opacity-40 ${includeText ? 'bg-green-500' : 'bg-bg-subtle'}`}
+                  className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 disabled:opacity-40 ${includeText ? 'bg-green-500' : 'bg-surface-4'}`}
                 >
                   <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${includeText ? 'translate-x-5' : 'translate-x-0.5'}`} />
                 </button>
@@ -852,7 +852,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
                     />
                   </>
                 ) : (
-                  <div className="h-10 bg-bg-subtle rounded flex items-center px-3">
+                  <div className="h-10 bg-surface-4 rounded flex items-center px-3">
                     <span className="text-xs text-txt-muted">Locked</span>
                   </div>
                 )}
@@ -861,7 +861,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
 
             </div>
 
-            <div className="border-t border-border-subtle" />
+            <div className="border-t border-surface-4" />
 
             {/* ── Settings ── */}
             <div className="flex items-center justify-between">
@@ -871,7 +871,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
               </div>
               <button
                 onClick={() => setActive(v => !v)}
-                className={`relative w-10 h-5 rounded-full transition-colors ${active ? 'bg-green-500' : 'bg-bg-subtle'}`}
+                className={`relative w-10 h-5 rounded-full transition-colors ${active ? 'bg-green-500' : 'bg-surface-4'}`}
               >
                 <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${active ? 'translate-x-5' : 'translate-x-0.5'}`} />
               </button>
@@ -888,7 +888,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
                 </div>
                 <button
                   onClick={() => setForceUnlocked(v => !v)}
-                  className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${forceUnlocked ? 'bg-green-500' : 'bg-bg-subtle'}`}
+                  className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${forceUnlocked ? 'bg-green-500' : 'bg-surface-4'}`}
                 >
                   <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${forceUnlocked ? 'translate-x-5' : 'translate-x-0.5'}`} />
                 </button>
@@ -973,7 +973,7 @@ function BrewingRivalryModal({ rivalTid, dynasty, teamName, logo, points, events
               </button>
             </div>
 
-            <div className="border-t border-border-subtle" />
+            <div className="border-t border-surface-4" />
 
             <div>
               <p className="label-xs text-txt-tertiary mb-2" style={{ letterSpacing: '1px' }}>RIVALRY SCORE</p>
@@ -984,7 +984,7 @@ function BrewingRivalryModal({ rivalTid, dynasty, teamName, logo, points, events
                 <span className="text-xs text-txt-muted">{pct}%</span>
               </div>
               <div className="relative">
-                <div className="h-5 bg-bg-subtle rounded overflow-hidden">
+                <div className="h-5 bg-surface-4 rounded overflow-hidden">
                   <div
                     className="h-full transition-all duration-500"
                     style={{ width: `${pct}%`, backgroundColor: barColor, opacity: 0.85 }}
@@ -993,7 +993,7 @@ function BrewingRivalryModal({ rivalTid, dynasty, teamName, logo, points, events
                 {[25, 50, 75].map(tick => (
                   <div
                     key={tick}
-                    className="absolute top-0 h-5 w-px bg-bg-base opacity-40"
+                    className="absolute top-0 h-5 w-px bg-surface-1 opacity-40"
                     style={{ left: `${tick}%` }}
                   />
                 ))}
@@ -1010,7 +1010,7 @@ function BrewingRivalryModal({ rivalTid, dynasty, teamName, logo, points, events
                 {grouped.map(g => (
                   <span
                     key={g.type}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-bg-subtle text-txt-secondary"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-surface-4 text-txt-secondary"
                   >
                     <span className="font-bold text-txt-primary">+{g.points}</span>
                     {rivalryEventLabel(g.type)}{g.count > 1 ? ` ×${g.count}` : ''}
@@ -1050,7 +1050,7 @@ function AddRivalryModal({ dynasty, myTid, existingRivalTids, onAdd, onClose }) 
       onClick={onClose}
     >
       <div className="card w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-4 border-b border-border-subtle">
+        <div className="px-5 py-4 border-b border-surface-4">
           <p className="font-bold text-txt-primary">Add Rival</p>
           <p className="text-xs text-txt-muted mt-0.5">Pick any team to add as a rival</p>
         </div>
@@ -1058,7 +1058,7 @@ function AddRivalryModal({ dynasty, myTid, existingRivalTids, onAdd, onClose }) 
           <input
             type="text"
             autoFocus
-            className="w-full bg-bg-input border border-border-subtle rounded px-3 py-2 text-sm text-txt-primary placeholder-txt-muted"
+            className="w-full bg-surface-2 border border-surface-4 rounded px-3 py-2 text-sm text-txt-primary placeholder-txt-muted"
             placeholder="Search teams…"
             value={search}
             onChange={e => { setSearch(e.target.value); setSelectedTid(null) }}
@@ -1072,7 +1072,7 @@ function AddRivalryModal({ dynasty, myTid, existingRivalTids, onAdd, onClose }) 
                   key={team.tid}
                   onClick={() => setSelectedTid(team.tid)}
                   className={`w-full flex items-center gap-2 px-3 py-2 rounded text-left text-sm transition-colors ${
-                    isSelected ? 'bg-[var(--team-primary)] text-[var(--team-primary-text)]' : 'hover:bg-bg-hover text-txt-primary'
+                    isSelected ? 'bg-[var(--team-primary)] text-[var(--team-primary-text)]' : 'hover:bg-surface-3 text-txt-primary'
                   }`}
                 >
                   {logo && <img src={logo} alt={team.name} className="w-5 h-5 object-contain flex-shrink-0" />}
@@ -1090,7 +1090,7 @@ function AddRivalryModal({ dynasty, myTid, existingRivalTids, onAdd, onClose }) 
             >
               Add Rival
             </button>
-            <button onClick={onClose} className="flex-1 py-2 rounded text-sm text-txt-secondary border border-border-subtle hover:bg-bg-hover">
+            <button onClick={onClose} className="flex-1 py-2 rounded text-sm text-txt-secondary border border-surface-4 hover:bg-surface-3">
               Cancel
             </button>
           </div>
@@ -1294,11 +1294,11 @@ function RivalryCard({ rivalry, dynasty, myTid, currentYear, series, score, rank
 
       {/* Game history panel */}
       {showHistory && (
-        <div className="border-t border-border-subtle">
+        <div className="border-t border-surface-4">
           {gameHistory.length === 0 ? (
             <p className="px-4 py-3 text-xs text-txt-muted">No games played yet.</p>
           ) : (
-            <div className="divide-y divide-border-subtle">
+            <div className="divide-y divide-surface-4">
               {gameHistory.map((g, i) => (
                 <div key={i} className="px-4 py-2 flex items-center gap-3">
                   <span className="text-xs text-txt-muted w-10 flex-shrink-0">{g.year}</span>
@@ -1311,7 +1311,7 @@ function RivalryCard({ rivalry, dynasty, myTid, currentYear, series, score, rank
                   {g.gameLabel && (
                     <span
                       className="ml-auto text-xs font-medium px-2 py-0.5 rounded"
-                      style={{ backgroundColor: g.isBig ? bg : 'var(--bg-subtle)', color: g.isBig ? bgText : 'var(--txt-muted)' }}
+                      style={{ backgroundColor: g.isBig ? bg : 'var(--surface-4)', color: g.isBig ? bgText : 'var(--text-muted)' }}
                     >
                       {g.gameLabel}
                     </span>
@@ -1325,7 +1325,7 @@ function RivalryCard({ rivalry, dynasty, myTid, currentYear, series, score, rank
 
       {/* Rivalry description */}
       {rivalry.description && (
-        <div className="border-t border-border-subtle px-4 py-3">
+        <div className="border-t border-surface-4 px-4 py-3">
           <p className="label-xs text-txt-muted mb-1.5" style={{ letterSpacing: '1px' }}>ABOUT</p>
           <p className="text-xs text-txt-secondary leading-relaxed">{rivalry.description}</p>
         </div>
@@ -1335,7 +1335,7 @@ function RivalryCard({ rivalry, dynasty, myTid, currentYear, series, score, rank
           image (clickable to lightbox) alongside the trophy's name and
           description, shown whenever any of the three has been entered. */}
       {(hasTrophy || rivalry.trophyName || rivalry.trophyDescription) && (
-        <div className="border-t border-border-subtle px-4 py-3">
+        <div className="border-t border-surface-4 px-4 py-3">
           <p className="label-xs text-txt-muted mb-2" style={{ letterSpacing: '1px' }}>TROPHY</p>
           <div className="flex items-start gap-3">
             {hasTrophy && (
@@ -1390,7 +1390,7 @@ function RivalryCard({ rivalry, dynasty, myTid, currentYear, series, score, rank
         const pct     = isSynced ? 100 : Math.min(100, Math.round((points / RIVALRY_FORM_THRESHOLD) * 100))
         const barColor = isSynced ? '#22c55e' : pct >= 100 ? '#22c55e' : pct >= 60 ? '#f59e0b' : '#6b7280'
         return (
-          <div className="border-t border-border-subtle px-4 py-3">
+          <div className="border-t border-surface-4 px-4 py-3">
             <div className="flex items-center justify-between mb-2">
               <span className="label-xs text-txt-muted" style={{ letterSpacing: '1px' }}>RIVALRY SCORE</span>
               <span className="text-sm font-black tabular text-txt-primary">
@@ -1402,14 +1402,14 @@ function RivalryCard({ rivalry, dynasty, myTid, currentYear, series, score, rank
 
             {/* Bar */}
             <div className="relative mb-1">
-              <div className="h-5 bg-bg-subtle rounded overflow-hidden">
+              <div className="h-5 bg-surface-4 rounded overflow-hidden">
                 <div
                   className="h-full transition-all duration-500"
                   style={{ width: `${pct}%`, backgroundColor: barColor, opacity: 0.85 }}
                 />
               </div>
               {[25, 50, 75].map(tick => (
-                <div key={tick} className="absolute top-0 h-5 w-px bg-bg-base opacity-40" style={{ left: `${tick}%` }} />
+                <div key={tick} className="absolute top-0 h-5 w-px bg-surface-1 opacity-40" style={{ left: `${tick}%` }} />
               ))}
               <span
                 className="absolute inset-0 flex items-center px-2 text-xs font-bold tabular"
@@ -1422,7 +1422,7 @@ function RivalryCard({ rivalry, dynasty, myTid, currentYear, series, score, rank
             {/* Point breakdown chips */}
             {isSynced ? (
               <div className="flex flex-wrap gap-1.5 mt-2">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-bg-subtle text-txt-secondary">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-surface-4 text-txt-secondary">
                   Confirmed in-game rivalry
                 </span>
               </div>
@@ -1431,7 +1431,7 @@ function RivalryCard({ rivalry, dynasty, myTid, currentYear, series, score, rank
                 {grouped.map(g => (
                   <span
                     key={g.type}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-bg-subtle text-txt-secondary"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-surface-4 text-txt-secondary"
                   >
                     <span className="font-bold text-txt-primary">+{g.points}</span>
                     {rivalryEventLabel(g.type)}{g.count > 1 ? ` ×${g.count}` : ''}
@@ -1668,11 +1668,13 @@ export default function RivalriesTab({ dynasty, tid, selectedYear, dynastyId, sa
           <h3 className="label-sm text-txt-secondary" style={{ letterSpacing: '1px' }}>
             RIVALRIES ({rivalries.length})
           </h3>
+          {/* Standard button: team-primary text on the dark page vanished for
+              dark-colored teams (Kentucky blue read ~2:1). */}
           <button
             onClick={() => setShowAddModal(true)}
-            className="text-xs font-medium text-[var(--team-primary)] hover:opacity-80"
+            className="btn-refined"
           >
-            + Add Rival
+            Add Rival
           </button>
         </div>
 
@@ -1718,7 +1720,7 @@ export default function RivalriesTab({ dynasty, tid, selectedYear, dynastyId, sa
             <p className="text-xs text-txt-muted mt-0.5">Your top potential rivalries, based on rivalry score</p>
           </div>
 
-          <div className="card overflow-hidden divide-y divide-border-subtle">
+          <div className="card overflow-hidden divide-y divide-surface-4">
               {brewingList.map(({ rivalTid, points, events }) => {
                 const team     = dynasty.teams?.[rivalTid]
                 const teamName = team?.name || `Team ${rivalTid}`
@@ -1740,7 +1742,7 @@ export default function RivalriesTab({ dynasty, tid, selectedYear, dynastyId, sa
                       <button
                         type="button"
                         onClick={() => setEditingBrewingTid(rivalTid)}
-                        className="text-xs px-2 py-1 rounded border border-border-subtle text-txt-secondary hover:text-txt-primary hover:bg-bg-hover transition-colors flex-shrink-0"
+                        className="text-xs px-2 py-1 rounded border border-surface-4 text-txt-secondary hover:text-txt-primary hover:bg-surface-3 transition-colors flex-shrink-0"
                       >
                         Edit
                       </button>
@@ -1749,7 +1751,7 @@ export default function RivalriesTab({ dynasty, tid, selectedYear, dynastyId, sa
                     {/* Progress bar — chunky with tick marks */}
                     <div className="relative mb-1">
                       {/* Track */}
-                      <div className="h-5 bg-bg-subtle rounded overflow-hidden">
+                      <div className="h-5 bg-surface-4 rounded overflow-hidden">
                         <div
                           className="h-full transition-all duration-500"
                           style={{ width: `${pct}%`, backgroundColor: barColor, opacity: 0.85 }}
@@ -1759,7 +1761,7 @@ export default function RivalriesTab({ dynasty, tid, selectedYear, dynastyId, sa
                       {[25, 50, 75].map(tick => (
                         <div
                           key={tick}
-                          className="absolute top-0 h-5 w-px bg-bg-base opacity-40"
+                          className="absolute top-0 h-5 w-px bg-surface-1 opacity-40"
                           style={{ left: `${tick}%` }}
                         />
                       ))}
@@ -1781,7 +1783,7 @@ export default function RivalriesTab({ dynasty, tid, selectedYear, dynastyId, sa
                       {grouped.map(g => (
                         <span
                           key={g.type}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-bg-subtle text-txt-secondary"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-surface-4 text-txt-secondary"
                         >
                           <span className="font-bold text-txt-primary">+{g.points}</span>
                           {rivalryEventLabel(g.type)}{g.count > 1 ? ` ×${g.count}` : ''}

@@ -13,7 +13,7 @@ import { getContrastTextColor } from '../../utils/colorUtils'
 import { TEAMS, getTidFromAbbr } from '../../data/teamRegistry'
 import { getTeamLogoByTid, getMascotName } from '../../data/teams'
 import { useToast } from '../../components/ui/Toast'
-import { Button, Card } from '../../components/ui'
+import { Button, Card, EmptyState } from '../../components/ui'
 import ImageUpload from '../../components/ImageUpload'
 import PlayerCards from '../../components/PlayerCards'
 import { getPlayerCards } from '../../utils/playerCards'
@@ -1161,33 +1161,26 @@ export default function PlayerEdit() {
   // Player not found
   if (!player) {
     return (
-      <div className="max-w-4xl mx-auto p-4">
-        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-          <h2 className="text-xl font-bold text-red-800 mb-2">Player Not Found</h2>
-          <p className="text-red-600 mb-4">The player you're looking for doesn't exist.</p>
-          <Link to={`${pathPrefix}/players`} className="text-red-600 hover:underline">
-            Back to Players
-          </Link>
-        </div>
-      </div>
+      <Card>
+        <EmptyState
+          title="Player not found"
+          message="This player may have been deleted or merged into another record."
+          action={<Link to={`${pathPrefix}/players`} className="btn-refined">Back to All Players</Link>}
+        />
+      </Card>
     )
   }
 
   // View only mode
   if (isViewOnly) {
     return (
-      <div className="max-w-4xl mx-auto p-4">
-        <div
-          className="rounded-xl p-6 text-center"
-          style={{ backgroundColor: 'var(--surface-2)' }}
-        >
-          <h2 className="display-md text-txt-primary m-0 mb-2">View Only Mode</h2>
-          <p className="text-txt-secondary mb-4 m-0">You cannot edit players in view-only mode.</p>
-          <Link to={`${pathPrefix}/player/${pid}`} className="text-sm underline" style={{ color: 'var(--team-primary)' }}>
-            Back to Player
-          </Link>
-        </div>
-      </div>
+      <Card>
+        <EmptyState
+          title="View-only dynasty"
+          message="Players can't be edited from a view-only link."
+          action={<Link to={`${pathPrefix}/player/${pid}`} className="btn-refined">Back to Player</Link>}
+        />
+      </Card>
     )
   }
 
@@ -3020,7 +3013,7 @@ export default function PlayerEdit() {
                         </div>
                         <button
                           onClick={() => removeAccolade(index)}
-                          className="p-2 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
+                          className="p-2 rounded-lg text-red-400 hover:bg-surface-3 transition-colors"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

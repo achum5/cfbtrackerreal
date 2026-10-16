@@ -888,7 +888,7 @@ export default function ConferenceStandings() {
             data-conference={conferenceName}
             className={
               highlightConf === conferenceName
-                ? 'rounded-lg ring-2 ring-offset-2 ring-offset-bg-primary transition-shadow duration-300'
+                ? 'rounded-lg ring-2 ring-offset-2 ring-offset-surface-1 transition-shadow duration-300'
                 : ''
             }
             style={highlightConf === conferenceName ? { '--tw-ring-color': teamColors?.primary || '#fbbf24' } : undefined}
