@@ -3128,9 +3128,9 @@ export default function Dashboard() {
           {/* Phase-Specific Content */}
           {currentDynasty.currentPhase === 'preseason' ? (
         <div className="space-y-3">
-          <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
+          <h2 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
             Pre-Season Setup
-          </h3>
+          </h2>
           {(() => {
             // Pre-season tasks rendered using the SAME unified to-do row
             // pattern as the regular-season block (status dot, title,
@@ -3889,9 +3889,9 @@ export default function Dashboard() {
         </div>
       ) : currentDynasty.currentPhase === 'conference_championship' ? (
         <div className="space-y-3">
-          <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
+          <h2 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
             Conference Championship Week
-          </h3>
+          </h2>
           {(() => {
             // Conference Championship phase tasks rendered using the SAME
             // unified to-do row pattern as preseason / regular season.
@@ -4044,6 +4044,7 @@ export default function Dashboard() {
                   <select
                     value={coordinatorToFire}
                     onChange={(e) => handleFiringSelection(e.target.value)}
+                    aria-label="Coordinator changes"
                     className="btn-refined btn-refined--solid text-center cursor-pointer flex-shrink-0"
                     style={{ minWidth: '11.5rem' }}
                   >
@@ -5189,9 +5190,9 @@ export default function Dashboard() {
 
               return (
                 <>
-                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
+                  <h2 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                     Bowl Week 1
-                  </h3>
+                  </h2>
                   {renderTodoList({ todos: bw1Todos, isViewOnly })}
 
                   {/* Taking a New Job wizard panels — initial Yes/No now
@@ -5595,9 +5596,9 @@ export default function Dashboard() {
 
               return (
                 <>
-                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
+                  <h2 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                     Bowl Week 2
-                  </h3>
+                  </h2>
                   {renderTodoList({ todos: bw2Todos, isViewOnly })}
 
                   {/* Mid-flow wizard panels — initial Yes/No prompts now
@@ -6113,9 +6114,9 @@ export default function Dashboard() {
 
               return (
                 <>
-                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
+                  <h2 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                     End of Season Recap
-                  </h3>
+                  </h2>
                   {renderTodoList({ todos: w5Todos, isViewOnly })}
                 </>
               )
@@ -6520,9 +6521,9 @@ export default function Dashboard() {
 
             return (
               <>
-                <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
+                <h2 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                   {week === 4 ? 'National Championship' : `Bowl Week ${week}`}
-                </h3>
+                </h2>
                 {renderTodoList({ todos: w34Todos, isViewOnly })}
 
                 {/* New Job wizard panels — initial Yes/No now lives
@@ -6707,9 +6708,9 @@ export default function Dashboard() {
                 }]
                 return (
                   <>
-                    <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
+                    <h2 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                       New Team: No Players Leaving
-                    </h3>
+                    </h2>
                     {renderTodoList({ todos: skippedTodos, isViewOnly })}
                   </>
                 )
@@ -6739,9 +6740,9 @@ export default function Dashboard() {
 
               return (
                 <>
-                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
+                  <h2 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                     Players Leaving
-                  </h3>
+                  </h2>
                   {renderTodoList({ todos: ow1Todos, isViewOnly })}
                 </>
               )
@@ -6841,9 +6842,9 @@ export default function Dashboard() {
 
               return (
                 <>
-                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
+                  <h2 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                     {isCfb27Auto ? `Offseason Recruiting Week ${recruitingWeekNum} of 4` : `Recruiting Week ${recruitingWeekNum} of 4`}
-                  </h3>
+                  </h2>
                   {renderTodoList({ todos: o26Todos, isViewOnly })}
                 </>
               )
@@ -7139,9 +7140,9 @@ export default function Dashboard() {
 
               return (
                 <>
-                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
+                  <h2 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                     National Signing Day
-                  </h3>
+                  </h2>
                   {renderTodoList({ todos: o26Todos, isViewOnly })}
                 </>
               )
@@ -7164,9 +7165,9 @@ export default function Dashboard() {
                 }]
                 return (
                   <>
-                    <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
+                    <h2 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                       Training Results
-                    </h3>
+                    </h2>
                     {renderTodoList({ todos: skippedTodos, isViewOnly })}
                   </>
                 )
@@ -7232,9 +7233,9 @@ export default function Dashboard() {
 
               return (
                 <>
-                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
+                  <h2 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                     Training Results
-                  </h3>
+                  </h2>
                   {renderTodoList({ todos: w7Todos, isViewOnly })}
                 </>
               )
@@ -7293,9 +7294,9 @@ export default function Dashboard() {
 
               return (
                 <>
-                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
+                  <h2 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                     Offseason
-                  </h3>
+                  </h2>
                   {w8Todos.length === 0 ? (
                     <div className="px-3 py-2.5 sm:px-5 sm:py-4 text-sm text-txt-tertiary">
                       All caught up — nothing to do this week.
