@@ -860,7 +860,7 @@ export default function Home() {
                     <Link
                       to={`/dynasty/${dynasty.id}`}
                       aria-label={`Open ${displayTeamName} dynasty`}
-                      className="absolute inset-0 z-0 rounded-lg focus-visible:outline-2 focus-visible:outline-surface-5"
+                      className="focus-inset absolute inset-0 z-0 rounded-lg"
                     />
 
                     <div className="relative z-10 px-4 py-4 sm:px-5 sm:py-5 flex items-center gap-4 sm:gap-5 pointer-events-none">

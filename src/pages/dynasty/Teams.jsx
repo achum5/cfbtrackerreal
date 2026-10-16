@@ -138,7 +138,7 @@ export default function Teams() {
                     >
                       <Link
                         to={`${pathPrefix}/team/${team.tid}/${currentDynasty.currentYear}`}
-                        className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-2.5 no-underline text-center"
+                        className="focus-inset rounded-xl absolute inset-0 flex flex-col items-center justify-center gap-2 p-2.5 no-underline text-center"
                       >
                         <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white flex items-center justify-center p-1.5 shadow-md flex-shrink-0">
                           {team.logo ? (

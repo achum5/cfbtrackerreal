@@ -553,7 +553,7 @@ export default function ConferenceChampionshipHistory() {
               >
                 <button
                   onClick={() => setExpandedConference(isExpanded ? null : conferenceName)}
-                  className="group w-full flex items-center gap-3 px-4 py-3.5 hover:bg-surface-3 transition-colors text-left"
+                  className="focus-inset group w-full flex items-center gap-3 px-4 py-3.5 hover:bg-surface-3 transition-colors text-left"
                 >
                   <div
                     className="w-11 h-11 rounded-md flex-shrink-0 flex items-center justify-center bg-white p-1"

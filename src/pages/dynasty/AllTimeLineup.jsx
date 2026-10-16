@@ -835,7 +835,7 @@ function PositionCol({ slot, pid, onSelect, eligible, pathPrefix, playerMap, pla
         <div className="media-card relative overflow-hidden">
           {/* Whole-card link to the player page (transparent overlay). The only
               interactive bit on top of it is the Change dropdown (z-[2] below). */}
-          <Link to={`${pathPrefix}/player/${player.pid}`} aria-label={player.name} className="absolute inset-0 z-[1]" />
+          <Link to={`${pathPrefix}/player/${player.pid}`} aria-label={player.name} className="focus-inset rounded-[inherit] absolute inset-0 z-[1]" />
           {/* Photo header — DESKTOP/TABLET only. On phones the cards are too
               narrow for a photo + readable text, so the photo is dropped and the
               team-color name block (below) carries the OVR + logo + name. */}

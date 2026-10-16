@@ -96,7 +96,7 @@ export function HonorPlayerTile({ position, name, klass, schoolName, schoolAbbr,
         />
       )}
       {to
-        ? <Link to={to} className="block hover:brightness-110 transition-[filter]">{inner}</Link>
+        ? <Link to={to} className="focus-inset block hover:brightness-110 transition-[filter]">{inner}</Link>
         : inner}
     </div>
   )
