@@ -14,6 +14,7 @@ import { needsV2Migration, isCleanButUnstamped } from '../data/migrateDynastyV2'
 import { useToast, useConfirm } from './ui'
 import { preloadCommonDynastyPages } from '../routes/lazyPages'
 import { isPcAutoDynasty, hasPcDynastySynced } from '../editions'
+import { titleForPath } from '../utils/pageTitle'
 
 // Build-time version stamp injected by vite.config.js. Format is
 // "YYYY.MM.DD-<short-sha>" so every commit produces a distinct value —
@@ -100,6 +101,17 @@ export default function Layout({ children }) {
   const navigate = useNavigate()
   const { currentDynasty, advanceWeek, advanceToNewSeason, revertWeek, updateDynasty, phaseOverride, setPhaseOverride, advanceReadyInfo, toggleAdvanceReady, isViewOnly, migrateToSubcollections, isPcDynastyDataConfirmed, isPcDynastyDocConfirmed, getPcLoadProgress } = useDynasty()
   const [showCfb27SyncModal, setShowCfb27SyncModal] = useState(false)
+
+  // Browser-tab title from the route (see utils/pageTitle.js). Player and
+  // Team pages title themselves, so titleForPath returns null for those.
+  const titleDynastyName = currentDynasty && location.pathname.startsWith('/dynasty/')
+    ? (getCurrentTeamName(currentDynasty) || currentDynasty.teamName)
+    : null
+  useEffect(() => {
+    const t = titleForPath(location.pathname, titleDynastyName)
+    if (t) document.title = t
+  }, [location.pathname, titleDynastyName])
+
   // PC (CFB27) dynasties get their state from "Sync from Save," not manual
   // week advancement — the header's Advance Week control is replaced with a
   // direct shortcut to that same modal Dashboard.jsx's action tile opens.

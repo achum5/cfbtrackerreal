@@ -12,6 +12,7 @@ import { getPlayerCards } from '../../utils/playerCards'
 import { GRAPHIC_SIDES } from '../../utils/scoreGraphics'
 import { formatScoreHighLow } from '../../utils/scoreFormat'
 import { formatWeek, gameWeekLabel } from '../../utils/weekLabel'
+import { composeTitle } from '../../utils/pageTitle'
 import { sortGamesNewestFirst, gameSeasonRank } from '../../utils/gameOrder'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { StatRings, CardSectionHeader } from '../../components/CfbUI'
@@ -1271,6 +1272,11 @@ function PlayerInner() {
   }, [player?.pid, player?.photos, player?.teamsByYear, player?.team, dynasty?.games, dynasty?.teams, dynasty?.commitGraphics])
 
   const [photoTabLightboxIdx, setPhotoTabLightboxIdx] = useState(null)
+
+  // Browser-tab title: the player's name (Layout skips /player/ routes).
+  useEffect(() => {
+    if (player?.name) document.title = composeTitle(player.name)
+  }, [player?.name])
 
   // Keyboard nav for the Photos-tab lightbox: ←/→ to move between images,
   // Esc to close — matching the game-page lightbox.

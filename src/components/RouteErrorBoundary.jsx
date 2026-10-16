@@ -66,14 +66,14 @@ class RouteErrorBoundaryInner extends Component {
             {!isChunk && (
               <button
                 onClick={() => this.setState({ error: null })}
-                className="px-4 py-2 rounded-lg bg-surface-3 hover:bg-surface-4 text-txt-primary text-sm font-semibold transition-colors"
+                className="btn-refined"
               >
                 Try Again
               </button>
             )}
             <button
               onClick={() => window.location.reload()}
-              className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm font-semibold transition-colors"
+              className="btn-refined btn-refined--solid"
             >
               Reload
             </button>

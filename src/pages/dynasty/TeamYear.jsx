@@ -49,6 +49,7 @@ import { weekNumberLabel } from '../../utils/weekLabel'
 import { computeLiveHonorsByPid, mergeHonorLists, matchHonorToPlayer } from '../../utils/honorMatch'
 import TeamOutlook from '../../components/TeamOutlook'
 import RivalriesTab from '../../components/RivalriesTab'
+import { composeTitle } from '../../utils/pageTitle'
 
 // Selection checkbox shown on roster rows while the compare picker is active.
 function CompareCheck({ active, selected, accent, accentText }) {
@@ -2814,6 +2815,11 @@ export default function TeamYear() {
   }
 
   // handleEditGame and handleGameSave removed - now using game pages instead
+
+  // Browser-tab title: "2035 Kentucky Wildcats" (Layout skips /team/ routes).
+  useEffect(() => {
+    if (mascotName) document.title = composeTitle(`${selectedYear} ${mascotName}`)
+  }, [mascotName, selectedYear])
 
   // Real gates — AFTER every hook above has been called. Don't move
   // these up without also moving the hooks.
