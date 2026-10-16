@@ -1150,6 +1150,19 @@ button.media-card:active,
   }
 }
 
+/* Game scoreboard: a half on a light team color (maize, gold, white). The
+   markup is written for white text on dark team colors; inside this scope
+   that text turns dark (rank amber deepens) so it reads on the light half.
+   !important lets it win over the inline rgba() record colors. */
+.hero-on-light.text-white,
+.hero-on-light .text-white { color: #0b0c10 !important; text-shadow: none !important; }
+.hero-on-light .text-white\/20 { color: rgb(11 12 16 / 0.3) !important; }
+.hero-on-light .text-white\/45,
+.hero-on-light .text-white\/65,
+.hero-on-light .text-white\/70,
+.hero-on-light .hero-muted { color: rgb(11 12 16 / 0.72) !important; }
+.hero-on-light .text-amber-400 { color: #92400e !important; }
+
 /* Respect reduced-motion — kill the animations entirely. */
 @media (prefers-reduced-motion: reduce) {
   .press, .lift, .reveal, .animate-pulse-subtle, .animate-glow,

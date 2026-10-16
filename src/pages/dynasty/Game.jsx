@@ -1045,7 +1045,11 @@ export default function Game() {
     if (hasCardsData) return 'cards'
     if (hasPhotosData || hasScoreGraphicData) return 'photos'
     if (hasSocialData) return 'social'
-    return 'gamecast' // empty state — gamecast will render its own placeholder
+    // Nothing entered yet: Odds is then the only visible tab (it shows for any
+    // game with a week), so land on it rather than on a hidden Gamecast that
+    // left an empty panel under a lone "Odds" tab.
+    if (game?.week != null) return 'odds'
+    return 'gamecast'
   })()
   // 'ratings' is no longer its own tab (ratings live in Gamecast). Coerce any
   // stale saved preference or shared ?tab=ratings link back to the auto default
@@ -1631,6 +1635,11 @@ export default function Game() {
   // divider + a dark legibility wash (white text reads on any team color).
   // Matches the team page's Previous/Next Game scorebug treatment.
   const splitHeroBg = `linear-gradient(90deg, transparent calc(50% - 1.5px), rgba(0,0,0,0.55) calc(50% - 1.5px), rgba(0,0,0,0.55) calc(50% + 1.5px), transparent calc(50% + 1.5px)), linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.34) 100%), linear-gradient(90deg, ${leftData.colors.primary} 0%, ${leftData.colors.primary} 50%, ${rightData.colors.primary} 50%, ${rightData.colors.primary} 100%)`
+  // A side on a light team color (maize, gold, white) gets dark text via the
+  // .hero-on-light scope in index.css — the scoreboard markup is written for
+  // white text, which vanished on those halves.
+  const leftOnLight = getContrastTextColor(leftData.colors.primary) === '#000000'
+  const rightOnLight = getContrastTextColor(rightData.colors.primary) === '#000000'
 
   // Title-cluster pieces. For regular-season games we split the
   // wrapping link so the conference logo navigates to standings while
@@ -1952,7 +1961,7 @@ export default function Game() {
                   to the name. justify-between on the row above distributes
                   the open space between this cluster, the quarter table,
                   and the right cluster. */}
-              <div className={`flex items-center gap-6 ${!leftData.isWinner ? 'opacity-75' : ''}`}>
+              <div className={`flex items-center gap-6 ${!leftData.isWinner ? 'opacity-75' : ''} ${leftOnLight ? 'hero-on-light' : ''}`}>
                 <Link to={`${pathPrefix}/team/${leftData.tid}/${game.year}`} className="group flex items-center gap-4">
                   <div className="relative flex-shrink-0">
                     <div
@@ -1979,7 +1988,7 @@ export default function Game() {
                     )}
                     <div className="text-white font-bold text-lg group-hover:underline">{leftData.name}</div>
                     {leftData.record && (
-                      <div className="text-sm" style={{ color: 'rgba(255,255,255,0.72)' }}>{leftData.record}</div>
+                      <div className="text-sm hero-muted" style={{ color: 'rgba(255,255,255,0.72)' }}>{leftData.record}</div>
                     )}
                   </div>
                 </Link>
@@ -2096,7 +2105,7 @@ export default function Game() {
 
               {/* Right Team — mirrors the left cluster: collapsed to
                   content, score sits next to the team. */}
-              <div className={`flex items-center gap-6 ${!rightData.isWinner ? 'opacity-75' : ''}`}>
+              <div className={`flex items-center gap-6 ${!rightData.isWinner ? 'opacity-75' : ''} ${rightOnLight ? 'hero-on-light' : ''}`}>
                 {/* Score with winner triangle */}
                 <div className="flex items-center gap-2">
                   {rightData.isWinner && (
@@ -2118,7 +2127,7 @@ export default function Game() {
                     )}
                     <div className="text-white font-bold text-lg group-hover:underline">{rightData.name}</div>
                     {rightData.record && (
-                      <div className="text-sm" style={{ color: 'rgba(255,255,255,0.72)' }}>{rightData.record}</div>
+                      <div className="text-sm hero-muted" style={{ color: 'rgba(255,255,255,0.72)' }}>{rightData.record}</div>
                     )}
                   </div>
                   <div className="relative flex-shrink-0">
@@ -2153,7 +2162,7 @@ export default function Game() {
         <div className="px-1 py-3 sm:px-8 sm:py-8 md:py-10">
           <div className="flex items-center justify-between gap-1 sm:gap-6 md:gap-10 max-w-full">
             {/* Left Team */}
-            <Link to={`${pathPrefix}/team/${leftData.tid}/${game.year}`} className="group flex-1 min-w-0">
+            <Link to={`${pathPrefix}/team/${leftData.tid}/${game.year}`} className={`group flex-1 min-w-0 ${leftOnLight ? 'hero-on-light' : ''}`}>
               {/* Logo over name until lg: side-by-side needs ~300px per team,
                   and at tablet widths the name was squeezed into a sliver that
                   the opposing logo then overlapped. */}
@@ -2188,7 +2197,7 @@ export default function Game() {
                     {leftData.name}
                   </div>
                   {leftData.record && (
-                    <div className="text-[9px] sm:text-xs mt-0.5 whitespace-nowrap tabular-nums" style={{ color: 'rgba(255,255,255,0.72)' }}>{leftData.record}</div>
+                    <div className="text-[9px] sm:text-xs mt-0.5 whitespace-nowrap tabular-nums hero-muted" style={{ color: 'rgba(255,255,255,0.72)' }}>{leftData.record}</div>
                   )}
                 </div>
               </div>
@@ -2227,7 +2236,7 @@ export default function Game() {
                 }
                 // Mini line score: quarter values separated by a dim pipe.
                 // The loser dims; all quarters render uniformly.
-                const miniLine = (cells, isWinner) => {
+                const miniLine = (cells, isWinner, onLight = false) => {
                   if (!cells) return <div aria-hidden="true" />
                   const nodes = []
                   cells.forEach((v, i) => {
@@ -2237,7 +2246,7 @@ export default function Game() {
                     )
                   })
                   return (
-                    <div className={`flex items-center justify-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs tabular-nums leading-none ${isWinner ? '' : 'opacity-60'}`}>
+                    <div className={`flex items-center justify-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs tabular-nums leading-none ${isWinner ? '' : 'opacity-60'} ${onLight ? 'hero-on-light' : ''}`}>
                       {nodes}
                     </div>
                   )
@@ -2251,7 +2260,7 @@ export default function Game() {
                     style={{ gridTemplateColumns: 'auto auto auto' }}
                   >
                     <div
-                      className={`text-center text-2xl sm:text-5xl md:text-6xl font-black tabular-nums transition-all ${leftData.isWinner ? 'text-white' : 'text-white opacity-60'}`}
+                      className={`text-center text-2xl sm:text-5xl md:text-6xl font-black tabular-nums transition-all ${leftData.isWinner ? 'text-white' : 'text-white opacity-60'} ${leftOnLight ? 'hero-on-light' : ''}`}
                       style={{ minWidth: '1.5em', ...(leftData.isWinner ? { textShadow: '0 0 20px rgba(255,255,255,0.3)' } : {}) }}
                     >
                       {leftData.score}
@@ -2260,7 +2269,7 @@ export default function Game() {
                     <div className="flex flex-col items-center gap-0.5">
                       <div
                         className="px-1.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[8px] sm:text-xs font-bold uppercase tracking-wider"
-                        style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)' }}
+                        style={{ backgroundColor: 'rgba(0,0,0,0.42)', color: 'rgba(255,255,255,0.9)' }}
                       >
                         Final
                       </div>
@@ -2272,7 +2281,7 @@ export default function Game() {
                     </div>
 
                     <div
-                      className={`text-center text-2xl sm:text-5xl md:text-6xl font-black tabular-nums transition-all ${rightData.isWinner ? 'text-white' : 'text-white opacity-60'}`}
+                      className={`text-center text-2xl sm:text-5xl md:text-6xl font-black tabular-nums transition-all ${rightData.isWinner ? 'text-white' : 'text-white opacity-60'} ${rightOnLight ? 'hero-on-light' : ''}`}
                       style={{ minWidth: '1.5em', ...(rightData.isWinner ? { textShadow: '0 0 20px rgba(255,255,255,0.3)' } : {}) }}
                     >
                       {rightData.score}
@@ -2280,9 +2289,9 @@ export default function Game() {
 
                     {hasQuarterScores && (
                       <>
-                        {miniLine(leftCells, leftData.isWinner)}
+                        {miniLine(leftCells, leftData.isWinner, leftOnLight)}
                         <div aria-hidden="true" />
-                        {miniLine(rightCells, rightData.isWinner)}
+                        {miniLine(rightCells, rightData.isWinner, rightOnLight)}
                       </>
                     )}
                   </div>
@@ -2335,7 +2344,7 @@ export default function Game() {
             </div>
 
             {/* Right Team */}
-            <Link to={`${pathPrefix}/team/${rightData.tid}/${game.year}`} className="group flex-1 min-w-0">
+            <Link to={`${pathPrefix}/team/${rightData.tid}/${game.year}`} className={`group flex-1 min-w-0 ${rightOnLight ? 'hero-on-light' : ''}`}>
               <div className="flex flex-col items-center lg:flex-row-reverse lg:items-center gap-1 sm:gap-2 lg:gap-4">
                 {/* Logo - larger for hero effect */}
                 <div className="relative flex-shrink-0">
@@ -2367,7 +2376,7 @@ export default function Game() {
                     {rightData.name}
                   </div>
                   {rightData.record && (
-                    <div className="text-[9px] sm:text-xs mt-0.5 whitespace-nowrap tabular-nums" style={{ color: 'rgba(255,255,255,0.72)' }}>{rightData.record}</div>
+                    <div className="text-[9px] sm:text-xs mt-0.5 whitespace-nowrap tabular-nums hero-muted" style={{ color: 'rgba(255,255,255,0.72)' }}>{rightData.record}</div>
                   )}
                 </div>
               </div>
