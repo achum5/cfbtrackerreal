@@ -61,12 +61,12 @@ export function CardSectionHeader({ label, accent, right, className = '' }) {
           : undefined,
       }}
     >
-      <h3
+      <h2
         className="font-display font-bold uppercase leading-none text-txt-primary truncate"
         style={{ fontSize: '0.98rem', letterSpacing: '0.05em' }}
       >
         {label}
-      </h3>
+      </h2>
       {right != null && <div className="flex-shrink-0">{right}</div>}
     </div>
   )

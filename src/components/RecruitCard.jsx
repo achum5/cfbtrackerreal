@@ -204,12 +204,12 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, team
               </span>
             </div>
           )}
-          <h3
+          <h2
             className="font-display font-black text-txt-primary leading-tight truncate max-w-full"
             style={{ fontSize: 'clamp(13px, 3.4vw, 16px)', letterSpacing: '-0.02em', color: teamBgText }}
           >
             {recruit.name || 'Unknown'}
-          </h3>
+          </h2>
           <div
             className="flex items-center justify-center gap-1 sm:gap-1.5 label-xs text-txt-secondary flex-wrap"
             style={{ letterSpacing: '1.2px', fontSize: '9px', color: teamBgText, opacity: 0.85 }}

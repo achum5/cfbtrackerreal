@@ -675,9 +675,9 @@ export default function ConferenceStandings() {
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-display font-bold text-txt-primary text-base truncate leading-tight">
+            <h2 className="font-display font-bold text-txt-primary text-base truncate leading-tight">
               {conferenceName}
-            </h3>
+            </h2>
           </div>
           <div
             className="flex items-baseline gap-1.5 px-2.5 py-1 rounded flex-shrink-0"
