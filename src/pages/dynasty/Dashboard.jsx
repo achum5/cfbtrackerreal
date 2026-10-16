@@ -8,7 +8,7 @@ import { useDynasty, getCurrentSchedule, getScheduleWithGameData, getCurrentRost
 import { useAuth } from '../../context/AuthContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
-import { getContrastTextColor } from '../../utils/colorUtils'
+import { getContrastTextColor, readableTextOn } from '../../utils/colorUtils'
 import { StatRings } from '../../components/CfbUI'
 import { getPlayerStatsForTid, getTeamStatsForTid, hasAnyPlayerStats, hasAnyTeamStats } from '../../utils/boxScoreHelpers'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
@@ -776,7 +776,9 @@ export default function Dashboard() {
       const schedBottom = schedEl.getBoundingClientRect().bottom
       const rosterTop = rosterEl.getBoundingClientRect().top
       const available = schedBottom - rosterTop
-      if (available > 0) setRosterMaxHeight(available)
+      // Short or empty schedule (a new dynasty): the roster still scrolls
+      // in a fixed box rather than listing all 85 players down the page.
+      setRosterMaxHeight(Math.max(available, 520))
     }
     update()
     const ro = new ResizeObserver(update)
@@ -7503,7 +7505,11 @@ export default function Dashboard() {
         )}
 
         {/* Right Column: Schedule - Desktop Only — hidden when recap card replaces it */}
-        <div ref={scheduleColumnRef} className={lastWeekRecapExists ? 'hidden' : 'hidden lg:block'}>
+        {/* lg:self-start: the roster's height is measured against this
+            column's bottom. As a stretched grid item its box took the row's
+            height, which the uncapped roster itself set, so the cap never
+            applied and all 85 players rendered (a ~6,000px dashboard). */}
+        <div ref={scheduleColumnRef} className={lastWeekRecapExists ? 'hidden' : 'hidden lg:block lg:self-start'}>
           {/* Schedule Section - Clean Redesign */}
       <div>
         {/* Schedule Header — fixed min-height so it lines up with the
@@ -7638,7 +7644,7 @@ export default function Dashboard() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         {opponentRank && (
-                          <span className="text-xs font-bold tabular-nums" style={{ color: rowTxt === '#000000' ? '#92400e' : '#fcd34d' }}>
+                          <span className="text-xs font-bold tabular-nums" style={{ color: readableTextOn(opponentColors.backgroundColor, rowTxt === '#000000' ? '#92400e' : '#fcd34d') }}>
                             #{opponentRank}
                           </span>
                         )}
@@ -8350,7 +8356,7 @@ export default function Dashboard() {
 
                       const renderMobileGameRow = (isLink) => (
                         <div
-                          className={`relative flex items-center py-2.5 px-4 gap-3 cfb-texture transition-[filter] ${isLink ? 'hover:brightness-110' : ''}`}
+                          className={`relative flex items-center py-2.5 px-4 gap-3 cfb-texture transition-[filter] ${isLink ? 'hover:brightness-110' : ''} ${getContrastTextColor(opponentColors.backgroundColor) === '#000000' ? 'hero-on-light' : ''}`}
                           style={{
                             backgroundColor: opponentColors.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.36) 100%)',
 
@@ -8375,7 +8381,7 @@ export default function Dashboard() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
                               {opponentRank && (
-                                <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--accent-warning)' }}>
+                                <span className="text-xs font-bold tabular-nums" style={{ color: readableTextOn(opponentColors.backgroundColor, getContrastTextColor(opponentColors.backgroundColor) === '#000000' ? '#92400e' : '#fcd34d') }}>
                                   #{opponentRank}
                                 </span>
                               )}
@@ -8480,7 +8486,7 @@ export default function Dashboard() {
                       const ccOppColors = getOpponentColors(ccOppTid)
                       const ccRow = (isLink) => (
                         <div
-                          className={`relative flex items-center py-2.5 px-4 gap-3 cfb-texture transition-[filter] ${isLink ? 'hover:brightness-110' : ''}`}
+                          className={`relative flex items-center py-2.5 px-4 gap-3 cfb-texture transition-[filter] ${isLink ? 'hover:brightness-110' : ''} ${getContrastTextColor(ccOppColors.backgroundColor) === '#000000' ? 'hero-on-light' : ''}`}
                           style={{ backgroundColor: ccOppColors.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.36) 100%)' }}
                         >
                           <span className="w-7 text-xs font-semibold text-white/70">CC</span>
@@ -8528,7 +8534,7 @@ export default function Dashboard() {
                       const bowlOppColors = getOpponentColors(bowlOppTid)
                       const bowlRow = (isLink) => (
                         <div
-                          className={`relative flex items-center py-2.5 px-4 gap-3 cfb-texture transition-[filter] ${isLink ? 'hover:brightness-110' : ''}`}
+                          className={`relative flex items-center py-2.5 px-4 gap-3 cfb-texture transition-[filter] ${isLink ? 'hover:brightness-110' : ''} ${getContrastTextColor(bowlOppColors.backgroundColor) === '#000000' ? 'hero-on-light' : ''}`}
                           style={{ backgroundColor: bowlOppColors.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.36) 100%)' }}
                         >
                           <span className="w-7 text-xs font-semibold text-white/70">Bowl</span>
