@@ -898,7 +898,7 @@ export default function WeeklyScores() {
           <div className="relative pb-1 flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
             <h1
               className="group font-display font-extrabold uppercase tracking-tight leading-none m-0 break-words inline-flex items-baseline flex-wrap gap-x-3 text-txt-primary"
-              style={{ fontSize: 'clamp(1.6rem, 3.4vw, 2.6rem)' }}
+              style={{ fontSize: 'var(--text-display-lg)' }}
             >
               <InlineYearSelect
                 value={displayYear}
