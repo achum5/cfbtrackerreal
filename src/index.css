@@ -14,6 +14,8 @@
   --team-primary: #ea580c;
   --team-secondary: #FFFFFF;
   --team-tertiary: #666666;
+  /* Text on a --team-primary fill; useTeamColors overrides it per team. */
+  --team-primary-text: #ffffff;
 
   /* Team color derivatives (computed via color-mix, dark theme).
      These give us subtle tints without committing to a fill. */

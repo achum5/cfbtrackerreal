@@ -1413,7 +1413,7 @@ function RivalryCard({ rivalry, dynasty, myTid, currentYear, series, score, rank
               ))}
               <span
                 className="absolute inset-0 flex items-center px-2 text-xs font-bold tabular"
-                style={{ color: pct > 20 ? '#fff' : 'var(--color-txt-secondary)' }}
+                style={{ color: pct > 20 ? '#fff' : 'var(--text-secondary)' }}
               >
                 {pct}%
               </span>
@@ -1768,7 +1768,7 @@ export default function RivalriesTab({ dynasty, tid, selectedYear, dynastyId, sa
                       {/* Inline pct label */}
                       <span
                         className="absolute inset-0 flex items-center px-2 text-xs font-bold tabular"
-                        style={{ color: pct > 20 ? '#fff' : 'var(--color-txt-secondary)' }}
+                        style={{ color: pct > 20 ? '#fff' : 'var(--text-secondary)' }}
                       >
                         {pct}%
                       </span>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { getTeamColors } from '../data/teamColors'
 import { getCurrentTeamTid, getColorsFromTid, TEAMS } from '../data/teamRegistry'
+import { getContrastTextColor } from '../utils/colorUtils'
 
 /**
  * Hook to get and apply team colors. Single tid-based code path —
@@ -32,6 +33,7 @@ export function useTeamColors(teamName, dynastyTeams = null) {
     if (teamName && colors) {
       // Set CSS custom properties for the team colors
       document.documentElement.style.setProperty('--team-primary', colors.primary)
+      document.documentElement.style.setProperty('--team-primary-text', getContrastTextColor(colors.primary))
       document.documentElement.style.setProperty('--team-secondary', colors.secondary)
       if (colors.tertiary) {
         document.documentElement.style.setProperty('--team-tertiary', colors.tertiary)
@@ -67,6 +69,7 @@ export function useCurrentTeamColors(dynasty) {
   useEffect(() => {
     if (colors) {
       document.documentElement.style.setProperty('--team-primary', colors.primary)
+      document.documentElement.style.setProperty('--team-primary-text', getContrastTextColor(colors.primary))
       document.documentElement.style.setProperty('--team-secondary', colors.secondary)
     }
   }, [colors])
@@ -91,7 +94,11 @@ export function useTeamThemeStyle(colors) {
   return useMemo(() => {
     if (!colors) return {}
     const style = {}
-    if (colors.primary) style['--team-primary'] = colors.primary
+    if (colors.primary) {
+      style['--team-primary'] = colors.primary
+      // Readable text on a team-primary fill (white or black).
+      style['--team-primary-text'] = getContrastTextColor(colors.primary)
+    }
     if (colors.secondary) style['--team-secondary'] = colors.secondary
     if (colors.tertiary) style['--team-tertiary'] = colors.tertiary
     return style
