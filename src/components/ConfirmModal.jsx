@@ -14,18 +14,10 @@ export default function ConfirmModal({
   loading = false,
   teamColors = null
 }) {
-  const modalColors = useMemo(() => {
-    if (teamColors) {
-      return getModalColors(teamColors)
-    }
-    // Default dark theme when no team colors provided
-    return {
-      background: '#1f2937',
-      text: '#ffffff',
-      textMuted: '#9ca3af',
-      border: '#374151'
-    }
-  }, [teamColors])
+  // Same neutral modal chrome with or without team colors (getModalColors
+  // only uses them for the accent); the no-team fallback used Tailwind's
+  // blue-grey grays, which didn't match any other modal.
+  const modalColors = useMemo(() => getModalColors(teamColors), [teamColors])
 
   if (!isOpen) return null
 

@@ -127,13 +127,13 @@ export default function ConferenceSelect({
           onFocus={handleInputFocus}
           onKeyDown={handleKeyDown}
           placeholder="Search conferences…"
-          className="w-full py-2 border rounded-lg focus:ring-2 focus:outline-none transition-colors placeholder-gray-500"
+          className="w-full py-2 border rounded-lg focus:ring-2 focus:outline-none transition-colors placeholder:text-txt-tertiary"
           style={{
-            borderColor: '#374151',
+            borderColor: 'var(--surface-4)',
             paddingLeft: value && getConferenceLogo(value) ? '2.75rem' : '1rem',
             paddingRight: '2.75rem',
-            color: '#f3f4f6',
-            backgroundColor: '#1f2937'
+            color: 'var(--text-primary)',
+            backgroundColor: 'var(--surface-2)'
           }}
           autoComplete="off"
           required={required}
@@ -142,7 +142,7 @@ export default function ConferenceSelect({
         <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
           <svg
             className={`w-5 h-5 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-            style={{ color: '#9ca3af' }}
+            style={{ color: 'var(--text-tertiary)' }}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -155,7 +155,7 @@ export default function ConferenceSelect({
       {isOpen && filteredConferences.length > 0 && (
         <div
           className="absolute z-10 w-full mt-1 rounded-lg shadow-lg max-h-60 overflow-auto"
-          style={{ backgroundColor: '#1f2937', border: '1px solid #374151' }}
+          style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--surface-4)' }}
         >
           {filteredConferences.map((conference, index) => {
             const logoUrl = getConferenceLogo(conference)
@@ -171,7 +171,7 @@ export default function ConferenceSelect({
                 className="px-4 py-2.5 cursor-pointer transition-colors flex items-center gap-3"
                 style={{
                   backgroundColor: isHighlighted ? 'var(--surface-4)' : isSelected ? 'var(--surface-3)' : 'transparent',
-                  color: '#f3f4f6'
+                  color: 'var(--text-primary)'
                 }}
               >
                 {logoUrl && (
@@ -193,7 +193,7 @@ export default function ConferenceSelect({
       {isOpen && searchTerm && filteredConferences.length === 0 && (
         <div
           className="absolute z-10 w-full mt-1 rounded-lg shadow-lg p-4 text-center"
-          style={{ backgroundColor: '#1f2937', border: '1px solid #374151', color: '#9ca3af' }}
+          style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--surface-4)', color: 'var(--text-tertiary)' }}
         >
           No conferences found matching "{searchTerm}"
         </div>
