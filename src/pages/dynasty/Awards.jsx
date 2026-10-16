@@ -417,7 +417,9 @@ export default function Awards() {
           />
         </Card>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+        // Columns step by real card width (~200px+), not viewport: with the
+        // sidebar open, 5-up at lg cut winners to "Jamie Arm…".
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {presentAwards.map(({ key, data }) => (
             <TrophyCard key={key} awardKey={key} awardData={data} />
           ))}

@@ -491,7 +491,7 @@ export default function AllAmericans() {
           </span>
         </header>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2">
           {players.map((player, idx) => (
             <PlayerRow
               key={`${designation}-${player.position}-${player.player}-${idx}`}
@@ -536,7 +536,9 @@ export default function AllAmericans() {
       />
 
       {(hasFinalAllAmericans || hasPreseasonAllAmericans) && (
-        <div className="inline-flex items-center gap-1 p-1 rounded-lg" style={{ backgroundColor: 'var(--surface-2)' }}>
+        // flex + w-fit, not inline-flex: an inline box's margin doesn't
+        // collapse with the header's, which doubled the gap above it.
+        <div className="flex w-fit items-center gap-1 p-1 rounded-lg" style={{ backgroundColor: 'var(--surface-2)' }}>
           {[{ key: 'final', label: 'Final' }, { key: 'preseason', label: 'Preseason' }].map((v) => (
             <button
               key={v.key}
