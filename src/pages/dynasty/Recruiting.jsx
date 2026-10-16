@@ -1780,6 +1780,11 @@ export default function Recruiting() {
         <Card>
           <EmptyState
             title={viewMode === 'portal' ? 'No transfer portal commits' : viewMode === 'hs' ? 'No HS commitments yet' : 'No commitments yet'}
+            message={!isOwnTeam
+              ? null
+              : isPcAutoDynasty(currentDynasty)
+                ? 'Commitments come in with each Sync from Save.'
+                : 'Log commitments from the dashboard each week as recruits commit.'}
           />
         </Card>
         )
