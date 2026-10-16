@@ -153,12 +153,9 @@ export default function CoachTrophyRoom({ dynasty, stints }) {
   return (
     <section className="media-card overflow-hidden reveal">
       <div className="px-5 sm:px-6 py-4 flex items-end justify-between gap-3 border-b" style={{ borderColor: 'var(--surface-4)' }}>
-        <div>
-          <div className="label-sm text-txt-tertiary mb-1">Career</div>
-          <h2 className="font-display font-black uppercase leading-none text-txt-primary" style={{ fontSize: 'clamp(22px,4vw,34px)', letterSpacing: '-0.01em' }}>
-            Trophy Room
-          </h2>
-        </div>
+        <h2 className="font-display font-black uppercase leading-none text-txt-primary m-0" style={{ fontSize: 'clamp(22px,4vw,34px)', letterSpacing: '-0.01em' }}>
+          Trophy Room
+        </h2>
         <button
           type="button"
           onClick={() => setCatalogOpen(true)}

@@ -776,6 +776,7 @@ export default function DynastyRecords() {
       {mode === 'season' && (
         <Select
           size="sm"
+          className="!w-auto min-w-[6.5rem]"
           value={effectiveSeasonYear === 'all' ? 'all' : String(effectiveSeasonYear)}
           onChange={(e) => setSeasonYearChoice(e.target.value === 'all' ? 'all' : Number(e.target.value))}
           aria-label="Season"
@@ -879,7 +880,7 @@ export default function DynastyRecords() {
             : rank === 3 ? 'rgba(205, 127, 50, 0.95)'
             : rank <= 10 ? 'var(--text-primary)' : 'var(--text-tertiary)'
           return (
-            <div className="media-card records-card overflow-hidden max-w-4xl mx-auto">
+            <div className="media-card records-card overflow-hidden max-w-4xl">
               <div className="p-3" style={{ borderBottom: '1px solid var(--surface-4)' }}>
                 <input
                   type="text"

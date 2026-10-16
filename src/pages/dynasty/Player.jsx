@@ -5780,15 +5780,17 @@ function PlayerInner() {
                   )
                 })()}
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  {/* Fixed column widths: each season is its own table, and with
+                      auto layout the columns drifted from one season to the next. */}
+                  <table className="w-full min-w-[640px] table-fixed text-sm">
                     <thead>
                       <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
-                        <th className="px-2 py-2.5 text-xs font-semibold uppercase text-left" style={{ color: secondaryText, opacity: 0.8 }}>Week</th>
-                        <th className="px-2 py-2.5 text-xs font-semibold uppercase text-left" style={{ color: secondaryText, opacity: 0.8 }}>Opponent</th>
-                        <th className="px-2 py-2.5 text-xs font-semibold uppercase text-center" style={{ color: secondaryText, opacity: 0.8 }}>Result</th>
-                        <th className="px-2 py-2.5 text-xs font-semibold uppercase text-center" style={{ color: secondaryText, opacity: 0.8 }}>Score</th>
+                        <th className="w-24 px-2 py-2.5 text-xs font-semibold uppercase text-left" style={{ color: secondaryText, opacity: 0.8 }}>Week</th>
+                        <th className="w-[22%] px-2 py-2.5 text-xs font-semibold uppercase text-left" style={{ color: secondaryText, opacity: 0.8 }}>Opponent</th>
+                        <th className="w-20 px-2 py-2.5 text-xs font-semibold uppercase text-center" style={{ color: secondaryText, opacity: 0.8 }}>Result</th>
+                        <th className="w-24 px-2 py-2.5 text-xs font-semibold uppercase text-center" style={{ color: secondaryText, opacity: 0.8 }}>Score</th>
                         <th className="px-2 py-2.5 text-xs font-semibold uppercase text-left" style={{ color: secondaryText, opacity: 0.8 }}>Stats</th>
-                        <th className="px-2 py-2.5 text-xs font-semibold uppercase text-center" style={{ color: secondaryText, opacity: 0.8 }}>Scoring Plays</th>
+                        <th className="w-32 px-2 py-2.5 text-xs font-semibold uppercase text-center" style={{ color: secondaryText, opacity: 0.8 }}>Scoring Plays</th>
                       </tr>
                     </thead>
                     <tbody>

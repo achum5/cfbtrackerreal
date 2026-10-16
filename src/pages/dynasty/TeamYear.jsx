@@ -5620,7 +5620,7 @@ export default function TeamYear() {
                        game.isBowlGame ? 'Bowl' :
                        game.isPlayoff ? 'CFP' :
                        game.isConferenceChampionship ? 'CCG' :
-                       `Week ${game.week}`
+                       `Wk ${game.week}`
 
               // Content for the detailed game display - matches Dashboard style
               // Home games: left accent bar in team color, Away games: plain background
@@ -5641,7 +5641,7 @@ export default function TeamYear() {
                   {/* Main game row */}
                   <div className="flex items-center gap-3">
                     {/* Week number */}
-                    <span className="w-10 text-xs sm:text-sm font-medium flex-shrink-0" style={{ color: rowTextMuted }}>
+                    <span className="w-12 text-xs sm:text-sm font-medium flex-shrink-0 whitespace-nowrap tabular-nums" style={{ color: rowTextMuted }}>
                       {weekLabel}
                     </span>
 
@@ -6272,17 +6272,9 @@ export default function TeamYear() {
                   )}
                   <Link
                     to={`${pathPrefix}/recruiting/${tid}/${selectedYear}`}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-sm label-sm transition-colors hover:opacity-90"
-                    style={{
-                      backgroundColor: viewedPrimary,
-                      color: viewedPrimaryText,
-                      letterSpacing: '1.5px'
-                    }}
+                    className="btn-refined"
                   >
-                    FULL RECRUITING PAGE
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                    </svg>
+                    Full Recruiting Page
                   </Link>
                 </div>
               </div>
@@ -6312,19 +6304,14 @@ export default function TeamYear() {
                 <div className="label-xs text-txt-tertiary mb-2" style={{ letterSpacing: '2px' }}>No Commits</div>
                 <Link
                   to={`${pathPrefix}/recruiting/${tid}/${selectedYear}`}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-sm label-sm transition-colors hover:opacity-90"
-                  style={{
-                    backgroundColor: viewedPrimary,
-                    color: viewedPrimaryText,
-                    letterSpacing: '1.5px'
-                  }}
+                  className="btn-refined"
                 >
-                  OPEN RECRUITING PAGE
+                  Open Recruiting Page
                 </Link>
               </div>
             ) : (
               <div className="card overflow-hidden cfb-texture">
-                <div className="grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_auto_1fr_auto_auto] gap-3 sm:gap-4 items-center px-4 py-2.5 border-b border-surface-4 bg-surface-2">
+                <div className="grid grid-cols-[4.5rem_1fr_3.5rem] sm:grid-cols-[4.5rem_2.75rem_1fr_minmax(0,14rem)_3.5rem] gap-3 sm:gap-4 items-center px-4 py-2.5 border-b border-surface-4 bg-surface-2">
                   <span className="label-xs text-txt-tertiary" style={{ letterSpacing: '1.5px' }}>★</span>
                   <span className="label-xs text-txt-tertiary hidden sm:inline" style={{ letterSpacing: '1.5px' }}>Pos</span>
                   <span className="label-xs text-txt-tertiary" style={{ letterSpacing: '1.5px' }}>Name</span>
@@ -6370,7 +6357,7 @@ export default function TeamYear() {
                       </span>
                     </>
                   )
-                  const rowClass = 'grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_auto_1fr_auto_auto] gap-3 sm:gap-4 items-center px-4 py-2.5 border-b border-surface-4 last:border-b-0'
+                  const rowClass = 'grid grid-cols-[4.5rem_1fr_3.5rem] sm:grid-cols-[4.5rem_2.75rem_1fr_minmax(0,14rem)_3.5rem] gap-3 sm:gap-4 items-center px-4 py-2.5 border-b border-surface-4 last:border-b-0'
                   return resolvedPid ? (
                     <Link
                       key={`${c.name}-${i}`}
@@ -6828,7 +6815,7 @@ export default function TeamYear() {
           const finalRank = getTeamRanking(currentDynasty, tid, year)?.rank ?? null
 
           // Build postseason description
-          let postseasonText = 'N/A'
+          let postseasonText = '—'
           if (cfpResult?.type === 'champion') {
             postseasonText = 'Won the National Championship'
           } else if (cfpResult?.type === 'eliminated') {
@@ -7096,7 +7083,7 @@ export default function TeamYear() {
                         >
                           <span className="tabular-nums leading-none" style={{ fontFamily: "var(--font-display)", fontSize: '1.75rem', fontWeight: 900, color: 'var(--text-primary)' }}>{userAsCoachWins}<span style={{ color: 'var(--text-tertiary)' }}>–</span>{userAsCoachLosses}</span>
                           <span className="tabular-nums text-xs font-semibold text-txt-tertiary">{((userAsCoachWins / (userAsCoachWins + userAsCoachLosses || 1)) * 100).toFixed(0)}%</span>
-                          <span className="text-[10px] font-bold uppercase" style={{ letterSpacing: '1px', color: teamInfo.backgroundColor }}>{userCoachingYears.length} yr{userCoachingYears.length !== 1 ? 's' : ''}</span>
+                          <span className="text-xs text-txt-tertiary">{userCoachingYears.length} yr{userCoachingYears.length !== 1 ? 's' : ''}</span>
                         </button>
                       ) : <span className="text-sm text-txt-tertiary">—</span>}
                     </div>
