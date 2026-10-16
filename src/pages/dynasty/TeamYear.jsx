@@ -3735,14 +3735,14 @@ export default function TeamYear() {
                     below; -mr-4/pr-4 lets it bleed off the right while scrolling. */}
                 <div className="xl:hidden -mr-4 pr-4 overflow-x-auto no-scrollbar">
                   <div
-                    className="inline-flex rounded-xl overflow-hidden cfb-texture cfb-texture-strong stagger-reveal align-top"
+                    className="flex min-w-full w-max rounded-xl overflow-hidden cfb-texture cfb-texture-strong stagger-reveal align-top"
                     style={{ backgroundColor: teamInfo.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.44) 100%)' }}
                   >
                     {leaders.map((l, idx) => (
                       <Link
                         key={l.key}
                         to={l.data.player ? `${pathPrefix}/player/${l.data.player.pid}` : '#'}
-                        className="flex-shrink-0 w-[132px] group flex flex-col p-3 transition-colors hover:bg-white/[0.06]"
+                        className="flex-1 min-w-[132px] group flex flex-col p-3 transition-colors hover:bg-white/[0.06]"
                         style={idx > 0 ? { borderLeft: `1px solid ${teamBgText}33` } : undefined}
                       >
                         <div className="flex items-center gap-2 mb-1.5">
