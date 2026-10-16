@@ -1,8 +1,8 @@
 // Browser-tab titles. Every tab used to read "CFB Dynasty Tracker", so a few
 // open pages (Top 25, a player, the bracket) were indistinguishable in the tab
-// strip and in history. Layout sets the title from the route; the Player and
-// Team pages set their own (they know the player / team name), so Layout
-// leaves those two routes alone.
+// strip and in history. Layout sets the title from the route; the Player, Team
+// and Game pages set their own (they know the player / team / matchup), so
+// Layout leaves those routes alone.
 
 export const SITE_NAME = 'CFB Dynasty Tracker'
 
@@ -54,7 +54,7 @@ const DYNASTY_SECTION_LABELS = {
 }
 
 // Routes whose page sets a more specific title itself.
-const SELF_TITLED_SECTIONS = new Set(['player', 'team'])
+const SELF_TITLED_SECTIONS = new Set(['player', 'team', 'game'])
 
 const TOP_LEVEL_LABELS = {
   '/': 'My Dynasties',
@@ -78,9 +78,14 @@ export function composeTitle(...parts) {
  */
 export function titleForPath(pathname, dynastyName) {
   const path = (pathname || '/').replace(/\/+$/, '') || '/'
-  const m = path.match(/^\/(?:dynasty|view)\/[^/]+(?:\/([^/]+))?/)
+  const m = path.match(/^\/(?:dynasty|view)\/[^/]+(?:\/([^/]+))?(\/.*)?$/)
   if (m) {
     const section = m[1] || ''
+    const rest = m[2] || ''
+    // The game editor (/game/new, /game/:id/edit) has no title of its own.
+    if (section === 'game' && (rest === '/new' || rest.endsWith('/edit'))) {
+      return composeTitle(rest === '/new' ? 'New Game' : 'Edit Game', dynastyName)
+    }
     if (SELF_TITLED_SECTIONS.has(section)) return null
     return composeTitle(DYNASTY_SECTION_LABELS[section], dynastyName)
   }

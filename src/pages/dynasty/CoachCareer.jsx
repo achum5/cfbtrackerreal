@@ -864,20 +864,26 @@ export default function CoachCareer() {
                   is tracked: a chevron hints it's clickable and an invisible
                   native <select> overlays the whole lockup. */}
               <div className="relative inline-flex items-center gap-2 max-w-full">
+                {/* A real button inside the h1 (not role="button" on it), so the
+                    name stays the page's heading when it's editable. */}
                 <h1
-                  onClick={canEditPhoto ? openNameModal : undefined}
-                  role={canEditPhoto ? 'button' : undefined}
-                  tabIndex={canEditPhoto ? 0 : undefined}
-                  onKeyDown={canEditPhoto ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openNameModal() } } : undefined}
-                  aria-label={canEditPhoto ? 'Edit coach name' : undefined}
-                  className={`m-0 text-txt-primary leading-[0.9] uppercase break-words ${canEditPhoto ? 'cursor-pointer hover:opacity-80 transition-opacity focus:outline-none focus-visible:ring-1 focus-visible:ring-txt-primary rounded' : ''}`}
+                  className="m-0 text-txt-primary leading-[0.9] uppercase break-words"
                   style={{
                     fontFamily: "'Bebas Neue', sans-serif",
                     fontSize: 'clamp(2rem, 4.5vw, 3.25rem)',
                     letterSpacing: '0.5px',
                   }}
                 >
-                  {selectedDisplayName}
+                  {canEditPhoto ? (
+                    <button
+                      type="button"
+                      onClick={openNameModal}
+                      title="Edit coach name"
+                      className="uppercase text-left break-words cursor-pointer hover:opacity-80 transition-opacity focus:outline-none focus-visible:ring-1 focus-visible:ring-txt-primary rounded"
+                    >
+                      {selectedDisplayName}
+                    </button>
+                  ) : selectedDisplayName}
                 </h1>
                 {coachOptions.length > 1 && (
                   <>

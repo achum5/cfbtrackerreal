@@ -11,9 +11,14 @@ describe('titleForPath', () => {
       .toBe(`Dashboard – Kentucky Wildcats – ${SITE_NAME}`)
   })
 
-  it('leaves player and team pages to set their own title', () => {
+  it('leaves player, team and game pages to set their own title', () => {
     expect(titleForPath('/dynasty/abc/player/12', 'Kentucky Wildcats')).toBeNull()
     expect(titleForPath('/dynasty/abc/team/109/2035', 'Kentucky Wildcats')).toBeNull()
+    expect(titleForPath('/dynasty/abc/game/g-1', 'Kentucky Wildcats')).toBeNull()
+    expect(titleForPath('/dynasty/abc/game/g-1/edit', 'Kentucky Wildcats'))
+      .toBe(`Edit Game – Kentucky Wildcats – ${SITE_NAME}`)
+    expect(titleForPath('/dynasty/abc/game/new', 'Kentucky Wildcats'))
+      .toBe(`New Game – Kentucky Wildcats – ${SITE_NAME}`)
     expect(titleForPath('/view/code/player/12')).toBeNull()
   })
 

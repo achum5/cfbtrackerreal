@@ -41,6 +41,8 @@ import { calculateRecruitingClassScore, formatRecruitingClassScore, flattenClass
 import { useToast } from '../../components/ui/Toast'
 import FittedPlayerName from '../../components/ui/FittedPlayerName'
 import GameResultRow from '../../components/ui/GameResultRow'
+import Card from '../../components/ui/Card'
+import EmptyState from '../../components/ui/EmptyState'
 import SortableStatsTable, { PlayerCell } from '../../components/SortableStatsTable'
 import { formatScoreHighLow } from '../../utils/scoreFormat'
 import { getCoachStints } from '../../data/coachStats'
@@ -2839,29 +2841,13 @@ export default function TeamYear() {
 
   if (!team) {
     return (
-      <div className="space-y-6">
-        <div
-          className="rounded-lg shadow-lg p-6"
-          style={{
-            backgroundColor: '#f3f4f6',
-            border: '3px solid #6b7280'
-          }}
-        >
-          <h1 className="text-2xl font-bold" style={{ color: '#1f2937' }}>
-            Team Not Found
-          </h1>
-          <Link
-            to={`${pathPrefix}/teams`}
-            className="inline-block mt-4 px-4 py-2 rounded-lg font-semibold"
-            style={{
-              backgroundColor: '#1f2937',
-              color: '#ffffff'
-            }}
-          >
-            Back to Teams
-          </Link>
-        </div>
-      </div>
+      <Card>
+        <EmptyState
+          title="Team not found"
+          message="This team isn't in this dynasty."
+          action={<Link to={`${pathPrefix}/teams`} className="btn-refined">Back to Teams</Link>}
+        />
+      </Card>
     )
   }
 
@@ -2978,12 +2964,12 @@ export default function TeamYear() {
                     be cut off (long names on narrow phones); everywhere it fits,
                     it renders at the natural clamp size unchanged. */}
                 <FitText className="leading-[0.92]">
-                  <div
-                    className="font-display font-extrabold uppercase tracking-tight whitespace-nowrap"
+                  <h1
+                    className="m-0 font-display font-extrabold uppercase tracking-tight leading-[0.92] whitespace-nowrap"
                     style={{ color: teamBgText, fontSize: 'clamp(1.125rem, 2.6vw, 2.125rem)' }}
                   >
                     {getSchoolName(mascotName) || teamInfo.name}
-                  </div>
+                  </h1>
                   {(() => {
                     const sch = getSchoolName(mascotName) || ''
                     const masc = (mascotName || '').slice(sch.length).trim()
@@ -3732,7 +3718,7 @@ export default function TeamYear() {
             return (
               <div>
                 <div className="flex items-end justify-between mb-3 px-1">
-                  <h3 className="font-display font-bold leading-none text-txt-primary" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Stat Leaders</h3>
+                  <h2 className="font-display font-bold leading-none text-txt-primary" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Stat Leaders</h2>
                   <button
                     onClick={() => setActiveTab('stats')}
                     className="text-xs font-semibold text-txt-tertiary hover:text-txt-secondary transition-colors"
@@ -3826,7 +3812,7 @@ export default function TeamYear() {
             return (
               <div>
                 <div className="flex items-end justify-between mb-3 px-1">
-                  <h3 className="font-display font-bold leading-none text-txt-primary" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Top Rated</h3>
+                  <h2 className="font-display font-bold leading-none text-txt-primary" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Top Rated</h2>
                   <button
                     onClick={() => setActiveTab('roster')}
                     className="text-xs font-semibold text-txt-tertiary hover:text-txt-secondary transition-colors"
@@ -3911,12 +3897,12 @@ export default function TeamYear() {
             >
               {/* Section header */}
               <div className="flex items-end justify-between mb-4 px-1">
-                <h3
+                <h2
                   className="font-display font-bold leading-none text-txt-primary"
                   style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}
                 >
                   Previous Game
-                </h3>
+                </h2>
                 <span
                   className="text-xs font-semibold text-txt-tertiary tabular-nums"
                 >
@@ -4086,12 +4072,12 @@ export default function TeamYear() {
                 >
                   {/* Section header */}
                   <div className="flex items-end justify-between mb-4 px-1">
-                    <h3
+                    <h2
                       className="font-display font-bold leading-none text-txt-primary"
                       style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}
                     >
                       Next Game
-                    </h3>
+                    </h2>
                     <span
                       className="text-xs font-semibold text-txt-tertiary tabular-nums"
                     >
@@ -4278,12 +4264,12 @@ export default function TeamYear() {
               <div className="stagger-reveal">
                 {/* Editorial header: left-rail accent + tracked caps */}
                 <div className="flex items-end justify-between mb-4 px-1">
-                  <h3
+                  <h2
                     className="font-display font-bold leading-none text-txt-primary"
                     style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}
                   >
                     Season Schedule
-                  </h3>
+                  </h2>
                   <button
                     onClick={() => setActiveTab('schedule')}
                     className="text-xs font-semibold text-txt-tertiary hover:text-txt-secondary transition-colors"
@@ -7055,7 +7041,7 @@ export default function TeamYear() {
               {/* PROGRAM RECORD + ACHIEVEMENTS (wider) */}
               <div className="card overflow-hidden lg:col-span-2 cfb-texture">
                 <div className="px-4 py-2.5 bg-surface-2 border-b border-surface-4 flex items-center justify-between">
-                  <h3 className="font-display font-bold leading-none text-txt-primary m-0" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Program Record</h3>
+                  <h2 className="font-display font-bold leading-none text-txt-primary m-0" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Program Record</h2>
                   <span className="text-[10px] font-semibold uppercase tabular-nums text-txt-tertiary" style={{ letterSpacing: '1.5px' }}>{yearsWithRecords.length} season{yearsWithRecords.length !== 1 ? 's' : ''}</span>
                 </div>
                 <div className="p-4">
@@ -7096,7 +7082,7 @@ export default function TeamYear() {
               {(userCoachingYears.length > 0 || userVsTeamWins > 0 || userVsTeamLosses > 0) && (
                 <div className="card overflow-hidden cfb-texture">
                   <div className="px-4 py-2.5 bg-surface-2 border-b border-surface-4">
-                    <h3 className="font-display font-bold leading-none text-txt-primary m-0" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Your History</h3>
+                    <h2 className="font-display font-bold leading-none text-txt-primary m-0" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Your History</h2>
                   </div>
                   <div className="p-4 grid grid-cols-2 lg:grid-cols-1 gap-4">
                     <div>
@@ -7136,7 +7122,7 @@ export default function TeamYear() {
             {/* SEASON HISTORY */}
             <div className="card overflow-hidden cfb-texture">
               <div className="px-4 py-2.5 bg-surface-2 border-b border-surface-4 flex items-center justify-between">
-                <h3 className="font-display font-bold leading-none text-txt-primary m-0" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Season History</h3>
+                <h2 className="font-display font-bold leading-none text-txt-primary m-0" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Season History</h2>
                 <span className="text-[10px] font-semibold uppercase tabular-nums text-txt-tertiary" style={{ letterSpacing: '1.5px' }}>{yearRecords.length} total</span>
               </div>
               <div className="overflow-x-auto">
@@ -7314,7 +7300,7 @@ export default function TeamYear() {
               return (
                 <div className="card overflow-hidden cfb-texture">
                   <div className="px-4 py-2.5 bg-surface-2 border-b border-surface-4 flex items-center justify-between gap-3 flex-wrap">
-                    <h3 className="font-display font-bold leading-none text-txt-primary m-0" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}>All-Time Leaders</h3>
+                    <h2 className="font-display font-bold leading-none text-txt-primary m-0" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}>All-Time Leaders</h2>
                     <div className="flex items-center gap-1">
                       {[
                         { key: 'career', label: 'Career' },

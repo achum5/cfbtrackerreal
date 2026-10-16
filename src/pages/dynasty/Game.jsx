@@ -8,6 +8,7 @@ import { getTeamLogo, getTeamLogoByTid, getMascotName as getMascotNameFromTeams,
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { TEAMS, resolveTid, getCurrentTeamAbbr, getGameTeamInfo, getColorsFromTid } from '../../data/teamRegistry'
 import { getTeamColors } from '../../data/teamColors'
+import { composeTitle } from '../../utils/pageTitle'
 import { useDynasty, getUserGamePerspective, GAME_TYPES, getRecordAsOfGame, getTeamRatingsForYear, getCustomConferencesForYear, getTeamRankForWeek, isPlayerOnRoster, rankSlotForGame } from '../../context/DynastyContext'
 import { saveGamesToSubcollection } from '../../services/dynastyService'
 import { matchAndRankPlayers } from '../../utils/playerTagSearch'
@@ -968,6 +969,21 @@ export default function Game() {
     loadSocial(currentDynasty.id).catch(() => {})
   }, [currentDynasty?.id, currentDynasty?.socialFeedByYear, loadSocial])
 
+  // Browser-tab title: the matchup, e.g. "2036 Kentucky at Florida" (Layout
+  // skips /game/ routes so it doesn't overwrite this).
+  useEffect(() => {
+    if (!game || game.team1Tid == null || game.team2Tid == null) return
+    const t = currentDynasty?.teams || TEAMS
+    const nameOf = (tid) => {
+      const full = getMascotNameFromTeams(tid, t) || ''
+      return stripMascotFromName(full) || full || `Team ${tid}`
+    }
+    const neutral = game.homeTeamTid == null
+    const home = neutral ? game.team2Tid : game.homeTeamTid
+    const away = neutral ? game.team1Tid : (Number(game.homeTeamTid) === Number(game.team1Tid) ? game.team2Tid : game.team1Tid)
+    document.title = composeTitle(`${game.year} ${nameOf(away)} ${neutral ? 'vs' : 'at'} ${nameOf(home)}`)
+  }, [game, currentDynasty?.teams])
+
   if (!currentDynasty) {
     return <LoadingState message="Loading dynasty..." />
   }
@@ -1864,6 +1880,10 @@ export default function Game() {
 
   return (
     <div className="space-y-4 overflow-x-hidden">
+      <h1 className="sr-only">
+        {leftData.name} {game.homeTeamTid == null ? 'vs' : 'at'} {rightData.name}
+        {gameIsPlayed ? `, ${leftData.score}–${rightData.score}` : ''}
+      </h1>
       {/* Hero Scoreboard — CFB-27 broadcast scorebug. The card carries the
           team-color split + grain; the header strip below sits opaque on top
           (z-10) so it reads as a clean broadcast bar over the colored body. */}
@@ -2642,9 +2662,9 @@ export default function Game() {
             // Unified section heading — same hierarchy in all three columns
             const SectionHead = ({ children, actions }) => (
               <div className="flex items-center gap-3 pb-2.5 mb-3 border-b border-surface-3/60">
-                <h3 className="flex-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-txt-muted">
+                <h2 className="flex-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-txt-muted">
                   {children}
-                </h3>
+                </h2>
                 {actions}
               </div>
             )
