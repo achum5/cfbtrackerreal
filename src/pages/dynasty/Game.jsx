@@ -2154,7 +2154,10 @@ export default function Game() {
           <div className="flex items-center justify-between gap-1 sm:gap-6 md:gap-10 max-w-full">
             {/* Left Team */}
             <Link to={`${pathPrefix}/team/${leftData.tid}/${game.year}`} className="group flex-1 min-w-0">
-              <div className="flex flex-col items-center sm:flex-row sm:items-center gap-1 sm:gap-4">
+              {/* Logo over name until lg: side-by-side needs ~300px per team,
+                  and at tablet widths the name was squeezed into a sliver that
+                  the opposing logo then overlapped. */}
+              <div className="flex flex-col items-center lg:flex-row lg:items-center gap-1 sm:gap-2 lg:gap-4">
                 {/* Logo - larger for hero effect */}
                 <div className="relative flex-shrink-0">
                   <div
@@ -2176,7 +2179,7 @@ export default function Game() {
                     </div>
                   )}
                 </div>
-                <div className="text-center sm:text-left min-w-0">
+                <div className="text-center lg:text-left min-w-0">
                   {/* Rank badge */}
                   {leftData.rank && !isCFPGame && (
                     <div className="text-amber-400 text-[9px] sm:text-xs font-bold mb-0.5">#{leftData.rank}</div>
@@ -2185,7 +2188,7 @@ export default function Game() {
                     {leftData.name}
                   </div>
                   {leftData.record && (
-                    <div className="text-[9px] sm:text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.72)' }}>{leftData.record}</div>
+                    <div className="text-[9px] sm:text-xs mt-0.5 whitespace-nowrap tabular-nums" style={{ color: 'rgba(255,255,255,0.72)' }}>{leftData.record}</div>
                   )}
                 </div>
               </div>
@@ -2333,7 +2336,7 @@ export default function Game() {
 
             {/* Right Team */}
             <Link to={`${pathPrefix}/team/${rightData.tid}/${game.year}`} className="group flex-1 min-w-0">
-              <div className="flex flex-col items-center sm:flex-row-reverse sm:items-center gap-1 sm:gap-4">
+              <div className="flex flex-col items-center lg:flex-row-reverse lg:items-center gap-1 sm:gap-2 lg:gap-4">
                 {/* Logo - larger for hero effect */}
                 <div className="relative flex-shrink-0">
                   <div
@@ -2355,7 +2358,7 @@ export default function Game() {
                     </div>
                   )}
                 </div>
-                <div className="text-center sm:text-right min-w-0">
+                <div className="text-center lg:text-right min-w-0">
                   {/* Rank badge */}
                   {rightData.rank && !isCFPGame && (
                     <div className="text-amber-400 text-[9px] sm:text-xs font-bold mb-0.5">#{rightData.rank}</div>
@@ -2364,7 +2367,7 @@ export default function Game() {
                     {rightData.name}
                   </div>
                   {rightData.record && (
-                    <div className="text-[9px] sm:text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.72)' }}>{rightData.record}</div>
+                    <div className="text-[9px] sm:text-xs mt-0.5 whitespace-nowrap tabular-nums" style={{ color: 'rgba(255,255,255,0.72)' }}>{rightData.record}</div>
                   )}
                 </div>
               </div>
@@ -2481,8 +2484,10 @@ export default function Game() {
                       : 'text-txt-tertiary hover:text-txt-primary hover:bg-surface-2/50'
                   }`}
                 >
-                  <span className="sm:hidden">{tab.shortLabel}</span>
-                  <span className="hidden sm:inline">{tab.label}</span>
+                  {/* Short labels until lg: 8-9 shared-width tabs at tablet
+                      width cut "Team Stats" to "Team St…". */}
+                  <span className="lg:hidden">{tab.shortLabel}</span>
+                  <span className="hidden lg:inline">{tab.label}</span>
                 </button>
               ))}
             </div>
