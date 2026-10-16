@@ -1,3 +1,7 @@
+// Color backed by a CSS variable that still honors Tailwind opacity
+// modifiers: mixes toward transparent by <alpha-value> (1 when unmodified).
+const withAlpha = (cssVar) => `color-mix(in srgb, ${cssVar} calc(<alpha-value> * 100%), transparent)`
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -16,20 +20,25 @@ export default {
           'subtle': 'var(--team-primary-subtle)',
         },
         // Dark theme surface colors (slight blue-black undertone)
+        // withAlpha() lets opacity modifiers work on these CSS-variable colors
+        // (bg-surface-2/50, divide-surface-3/40, text-txt-tertiary/50, …).
+        // A bare var() can't take Tailwind's alpha, so those classes used to
+        // generate no CSS at all — the hover tints and dividers they describe
+        // never rendered. Without a modifier the output is the same color.
         'surface': {
-          '0': 'var(--surface-0, #09090d)',
-          '1': 'var(--surface-1, #0f1013)',
-          '2': 'var(--surface-2, #16171c)',
-          '3': 'var(--surface-3, #1e1f25)',
-          '4': 'var(--surface-4, #2a2b32)',
-          '5': 'var(--surface-5, #3a3b44)',
+          '0': withAlpha('var(--surface-0, #09090d)'),
+          '1': withAlpha('var(--surface-1, #0f1013)'),
+          '2': withAlpha('var(--surface-2, #16171c)'),
+          '3': withAlpha('var(--surface-3, #1e1f25)'),
+          '4': withAlpha('var(--surface-4, #2a2b32)'),
+          '5': withAlpha('var(--surface-5, #3a3b44)'),
         },
         // Semantic text colors
         'txt': {
-          'primary': 'var(--text-primary, #f5f5f7)',
-          'secondary': 'var(--text-secondary, #a8a8b0)',
-          'tertiary': 'var(--text-tertiary, #6e6e78)',
-          'muted': 'var(--text-muted, #4a4a52)',
+          'primary': withAlpha('var(--text-primary, #f5f5f7)'),
+          'secondary': withAlpha('var(--text-secondary, #a8a8b0)'),
+          'tertiary': withAlpha('var(--text-tertiary, #6e6e78)'),
+          'muted': withAlpha('var(--text-muted, #4a4a52)'),
         },
         // Semantic accents
         'success': 'var(--accent-success)',
