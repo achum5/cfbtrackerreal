@@ -7626,7 +7626,7 @@ export default function Dashboard() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         {opponentRank && (
-                          <span className="text-xs font-bold tabular-nums text-amber-300">
+                          <span className="text-xs font-bold tabular-nums" style={{ color: rowTxt === '#000000' ? '#92400e' : '#fcd34d' }}>
                             #{opponentRank}
                           </span>
                         )}
@@ -7903,7 +7903,7 @@ export default function Dashboard() {
               return (
                 <Link to={`${pathPrefix}/game/${cfpGame.id}`} className="block">
                   <div
-                    className="relative flex items-center py-2.5 gap-3 cfb-texture hover:brightness-110 hover:z-10 transition-[filter] duration-200"
+                    className={`relative flex items-center py-2.5 gap-3 cfb-texture hover:brightness-110 hover:z-10 transition-[filter] duration-200 ${getContrastTextColor(oppColors.backgroundColor) === '#000000' ? 'hero-on-light' : ''}`}
                     style={{
                       backgroundColor: oppColors.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.36) 100%)',
                       paddingLeft: '1rem',
@@ -7955,7 +7955,7 @@ export default function Dashboard() {
               return (
                 <Link to={`${pathPrefix}/game/${cfpGame.id}`} className="block">
                   <div
-                    className="relative flex items-center py-2.5 gap-3 cfb-texture hover:brightness-110 hover:z-10 transition-[filter] duration-200"
+                    className={`relative flex items-center py-2.5 gap-3 cfb-texture hover:brightness-110 hover:z-10 transition-[filter] duration-200 ${getContrastTextColor(oppColors.backgroundColor) === '#000000' ? 'hero-on-light' : ''}`}
                     style={{
                       backgroundColor: oppColors.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.36) 100%)',
                       paddingLeft: '1rem',
@@ -8007,7 +8007,7 @@ export default function Dashboard() {
               return (
                 <Link to={`${pathPrefix}/game/${cfpGame.id}`} className="block">
                   <div
-                    className="relative flex items-center py-2.5 gap-3 cfb-texture hover:brightness-110 hover:z-10 transition-[filter] duration-200"
+                    className={`relative flex items-center py-2.5 gap-3 cfb-texture hover:brightness-110 hover:z-10 transition-[filter] duration-200 ${getContrastTextColor(oppColors.backgroundColor) === '#000000' ? 'hero-on-light' : ''}`}
                     style={{
                       backgroundColor: oppColors.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.36) 100%)',
                       paddingLeft: '1rem',
@@ -8058,7 +8058,7 @@ export default function Dashboard() {
               return (
                 <Link to={`${pathPrefix}/game/${cfpGame.id}`} className="block">
                   <div
-                    className="relative flex items-center py-2.5 gap-3 cfb-texture hover:brightness-110 hover:z-10 transition-[filter] duration-200"
+                    className={`relative flex items-center py-2.5 gap-3 cfb-texture hover:brightness-110 hover:z-10 transition-[filter] duration-200 ${getContrastTextColor(oppColors.backgroundColor) === '#000000' ? 'hero-on-light' : ''}`}
                     style={{
                       backgroundColor: oppColors.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.36) 100%)',
                       paddingLeft: '1rem',

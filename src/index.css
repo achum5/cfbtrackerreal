@@ -1150,8 +1150,9 @@ button.media-card:active,
   }
 }
 
-/* Game scoreboard: a half on a light team color (maize, gold, white). The
-   markup is written for white text on dark team colors; inside this scope
+/* A surface filled with a light team color (maize, gold, white) — game
+   scoreboard halves, dashboard postseason rows. That markup is written for
+   white text on dark team colors; inside this scope
    that text turns dark (rank amber deepens) so it reads on the light half.
    !important lets it win over the inline rgba() record colors. */
 .hero-on-light.text-white,
@@ -1161,7 +1162,12 @@ button.media-card:active,
 .hero-on-light .text-white\/65,
 .hero-on-light .text-white\/70,
 .hero-on-light .hero-muted { color: rgb(11 12 16 / 0.72) !important; }
+.hero-on-light .text-white\/85 { color: rgb(11 12 16 / 0.85) !important; }
+.hero-on-light .text-amber-300,
 .hero-on-light .text-amber-400 { color: #92400e !important; }
+.hero-on-light .text-emerald-400,
+.hero-on-light .text-green-400 { color: #166534 !important; }
+.hero-on-light .text-red-400 { color: #991b1b !important; }
 
 /* Respect reduced-motion — kill the animations entirely. */
 @media (prefers-reduced-motion: reduce) {

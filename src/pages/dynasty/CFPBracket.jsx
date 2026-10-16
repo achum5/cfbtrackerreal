@@ -12,6 +12,7 @@ import { getCFPGameId, DEFAULT_BOWL_CONFIG, getBowlForSlot, getBowlForSeed, CFP_
 import { InlineYearSelect } from '../../components/ui'
 import GameEntryModal from '../../components/GameEntryModal'
 import { isPcAutoDynasty } from '../../editions'
+import { readableTextOn } from '../../utils/colorUtils'
 
 // Broadcast gold used for round labels, eyebrow, and trophy accents.
 const CFP_GOLD = '#e4b04a'
@@ -747,7 +748,9 @@ export default function CFPBracket() {
     const resolvedAbbr = customEntry?.abbr || team
     const teamData = resolvedAbbr ? teamAbbreviations[resolvedAbbr] : null
     const bgColor = customEntry?.primaryColor || teamData?.backgroundColor || '#4B5563'
-    const txtColor = customEntry?.secondaryColor || teamData?.textColor || '#D1D5DB'
+    // Team's secondary as text unless it doesn't read on the primary
+    // (e.g. light blue on dark green) — then black/white.
+    const txtColor = readableTextOn(bgColor, customEntry?.secondaryColor || teamData?.textColor || '#D1D5DB')
     const mascotName = customEntry?.name || (resolvedAbbr ? mascotMap[resolvedAbbr] : null)
     const logo = customEntry?.logo || (mascotName ? getTeamLogo(mascotName, dynastyTeams) : null)
 
@@ -955,7 +958,7 @@ export default function CFPBracket() {
     const abbr = t?.abbr || (tid != null ? getGameTeamInfo(teams, tid)?.abbr : null)
     const td = abbr ? teamAbbreviations[abbr] : null
     const bg = t?.primaryColor || td?.backgroundColor || '#374151'
-    const txt = t?.secondaryColor || td?.textColor || '#E5E7EB'
+    const txt = readableTextOn(bg, t?.secondaryColor || td?.textColor || '#E5E7EB')
     const mascot = t?.name || (abbr ? mascotMap[abbr] : null)
     const logo = t?.logo || (mascot ? getTeamLogo(mascot, teams) : null)
     return { bg, txt, logo, seed: getSeedByTid(tid) }
@@ -1601,7 +1604,7 @@ export default function CFPBracket() {
           style={{
             width: `${BRACKET_WIDTH * bracketScale + 32}px`,
             minWidth: `${BRACKET_WIDTH * bracketScale + 32}px`,
-            height: `${(BRACKET_HEIGHT + 250) * bracketScale}px`,
+            height: `${(BRACKET_HEIGHT + 110) * bracketScale}px`, // content measures ~+90 (champion trophy + label); +250 left a tall empty band
             paddingLeft: '16px',
             paddingRight: '16px'
           }}
