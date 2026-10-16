@@ -1082,7 +1082,7 @@ export default function ThresholdLookup({ players = [], teamColors, teamLogo, on
       <div className="card overflow-hidden flex flex-col min-h-[520px]">
 
         {/* Position Nav */}
-        <div className="bg-surface-3 border-b border-surface-4 px-2 py-2 flex items-center gap-1 overflow-x-auto scrollbar-none shrink-0">
+        <div className="bg-surface-3 border-b border-surface-4 px-2 py-2 flex items-center gap-1 overflow-x-auto no-scrollbar shrink-0">
           {POSITIONS.map(pos => (
             <button
               key={pos}

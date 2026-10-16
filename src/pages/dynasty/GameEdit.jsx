@@ -3491,7 +3491,7 @@ export default function GameEdit() {
             placeholder="Paste image"
             title="Tap here and paste an image (works on phone); on desktop, click then Ctrl+V"
             aria-label="Paste image from clipboard"
-            className="flex-shrink-0 w-32 text-center px-5 rounded-lg transition-colors text-sm font-semibold placeholder:text-txt-secondary placeholder:opacity-100 disabled:opacity-50 hover:bg-surface-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent"
+            className="flex-shrink-0 w-32 text-center px-5 rounded-lg transition-colors text-sm font-semibold placeholder:text-txt-secondary placeholder:opacity-100 disabled:opacity-50 hover:bg-surface-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-txt-primary/60"
             style={{
               backgroundColor: 'var(--surface-3)',
               border: '1.5px dashed var(--surface-5)',

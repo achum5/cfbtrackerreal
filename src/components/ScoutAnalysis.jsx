@@ -2072,7 +2072,7 @@ export default function ScoutAnalysis({ players = [], removedRecruits = [], onTo
       <div className="card overflow-hidden flex flex-col min-h-[560px]">
 
         {/* Position nav */}
-        <div className="bg-surface-3 border-b border-surface-4 px-2 py-2 flex items-center gap-1 overflow-x-auto scrollbar-none shrink-0">
+        <div className="bg-surface-3 border-b border-surface-4 px-2 py-2 flex items-center gap-1 overflow-x-auto no-scrollbar shrink-0">
           <button
             onClick={() => { setIsOverview(true); setActiveArch(null); }}
             style={isOverview ? { backgroundColor: teamAccent, color: teamBgText } : undefined}

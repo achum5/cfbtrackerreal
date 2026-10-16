@@ -131,7 +131,7 @@ function Donut({ segments, budget, unspent, size = 200, stroke = 24 }) {
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
         <span className="label-xs text-txt-tertiary" style={{ letterSpacing: '1px' }}>Dynasty Points Budget</span>
-        <span className="font-outfit font-black tabular-nums text-3xl text-txt-primary leading-none mt-1.5">
+        <span className="font-display font-black tabular-nums text-3xl text-txt-primary leading-none mt-1.5">
           {budget == null ? '—' : fmt(Math.max(0, unspent ?? 0))}
         </span>
         <span className="text-xs text-txt-tertiary tabular-nums mt-0.5">/ {fmt(budget)}</span>
@@ -545,7 +545,7 @@ function DynastyBlueprintPanelInner({ year, tid }) {
                 disabled={isViewOnly}
                 className="flex items-center gap-2 group disabled:cursor-default"
               >
-                <span className="font-outfit font-black tabular-nums text-2xl leading-none text-txt-primary">
+                <span className="font-display font-black tabular-nums text-2xl leading-none text-txt-primary">
                   {form.budget === '' || form.budget == null ? 'Set budget' : fmt(parseDp(form.budget))}
                 </span>
                 {!isViewOnly && (
@@ -577,7 +577,7 @@ function DynastyBlueprintPanelInner({ year, tid }) {
                       <div className="text-sm font-semibold text-txt-primary leading-tight truncate">{l.label}</div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="font-outfit font-black tabular-nums text-base text-txt-primary leading-none">{fmt(val)}</div>
+                      <div className="font-display font-black tabular-nums text-base text-txt-primary leading-none">{fmt(val)}</div>
                       <div className="text-[11px] tabular-nums text-txt-tertiary mt-0.5">{pct == null ? '—' : `${pct}%`}</div>
                     </div>
                   </button>
@@ -590,7 +590,7 @@ function DynastyBlueprintPanelInner({ year, tid }) {
                   <div className="text-sm font-semibold text-txt-primary leading-tight">Unspent</div>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <div className="font-outfit font-black tabular-nums text-base leading-none" style={{ color: overspent ? 'var(--accent-error)' : 'var(--text-primary)' }}>
+                  <div className="font-display font-black tabular-nums text-base leading-none" style={{ color: overspent ? 'var(--accent-error)' : 'var(--text-primary)' }}>
                     {unspent == null ? '—' : fmt(unspent)}
                   </div>
                   <div className="text-[11px] tabular-nums text-txt-tertiary mt-0.5">{pctOf(unspent) == null ? '' : `${pctOf(unspent)}%`}</div>

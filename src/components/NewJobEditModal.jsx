@@ -326,7 +326,7 @@ export default function NewJobEditModal({ isOpen, onClose, onSave, teamColors, c
         <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 btn btn-secondary"
+            className="flex-1 btn-refined"
           >
             Cancel
           </button>

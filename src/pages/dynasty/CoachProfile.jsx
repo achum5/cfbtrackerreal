@@ -40,7 +40,7 @@ export default function CoachProfile() {
     return (
       <div className="max-w-2xl mx-auto py-10 px-4">
         <div className="card p-6">
-          <h1 className="display-sm text-txt-primary m-0 mb-2">Coach not found</h1>
+          <h1 className="font-display font-bold text-2xl tracking-tight text-txt-primary m-0 mb-2">Coach not found</h1>
           <p className="text-sm text-txt-secondary">This coach record doesn’t exist in this dynasty.</p>
           <div className="mt-4">
             <Link to={pathPrefix} className="btn-refined">Back</Link>

@@ -1131,7 +1131,7 @@ export default function PlayerEditModalNew({
                   <img
                     src={resolvePortraitUrl(formData.pictureUrl)}
                     alt=""
-                    className="w-16 h-16 rounded-full object-cover border-3 group-hover:opacity-80 transition-opacity"
+                    className="w-16 h-16 rounded-full object-cover border-2 group-hover:opacity-80 transition-opacity"
                     style={{ borderColor: 'var(--surface-3)' }}
                   />
                 ) : (

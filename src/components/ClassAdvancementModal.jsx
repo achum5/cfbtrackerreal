@@ -62,13 +62,13 @@ export default function ClassAdvancementModal({ isOpen, onClose, onConfirm, play
         <div className="flex gap-2 mb-4">
           <button
             onClick={() => handleSetAll(true)}
-            className="btn btn-secondary text-sm"
+            className="btn-refined"
           >
             Set All: Yes (5+ games)
           </button>
           <button
             onClick={() => handleSetAll(false)}
-            className="btn btn-secondary text-sm"
+            className="btn-refined"
           >
             Set All: No (Redshirt)
           </button>
@@ -152,7 +152,7 @@ export default function ClassAdvancementModal({ isOpen, onClose, onConfirm, play
         <div className="flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="btn btn-secondary text-sm"
+            className="btn-refined"
           >
             Cancel
           </button>

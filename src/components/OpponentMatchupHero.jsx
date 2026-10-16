@@ -86,7 +86,13 @@ export default function OpponentMatchupHero({ dynasty, game, opponentTid, pageTi
               size="sm"
             />
           )}
-          <Link to={`${pathPrefix}/game/${game.id}`} className="btn-refined btn-refined--ghost">
+          {/* On the team-colored banner: contrast text + a translucent
+              outline, so it reads on any team color. */}
+          <Link
+            to={`${pathPrefix}/game/${game.id}`}
+            className="btn-refined btn-refined--ghost"
+            style={{ color: heroText, borderColor: `color-mix(in srgb, ${heroText} 40%, transparent)` }}
+          >
             View Game
           </Link>
         </div>

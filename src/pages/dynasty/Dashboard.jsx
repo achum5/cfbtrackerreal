@@ -7441,7 +7441,7 @@ export default function Dashboard() {
                   </div>
                 ) : isLoadingDynastyData ? (
                   <div className="text-center py-8">
-                    <div className="inline-block w-6 h-6 border-2 border-surface-5 border-t-text-primary rounded-full animate-spin mb-2" />
+                    <div className="inline-block w-6 h-6 border-2 border-surface-5 border-t-txt-primary rounded-full animate-spin mb-2" />
                     <p className="text-sm text-txt-tertiary">Loading roster...</p>
                   </div>
                 ) : (
@@ -8093,7 +8093,7 @@ export default function Dashboard() {
             </>
           ) : isLoadingDynastyData ? (
           <div className="text-center py-12">
-            <div className="inline-block w-8 h-8 border-2 border-surface-5 border-t-text-primary rounded-full animate-spin mb-4" />
+            <div className="inline-block w-8 h-8 border-2 border-surface-5 border-t-txt-primary rounded-full animate-spin mb-4" />
             <h3 className="font-display text-lg font-medium mb-2 text-txt-primary">
               Loading Schedule...
             </h3>
@@ -8549,7 +8549,7 @@ export default function Dashboard() {
                   </>
                 ) : isLoadingDynastyData ? (
                   <div className="text-center py-12">
-                    <div className="inline-block w-6 h-6 border-2 border-surface-5 border-t-text-primary rounded-full animate-spin mb-2" />
+                    <div className="inline-block w-6 h-6 border-2 border-surface-5 border-t-txt-primary rounded-full animate-spin mb-2" />
                     <p className="text-txt-tertiary">Loading schedule...</p>
                   </div>
                 ) : (
@@ -8646,7 +8646,7 @@ export default function Dashboard() {
                 </div>
               ) : isLoadingDynastyData ? (
                 <div className="text-center py-8">
-                  <div className="inline-block w-6 h-6 border-2 border-surface-5 border-t-text-primary rounded-full animate-spin mb-2" />
+                  <div className="inline-block w-6 h-6 border-2 border-surface-5 border-t-txt-primary rounded-full animate-spin mb-2" />
                   <p className="text-sm text-txt-tertiary">Loading roster...</p>
                 </div>
               ) : (

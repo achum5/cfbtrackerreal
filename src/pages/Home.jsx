@@ -1321,7 +1321,7 @@ export default function Home() {
               {importProgress?.message || 'Preparing…'}
             </span>
             <span
-              className="font-outfit font-black tabular-nums text-4xl leading-none"
+              className="font-display font-black tabular-nums text-4xl leading-none"
               style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}
             >
               {importProgress?.progress || 0}
@@ -1382,7 +1382,7 @@ export default function Home() {
                 }}
               >
                 <span
-                  className="font-outfit font-black tabular-nums text-sm w-6 flex-shrink-0"
+                  className="font-display font-black tabular-nums text-sm w-6 flex-shrink-0"
                   style={{ color: numberColor, letterSpacing: '-0.01em' }}
                 >
                   {String(index + 1).padStart(2, '0')}

@@ -3100,7 +3100,7 @@ export default function PlayerEdit() {
                   type="button"
                   onClick={() => setShowDeleteConfirm(false)}
                   disabled={deleting}
-                  className="btn btn-secondary text-xs"
+                  className="btn-refined"
                 >
                   Cancel
                 </button>

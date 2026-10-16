@@ -61,7 +61,7 @@ export default function CoachEdit() {
     return (
       <div className="max-w-2xl mx-auto py-10 px-4">
         <div className="card p-6">
-          <h1 className="display-sm text-txt-primary m-0 mb-2">Coach not found</h1>
+          <h1 className="font-display font-bold text-2xl tracking-tight text-txt-primary m-0 mb-2">Coach not found</h1>
           <div className="mt-4">
             <Button variant="outline" size="sm" onClick={() => navigate(pathPrefix)}>Back</Button>
           </div>

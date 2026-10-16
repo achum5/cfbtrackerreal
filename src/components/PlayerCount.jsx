@@ -188,7 +188,7 @@ export default function PlayerCount({ onSelectBucket = null, actionsRef = null, 
               first, since those are the quickest wins. */}
           <div className="card overflow-hidden flex flex-col min-h-[420px]">
             {/* Position Nav — horizontal tab strip, matching Program Outlook / Thresholds */}
-            <div className="bg-surface-3 border-b border-surface-4 px-2 py-2 flex items-center gap-1 overflow-x-auto scrollbar-none shrink-0">
+            <div className="bg-surface-3 border-b border-surface-4 px-2 py-2 flex items-center gap-1 overflow-x-auto no-scrollbar shrink-0">
               {archPositions.map(([pos, posTotal]) => (
                 <button
                   key={pos}

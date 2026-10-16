@@ -3768,7 +3768,7 @@ export default function DangerZone() {
         <Card className="p-4 sm:p-5">
           <div className="space-y-3">
             <div>
-              <div className="text-display-sm text-txt-primary font-semibold">Rebuild per-team-per-week ranks</div>
+              <div className="font-display text-lg text-txt-primary font-semibold">Rebuild per-team-per-week ranks</div>
               <p className="text-xs text-txt-secondary mt-1">
                 Recomputes <code>dynasty.teams[tid].byYear[year].rankByWeek</code> from every stored game.
                 Each game's stored rank IS the entering rank, so no shift is applied.
