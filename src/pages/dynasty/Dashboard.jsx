@@ -149,6 +149,15 @@ function renderTodoList({ todos, isViewOnly }) {
                   </div>
                   {todo.extraTools}
                 </div>
+                {/* Same status line the in-season rows show. Every bowl-week
+                    and offseason row sets one ('Enter CFP Seeds first',
+                    '3 players with 5-9 games'), but this renderer never drew
+                    it, so a red row with no button gave no reason why. */}
+                {todo.subtitle && (
+                  <div className="hidden sm:block text-xs sm:text-[13px] mt-0.5 text-txt-tertiary">
+                    {todo.subtitle}
+                  </div>
+                )}
                 {todo.inlineAction && (
                   <button
                     type="button"
@@ -7053,12 +7062,14 @@ export default function Dashboard() {
                   key: 'portal-transfer-class',
                   done: portalComplete,
                   title: 'Portal Transfer Class Assignment',
-                  subtitle: portalBlocked
-                    ? 'Complete Signing Day first'
-                    : !hasPortalTransfers
-                      ? 'No portal transfers to assign'
-                      : hasPortalTransferClassData
-                        ? `${portalTransfersForClass.length} transfer class${portalTransfersForClass.length !== 1 ? 'es' : ''} assigned`
+                  // Saved assignments win over the 'blocked' hint: a green row
+                  // with an Edit button shouldn't say to finish Signing Day.
+                  subtitle: hasPortalTransferClassData
+                    ? (() => { const n = currentDynasty.portalTransferClassByYear[offseasonDataYear].length; return `${n} transfer class${n !== 1 ? 'es' : ''} assigned` })()
+                    : portalBlocked
+                      ? 'Complete Signing Day first'
+                      : !hasPortalTransfers
+                        ? 'No portal transfers to assign'
                         : `Assign classes for ${portalTransfersForClass.length} transfer${portalTransfersForClass.length !== 1 ? 's' : ''}`,
                   // The action used to vanish whenever no portal transfers were
                   // detected. That list is derived from the recruiting
@@ -7070,7 +7081,7 @@ export default function Dashboard() {
                   // opens on an empty grid the user can fill in by hand, which
                   // beats a dead end.
                   onAction: () => setShowPortalTransferClassModal(true),
-                  actionLabel: hasPortalTransferClassData ? 'Done' : 'Open',
+                  actionLabel: hasPortalTransferClassData ? 'Edit' : 'Open',
                   viewTo: hasPortalTransferClassData ? `${pathPrefix}/recruiting/portal/${userTidForCommits}/${offseasonDataYear}` : null,
                 })
 
@@ -7086,15 +7097,15 @@ export default function Dashboard() {
                   key: 'fringe-case-class',
                   done: fringeComplete,
                   title: 'Fringe Case Class Assignment',
-                  subtitle: fringeBlocked
-                    ? 'Complete Signing Day first'
-                    : !hasFringeCases
-                      ? 'No fringe cases to resolve'
-                      : hasFringeCaseClassData
-                        ? `${fringeCasePlayers.length} player${fringeCasePlayers.length !== 1 ? 's' : ''} resolved`
-                        : `${fringeCasePlayers.length} player${fringeCasePlayers.length !== 1 ? 's' : ''} with 5-9 games`,
+                  subtitle: hasFringeCaseClassData
+                    ? (() => { const n = currentDynasty.fringeCaseClassByYear[offseasonDataYear].length; return `${n} player${n !== 1 ? 's' : ''} resolved` })()
+                    : fringeBlocked
+                      ? 'Complete Signing Day first'
+                      : !hasFringeCases
+                        ? 'No fringe cases to resolve'
+                        : `${fringeCasePlayers.length} player${fringeCasePlayers.length !== 1 ? 's' : ''} with 5–9 games`,
                   onAction: !hasFringeCases ? undefined : () => setShowFringeCaseClassModal(true),
-                  actionLabel: !hasFringeCases ? undefined : (fringeComplete ? 'Done' : 'Open'),
+                  actionLabel: !hasFringeCases ? undefined : (fringeComplete ? 'Edit' : 'Open'),
                   viewTo: hasFringeCaseClassData ? `${pathPrefix}/team/${teamTidF}/${offseasonDataYear}?tab=roster` : null,
                 })
 
