@@ -235,7 +235,7 @@ export default function PlayersOfWeek() {
 
       {!hasWeeks ? (
         <Card>
-          <EmptyState title="No Players of the Week Yet" message="Sync from your CFB27 save to populate weekly honorees." />
+          <EmptyState title="No Players of the Week yet" message="Sync from your CFB27 save to populate weekly honorees." />
         </Card>
       ) : (
         <>
@@ -259,7 +259,7 @@ export default function PlayersOfWeek() {
             <HonoreeCard label="Defensive" honoree={sides?.defensive} />
           </div>
           {!sides?.offensive && !sides?.defensive && (
-            <Card><EmptyState title="No Honorees for This Selection" /></Card>
+            <Card><EmptyState title="No honorees for this selection" /></Card>
           )}
         </>
       )}

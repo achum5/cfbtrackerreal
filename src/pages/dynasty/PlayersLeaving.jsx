@@ -134,7 +134,7 @@ export default function PlayersLeaving() {
 
       {leavers.length === 0 ? (
         <Card>
-          <EmptyState title="No Players Leaving" subtitle={`Everyone on the ${prevYear} roster is still on the team.`} />
+          <EmptyState title="No players leaving" message={`Everyone on the ${prevYear} roster is still on the team.`} />
         </Card>
       ) : (
         <Card padding="none">

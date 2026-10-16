@@ -124,7 +124,7 @@ export default function InjuryReport() {
 
       <Card padding="none" className="overflow-hidden">
         {filteredPlayers.length === 0 ? (
-          <EmptyState title="No Injuries" message="This team has no injured players for the selected filter." />
+          <EmptyState title="No injuries" message="This team has no injured players for the selected filter." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

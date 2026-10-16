@@ -131,7 +131,7 @@ export function TopClassesBody({ dynasty, year, pathPrefix }) {
       <div>
         {tabs}
         <Card>
-          <EmptyState title="No Recruiting Classes Yet" message="Sync from your CFB27 save to populate the national recruiting-class leaderboard." />
+          <EmptyState title="No recruiting classes yet" message="Sync from your CFB27 save to populate the national recruiting-class leaderboard." />
         </Card>
       </div>
     )

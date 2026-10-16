@@ -350,7 +350,7 @@ export default function Rankings() {
         <PageHero title="Top 25" />
         <Card>
           <EmptyState
-            title="No Rankings Yet"
+            title="No rankings yet"
             message="Enter weekly scores with team rankings, or enter the final poll at season's end, to populate the Top 25."
           />
         </Card>

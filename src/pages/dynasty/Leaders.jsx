@@ -11,7 +11,7 @@ export default function Leaders() {
       <PageHero title="Leaders" />
       <Card>
         <EmptyState
-          title="Coming Soon"
+          title="Coming soon"
           message="Statistical leaders and analytics are being developed."
         />
       </Card>

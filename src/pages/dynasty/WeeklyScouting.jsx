@@ -152,7 +152,7 @@ export default function WeeklyScouting() {
     return (
       <div className="space-y-6">
         <SectionHeader title="Scouting Report" />
-        <Card><EmptyState title="Game Not Found" message="This matchup could not be located." /></Card>
+        <Card><EmptyState title="Game not found" message="This matchup could not be located." /></Card>
       </div>
     )
   }
@@ -221,7 +221,7 @@ export default function WeeklyScouting() {
       <div>
         <SectionHeader title="Team Analytics" subtitle="League ranks for the current season" size="sm" />
         {!oppRow ? (
-          <Card><EmptyState variant="compact" title="No Data Yet" message="This opponent has no games on record for this season." /></Card>
+          <Card><EmptyState variant="compact" title="No data yet" message="This opponent has no games on record for this season." /></Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card padding="none" className="overflow-hidden">
@@ -286,7 +286,7 @@ export default function WeeklyScouting() {
           <SectionHeader title="Key Playmakers" size="sm" />
           <Card padding="none" className="overflow-hidden">
             {playmakers.length === 0 ? (
-              <EmptyState variant="compact" className="px-4" title="No Stats Yet" message="This opponent has no recorded stats for this season." />
+              <EmptyState variant="compact" className="px-4" title="No stats yet" message="This opponent has no recorded stats for this season." />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -324,7 +324,7 @@ export default function WeeklyScouting() {
           <SectionHeader title="Injuries" size="sm" />
           <Card padding="none" className="overflow-hidden">
             {injuredPlayers.length === 0 ? (
-              <EmptyState variant="compact" className="px-4" title="No Injuries" message="This opponent has no injured players on record." />
+              <EmptyState variant="compact" className="px-4" title="No injuries" message="This opponent has no injured players on record." />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">

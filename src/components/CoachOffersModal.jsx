@@ -38,7 +38,7 @@ export default function CoachOffersModal({ isOpen, onClose, offers, teams, pathP
         </div>
 
         {!offers || offers.length === 0 ? (
-          <EmptyState title="No Offers Right Now" message="No schools currently have a job offer out for you." />
+          <EmptyState title="No offers right now" message="No schools currently have a job offer out for you." />
         ) : (
           <div className="space-y-3">
             {offers.map((offer) => {

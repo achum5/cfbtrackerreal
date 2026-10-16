@@ -1779,7 +1779,7 @@ export default function Recruiting() {
       ) : (
         <Card>
           <EmptyState
-            title={viewMode === 'portal' ? 'No Transfer Portal Commits' : viewMode === 'hs' ? 'No HS Commitments Yet' : 'No Commitments Yet'}
+            title={viewMode === 'portal' ? 'No transfer portal commits' : viewMode === 'hs' ? 'No HS commitments yet' : 'No commitments yet'}
           />
         </Card>
         )

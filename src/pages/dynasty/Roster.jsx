@@ -196,7 +196,7 @@ export default function Roster() {
       ) : (
         <Card>
           <EmptyState
-            title={selectedPosition === 'All' ? 'No Players Yet' : `No ${selectedPosition} Players`}
+            title={selectedPosition === 'All' ? 'No players yet' : `No ${selectedPosition} players`}
             message={selectedPosition === 'All'
               ? 'Add players to your roster to track them throughout the season.'
               : `No players at the ${selectedPosition} position.`}

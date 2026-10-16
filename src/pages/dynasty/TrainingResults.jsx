@@ -56,7 +56,7 @@ export default function TrainingResults() {
 
       {progressions.length === 0 ? (
         <Card>
-          <EmptyState title="No Training Data Yet" subtitle={`Training results for ${displayYear} haven't synced for this roster yet.`} />
+          <EmptyState title="No training data yet" message={`Training results for ${displayYear} haven't synced for this roster yet.`} />
         </Card>
       ) : (
         <Card padding="none">

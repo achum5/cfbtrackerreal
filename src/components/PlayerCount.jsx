@@ -171,7 +171,7 @@ export default function PlayerCount({ onSelectBucket = null, actionsRef = null, 
 
       {total === 0 ? (
         <div className="card">
-          <EmptyState title="No Targets Yet" message="Add recruiting targets to build the database." />
+          <EmptyState title="No targets yet" message="Add recruiting targets to build the database." />
         </div>
       ) : (
         <>

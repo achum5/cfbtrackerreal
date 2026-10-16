@@ -408,7 +408,7 @@ export default function Awards() {
       {!hasAnyAwards ? (
         <Card>
           <EmptyState
-            title="No Awards Yet"
+            title="No awards yet"
             action={canEdit && (
               <Button variant="secondary" onClick={() => setShowAwardsModal(true)}>
                 Add Awards

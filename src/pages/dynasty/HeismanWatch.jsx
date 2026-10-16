@@ -207,7 +207,7 @@ export default function HeismanWatch() {
 
       {!hasWeeks || candidates.length === 0 ? (
         <Card>
-          <EmptyState title="No Heisman Watch Data Yet" message="Sync from your CFB27 save to populate the Heisman Watch." />
+          <EmptyState title="No Heisman Watch data yet" message="Sync from your CFB27 save to populate the Heisman Watch." />
         </Card>
       ) : (
         <div className="space-y-2">

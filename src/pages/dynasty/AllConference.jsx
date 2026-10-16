@@ -666,7 +666,7 @@ export default function AllConference() {
       {!hasAnyPlayers ? (
         <Card>
           <EmptyState
-            title={activeView === 'final' ? `Final All-${displayConference} Not Announced Yet` : `No Preseason All-${displayConference} Yet`}
+            title={activeView === 'final' ? `Final All-${displayConference} not announced yet` : `No preseason All-${displayConference} yet`}
             message={activeView === 'final' ? "Check back once the season's final honors are announced." : undefined}
             action={canEdit && (
               <Button variant="secondary" onClick={() => setShowEditModal(true)}>

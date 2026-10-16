@@ -94,7 +94,7 @@ export function ProgramGradesBody({ dynasty, tid, year, pathPrefix }) {
   if (!viewedGrades && rows.length === 0) {
     return (
       <Card>
-        <EmptyState title="No Program Grades Yet" message="Sync from your CFB27 save to populate program/school grades." />
+        <EmptyState title="No program grades yet" message="Sync from your CFB27 save to populate program/school grades." />
       </Card>
     )
   }

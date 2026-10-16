@@ -581,7 +581,7 @@ export default function WeeklyInstall() {
     return (
       <div className="space-y-6">
         <SectionHeader title="Weekly Install" />
-        <Card><EmptyState title="Game Not Found" message="This matchup could not be located." /></Card>
+        <Card><EmptyState title="Game not found" message="This matchup could not be located." /></Card>
       </div>
     )
   }

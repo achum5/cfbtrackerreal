@@ -176,7 +176,7 @@ export default function DraftResults() {
       {!showFullDraft && (
         teamResults.length === 0 ? (
           <Card>
-            <EmptyState title="No Draft Results" subtitle={`No ${selectedTeamName || 'team'} players were drafted in ${displayYear}.`} />
+            <EmptyState title="No draft results" message={`No ${selectedTeamName || 'team'} players were drafted in ${displayYear}.`} />
           </Card>
         ) : (
           <Card padding="none">
@@ -192,7 +192,7 @@ export default function DraftResults() {
       {showFullDraft && (
         results.length === 0 ? (
           <Card>
-            <EmptyState title="No Draft Results Yet" subtitle={`Nobody has been drafted in ${displayYear} yet.`} />
+            <EmptyState title="No draft results yet" message={`Nobody has been drafted in ${displayYear} yet.`} />
           </Card>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
@@ -218,7 +218,7 @@ export default function DraftResults() {
               {searchQuery ? (
                 searchResults.length === 0 ? (
                   <div className="p-8">
-                    <EmptyState title="No Match" subtitle={`No drafted player in ${displayYear} matches "${search.trim()}".`} />
+                    <EmptyState title="No match" message={`No drafted player in ${displayYear} matches "${search.trim()}".`} />
                   </div>
                 ) : (
                   <div className="divide-y" style={{ borderColor: 'var(--surface-4)' }}>
@@ -229,7 +229,7 @@ export default function DraftResults() {
                 )
               ) : !byRound[selectedRound]?.length ? (
                 <div className="p-8">
-                  <EmptyState title="No Picks" subtitle={`Nobody was drafted in Round ${selectedRound} of ${displayYear}.`} />
+                  <EmptyState title="No picks" message={`Nobody was drafted in Round ${selectedRound} of ${displayYear}.`} />
                 </div>
               ) : (
                 <div className="divide-y" style={{ borderColor: 'var(--surface-4)' }}>

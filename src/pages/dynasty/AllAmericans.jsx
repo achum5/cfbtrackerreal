@@ -557,7 +557,7 @@ export default function AllAmericans() {
       {!hasAnyPlayers ? (
         <Card>
           <EmptyState
-            title={activeView === 'final' ? "Final All-Americans Not Announced Yet" : "No Preseason All-Americans Yet"}
+            title={activeView === 'final' ? "Final All-Americans not announced yet" : "No preseason All-Americans yet"}
             message={activeView === 'final' ? "Check back once the season's final honors are announced." : undefined}
             action={canEdit && (
               <Button variant="secondary" onClick={() => setShowEditModal(true)}>
