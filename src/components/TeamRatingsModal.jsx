@@ -1,14 +1,13 @@
-import { useState, useEffect, useMemo } from 'react'
-import { getModalColors } from '../utils/colorUtils'
+import { useState, useEffect } from 'react'
 import { useToast } from './ui/Toast'
+import Modal from './ui/Modal'
 
-export default function TeamRatingsModal({ isOpen, onClose, onSave, teamColors, currentRatings }) {
+export default function TeamRatingsModal({ isOpen, onClose, onSave, currentRatings }) {
   const { toast } = useToast()
   const [overall, setOverall] = useState('')
   const [offense, setOffense] = useState('')
   const [defense, setDefense] = useState('')
 
-  const modalColors = useMemo(() => getModalColors(teamColors), [teamColors])
 
   // Limit input to 2 digits (40-99)
   const handleRatingChange = (value, setter) => {
@@ -66,115 +65,49 @@ export default function TeamRatingsModal({ isOpen, onClose, onSave, teamColors, 
 
   if (!isOpen) return null
 
+  const fields = [
+    { id: 'rating-ovr', label: 'Overall', value: overall, set: setOverall, placeholder: '85' },
+    { id: 'rating-off', label: 'Offense', value: offense, set: setOffense, placeholder: '87' },
+    { id: 'rating-def', label: 'Defense', value: defense, set: setDefense, placeholder: '83' },
+  ]
+
+  // Shared Modal chrome. The Save button used to be white text on the team
+  // color, which disappeared on light team colors.
   return (
-    <div
-      className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-70 flex items-center justify-center z-[9999] py-8 px-4 sm:p-4"
-      style={{ margin: 0 }}
-      onMouseDown={onClose}
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Team Ratings"
+      size="sm"
+      footer={(
+        <>
+          <button type="button" onClick={onClose} className="btn-refined">Cancel</button>
+          <button type="button" onClick={handleSave} className="btn-refined btn-refined--solid">Save</button>
+        </>
+      )}
     >
-      <div
-        className="rounded-xl shadow-xl w-full max-w-md max-h-[calc(100dvh-4rem)] sm:max-h-[90dvh] overflow-y-auto p-4 sm:p-6 border"
-        style={{ backgroundColor: modalColors.background, borderColor: modalColors.border }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold" style={{ color: modalColors.text }}>
-            Team Ratings
-          </h2>
-          <button aria-label="Close"
-            onClick={onClose}
-            className="hover:opacity-70"
-            style={{ color: modalColors.text }}
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold mb-2" style={{ color: modalColors.textMuted }}>
-              Overall Rating (40-99)
+      <p className="text-sm text-txt-tertiary mt-0 mb-4">Ratings run from 40 to 99.</p>
+      <div className="grid grid-cols-3 gap-3">
+        {fields.map((f) => (
+          <div key={f.id}>
+            <label htmlFor={f.id} className="block label-sm text-txt-secondary mb-2 text-center">
+              {f.label}
             </label>
             <input
+              id={f.id}
               type="text"
               inputMode="numeric"
               maxLength={2}
-              value={overall}
-              onChange={(e) => handleRatingChange(e.target.value, setOverall)}
-              onBlur={() => handleBlur(overall, setOverall)}
-              className="w-full px-4 py-2 rounded-lg border text-lg font-semibold text-center"
-              style={{
-                borderColor: modalColors.inputBorder,
-                backgroundColor: modalColors.inputBg,
-                color: modalColors.text
-              }}
-              placeholder="85"
+              value={f.value}
+              onChange={(e) => handleRatingChange(e.target.value, f.set)}
+              onBlur={() => handleBlur(f.value, f.set)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSave() }}
+              className="w-full px-2 py-3 rounded-lg border border-surface-4 bg-surface-1 text-2xl font-bold tabular-nums text-center text-txt-primary focus:outline-none focus:border-surface-5"
+              placeholder={f.placeholder}
             />
           </div>
-
-          <div>
-            <label className="block text-sm font-semibold mb-2" style={{ color: modalColors.textMuted }}>
-              Offense Rating (40-99)
-            </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={2}
-              value={offense}
-              onChange={(e) => handleRatingChange(e.target.value, setOffense)}
-              onBlur={() => handleBlur(offense, setOffense)}
-              className="w-full px-4 py-2 rounded-lg border text-lg font-semibold text-center"
-              style={{
-                borderColor: modalColors.inputBorder,
-                backgroundColor: modalColors.inputBg,
-                color: modalColors.text
-              }}
-              placeholder="87"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold mb-2" style={{ color: modalColors.textMuted }}>
-              Defense Rating (40-99)
-            </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={2}
-              value={defense}
-              onChange={(e) => handleRatingChange(e.target.value, setDefense)}
-              onBlur={() => handleBlur(defense, setDefense)}
-              className="w-full px-4 py-2 rounded-lg border text-lg font-semibold text-center"
-              style={{
-                borderColor: modalColors.inputBorder,
-                backgroundColor: modalColors.inputBg,
-                color: modalColors.text
-              }}
-              placeholder="83"
-            />
-          </div>
-        </div>
-
-        <div className="flex gap-3 mt-6">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2 rounded-lg font-semibold bg-surface-3 hover:bg-surface-4 text-white transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="flex-1 px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-white"
-            style={{
-              backgroundColor: modalColors.accent
-            }}
-          >
-            Save
-          </button>
-        </div>
+        ))}
       </div>
-    </div>
+    </Modal>
   )
 }
