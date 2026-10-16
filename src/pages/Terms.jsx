@@ -2,16 +2,17 @@ import { Link } from 'react-router-dom'
 
 export default function Terms() {
   return (
-    <div className="min-h-dvh bg-surface-1 text-txt-primary p-8">
-      <div className="max-w-3xl mx-auto">
+    <div className="min-h-dvh bg-surface-1 text-txt-primary px-5 sm:px-8 pt-8 pb-16">
+      {/* Same back link + reading width as the Install and Contact pages. */}
+      <div className="max-w-2xl mx-auto">
         <Link
           to="/"
-          className="inline-flex items-center gap-2 text-orange-400 hover:text-orange-300 mb-6"
+          className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.15em] text-txt-tertiary hover:text-txt-primary transition-colors mb-8"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
-          Back to Home
+          Back
         </Link>
         <h1 className="text-3xl font-bold mb-6">Terms of Service</h1>
         <p className="text-txt-tertiary mb-8">Last updated: January 2026</p>

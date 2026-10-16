@@ -4,6 +4,7 @@ import { useDynasty } from '../../context/DynastyContext'
 import { isPcAutoDynasty, editionHasFeature } from '../../editions'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useToast } from '../../components/ui/Toast'
+import { PageHero } from '../../components/ui'
 import { getEffectiveCharacters, isRealAccount, SOCIAL_UNIVERSE_VERSION } from '../../data/socialModel'
 import SocialCharacterEditModal from '../../components/SocialCharacterEditModal'
 import { readClipboardImageAsFile } from '../../utils/clipboardImage'
@@ -385,10 +386,8 @@ export default function LeaguePreferences() {
   if (!currentDynasty) return null
 
   return (
-    <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
-      <div>
-        <h1 className="text-display-md text-txt-primary m-0">League Preferences</h1>
-      </div>
+    <div className="space-y-6">
+      <PageHero title="League Preferences" />
 
       {/* Scout Staff — opt-in alternative to MaxPlaysCFB ScoutScore. PC
           (save-sync) dynasties ONLY: its recruiting database is populated by

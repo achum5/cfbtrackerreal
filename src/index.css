@@ -981,11 +981,14 @@ button.media-card:active,
    Dashed border, no fill, lighter visual weight. Used for the
    sample-dynasty pinned entry and other "this is an offer, not your
    data" affordances. */
+/* Quiet footer-weight entry (Contact / Install). Solid surface + hairline,
+   not a transparent dashed box: it sits over the bouncing-logo background on
+   Login, and logos used to show through and cover the text. */
 .ghost-card {
   position: relative;
   display: block;
-  background-color: transparent;
-  border: 1px dashed var(--surface-5);
+  background-color: var(--surface-2);
+  border: 1px solid var(--surface-4);
   border-radius: var(--radius-lg);
   transition:
     background-color var(--dur-fast) var(--ease-out-expo),
@@ -994,8 +997,8 @@ button.media-card:active,
 }
 @media (hover: hover) and (pointer: fine) {
   .ghost-card:hover {
-    background-color: color-mix(in srgb, var(--surface-2) 50%, transparent);
-    border-color: var(--text-tertiary);
+    background-color: var(--surface-3);
+    border-color: var(--surface-5);
   }
 }
 

@@ -47,6 +47,10 @@ export default function Players() {
   const [sortBy, setSortBy] = useState('overall')
   const [sortOrder, setSortOrder] = useState('desc')
   const [showRosterHistoryModal, setShowRosterHistoryModal] = useState(false)
+  // Render the list in pages: a long dynasty has 1,000+ players, and
+  // mounting every row at once made the page (and phones) crawl.
+  const PAGE_SIZE = 150
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -164,6 +168,9 @@ export default function Players() {
     return result
   }, [allPlayers, searchQuery, positionFilter, sortBy, sortOrder])
 
+  // A new search/filter/sort starts back at the first page.
+  useEffect(() => { setVisibleCount(PAGE_SIZE) }, [searchQuery, positionFilter, sortBy, sortOrder])
+
   const handleSort = (column) => {
     if (sortBy === column) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
@@ -208,14 +215,13 @@ export default function Players() {
         meta={
           <>
             <span className="tabular">{filteredPlayers.length}</span>
-            <span>{filteredPlayers.length === 1 ? 'player' : 'players'}</span>
             {(searchQuery || positionFilter !== 'All') && (
               <>
-                
+                <span>of</span>
                 <span className="tabular">{allPlayers.length}</span>
-                <span>total</span>
               </>
             )}
+            <span>{(searchQuery || positionFilter !== 'All' ? allPlayers.length : filteredPlayers.length) === 1 ? 'player' : 'players'}</span>
           </>
         }
         actions={
@@ -252,9 +258,9 @@ export default function Players() {
                 >
                   <SortableTh column="name">Player</SortableTh>
                   <SortableTh column="position" align="center">Pos</SortableTh>
-                  <SortableTh column="year" align="center">Year</SortableTh>
+                  <SortableTh column="year" align="center" hidden="hidden sm:table-cell">Year</SortableTh>
                   <SortableTh column="overall" align="center">OVR</SortableTh>
-                  <SortableTh column="devTrait" align="center">Dev</SortableTh>
+                  <SortableTh column="devTrait" align="center" hidden="hidden sm:table-cell">Dev</SortableTh>
                   <th
                     className="px-4 py-3 label-xs text-txt-tertiary text-left hidden md:table-cell"
                     style={{ letterSpacing: '2px', fontSize: '10px' }}
@@ -270,7 +276,7 @@ export default function Players() {
                 </tr>
               </thead>
               <tbody>
-                {filteredPlayers.map((player, idx) => {
+                {filteredPlayers.slice(0, visibleCount).map((player, idx) => {
                   // All OVR numbers render in plain white — no tiered color
                   // emphasis. Size still steps up slightly for elites so the
                   // column keeps a little hierarchy.
@@ -295,9 +301,9 @@ export default function Players() {
                     <tr
                       key={player.pid || player.id || idx}
                       className="player-row transition-colors"
-                      style={{ borderBottom: idx < filteredPlayers.length - 1 ? '1px solid var(--surface-4)' : 'none' }}
+                      style={{ borderBottom: idx < Math.min(visibleCount, filteredPlayers.length) - 1 ? '1px solid var(--surface-4)' : 'none' }}
                     >
-                      <td className="px-4 py-3">
+                      <td className="px-3 sm:px-4 py-3">
                         <Link
                           to={`${pathPrefix}/player/${player.pid}`}
                           className="font-semibold hover:underline flex items-center gap-2 group"
@@ -309,13 +315,13 @@ export default function Players() {
                             name={player.name}
                             size={32}
                           />
-                          <span className="transition-transform duration-200 group-hover:translate-x-0.5">{player.name}</span>
+                          <span className="whitespace-nowrap transition-transform duration-200 group-hover:translate-x-0.5">{player.name}</span>
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-center text-sm font-bold text-txt-primary tabular">
                         {player.position}
                       </td>
-                      <td className="px-4 py-3 text-center text-sm text-txt-secondary tabular">
+                      <td className="px-4 py-3 text-center text-sm text-txt-secondary tabular hidden sm:table-cell">
                         {getPlayerClassForYear(player, currentDynasty.currentYear) || '-'}
                       </td>
                       <td className="px-4 py-3 text-center">
@@ -334,7 +340,7 @@ export default function Players() {
                           <span className="text-txt-tertiary">-</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-4 py-3 text-center hidden sm:table-cell">
                         {player.devTrait && (
                           <Badge variant={DEV_TRAIT_VARIANT[player.devTrait] || 'outline'} size="sm">
                             {player.devTrait}
@@ -353,6 +359,16 @@ export default function Players() {
               </tbody>
             </table>
           </div>
+          {filteredPlayers.length > visibleCount && (
+            <div className="flex items-center justify-center gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--surface-4)' }}>
+              <span className="text-sm text-txt-tertiary tabular-nums">
+                Showing {visibleCount} of {filteredPlayers.length}
+              </span>
+              <button type="button" className="btn-refined" onClick={() => setVisibleCount(c => c + PAGE_SIZE * 2)}>
+                Show more
+              </button>
+            </div>
+          )}
         </Card>
       ) : (
         <Card>

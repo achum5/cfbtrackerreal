@@ -11,22 +11,22 @@ We are NOT a generic SaaS dashboard. We are not a landing page. We are a data-de
 ## The three rules
 
 1. **Team color is an accent, never a fill.** Never cover more than ~5% of the viewport with pure team color. Use it as: stripes (2–6px), left-border rails, underlines, chip borders, button fills on CTAs. Never as a giant header bar or hero background.
-2. **Typography carries the visual weight.** Big tabular numerals for stats. Tracked all-caps for labels. Outfit 900 for display, DM Sans for body. If you're tempted to add a border/shadow/gradient to create hierarchy — try changing font size/weight first.
+2. **Typography carries the visual weight.** Big tabular numerals for stats. Saira Semi Condensed (700–900) for display, Saira for body. Tracked all-caps only for true column headers and stat captions — not as an eyebrow over every heading. If you're tempted to add a border/shadow/gradient to create hierarchy — try changing font size/weight first.
 3. **Density where data lives, generosity where a hero lives.** Tables: tight rows, no zebra, no extra padding. Heroes: editorial spacing, one big number, breathing room.
 
 ## Typography scale
 
 | Token | Usage | Spec |
 |---|---|---|
-| `display-xl` | Team name in hero | Outfit 900, 3.5–4rem, tracking -0.03em |
-| `display-lg` | Page titles | Outfit 800, 2.5rem, tracking -0.02em |
-| `display-md` | Section titles | Outfit 700, 1.75rem, tracking -0.02em |
-| `stat-hero` | The single biggest number on a page (OVR, final score) | Outfit 900, 4.5rem, tabular-nums, tracking -0.04em |
-| `stat-lg` | Card stat values | Outfit 800, 2.5rem, tabular-nums |
-| `stat-md` | Table stat cells | Outfit 600, 1rem, tabular-nums |
-| `body` | Paragraph text | DM Sans 400, 0.875rem, line-height 1.6 |
-| `label-sm` | Section labels | Outfit 600, 0.75rem, uppercase, tracking 0.05em |
-| `label-xs` | Tiny labels (stat tile captions) | Outfit 600, 0.625rem, uppercase, tracking 0.1em |
+| `display-xl` | Team name in hero | Saira Semi Condensed 900, 3.5rem, tracking -0.03em |
+| `display-lg` | Page titles | Saira Semi Condensed 800, 2.5rem (1.875rem under 640px), tracking -0.02em |
+| `display-md` | Section titles | Saira Semi Condensed 700, 1.75rem, tracking -0.02em |
+| `stat-hero` | The single biggest number on a page (OVR, final score) | Saira Semi Condensed 900, 4.5rem, tabular-nums |
+| `stat-lg` | Card stat values | Saira Semi Condensed 800, 2.5rem, tabular-nums |
+| `stat-md` | Table stat cells | Saira Semi Condensed 600, 1rem, tabular-nums |
+| `body` | Paragraph text | Saira 400, 0.875rem, line-height 1.6 |
+| `label-sm` | Column headers, meta rows | Saira Semi Condensed 600, 0.75rem, uppercase, tracking 0.05em |
+| `label-xs` | Stat tile captions | Saira Semi Condensed 600, 0.625rem, uppercase, tracking 0.1em |
 
 **Rule:** any number that appears next to another number uses `font-variant-numeric: tabular-nums`. No exceptions — the columns must align.
 
@@ -36,12 +36,12 @@ We are NOT a generic SaaS dashboard. We are not a landing page. We are a data-de
 
 | Token | Hex | Usage |
 |---|---|---|
-| `surface-0` | `#09090d` | Page background (deepest) |
-| `surface-1` | `#0f1013` | Chrome: header, sidebar |
-| `surface-2` | `#16171c` | Card backgrounds |
-| `surface-3` | `#1e1f25` | Elevated / hover |
-| `surface-4` | `#2a2b32` | Inputs, subtle borders |
-| `surface-5` | `#3a3b44` | Strong borders, dividers |
+| `surface-0` | `#101117` | Deep wells |
+| `surface-1` | `#191b22` | Page background, header, sidebar |
+| `surface-2` | `#242730` | Card backgrounds |
+| `surface-3` | `#2f323c` | Elevated / hover / active nav row |
+| `surface-4` | `#3b3e49` | Inputs, hairline borders |
+| `surface-5` | `#4e515c` | Strong borders, dividers |
 
 Slight blue-black undertone (≈230° hue) so we escape pure neutral zinc — the AI default. Adjustment is ~2–5% saturation, invisible in isolation but present across the whole page.
 
@@ -50,9 +50,14 @@ Slight blue-black undertone (≈230° hue) so we escape pure neutral zinc — th
 | Token | Hex | Usage |
 |---|---|---|
 | `text-primary` | `#f5f5f7` | Headings, hero numerals |
-| `text-secondary` | `#a8a8b0` | Body, secondary info |
-| `text-tertiary` | `#6e6e78` | Meta, labels |
-| `text-muted` | `#4a4a52` | Disabled, placeholders |
+| `text-secondary` | `#d3d4da` | Body, secondary info |
+| `text-tertiary` | `#a4a5af` | Meta, labels |
+| `text-muted` | `#90919d` | Quietest real text — still ≥ 4.5:1 on surface-0..2 |
+
+Every text token must clear WCAG AA (4.5:1) on the surfaces it sits on; axe-core's
+color-contrast rule is the check. Team-colored text on a team color goes through
+`readableTextOn(bg, preferred)` (utils/colorUtils.js), which keeps a school's
+secondary color when it contrasts and falls back to black/white when it doesn't.
 
 ### Team color
 
@@ -186,6 +191,33 @@ The "AI vibe" smoking guns. If you see these in a PR, it's wrong:
 - ❌ Inline `style={{ backgroundColor: teamColors.primary }}` as a fill — use the token/primitive
 - ❌ Purple-to-blue gradients. Anywhere. Ever.
 
+## Page headers
+
+League-wide pages use `<PageHero>`: the title sits directly on the page background
+with a hairline rule under it, or an underline tab strip when the page has tabs.
+No boxed card, no sheen gradient. Team and player pages keep their team-colored
+mastheads — the contrast between the two is how a user tells "about my team" from
+"about the league" at a glance.
+
+- An eyebrow is only for real context the title lacks (a team name over "Team
+  History", the poll week over "Top 25"). Never one that repeats the title
+  ("Roster" over "2036 Roster") or a category ("Admin" over "Danger Zone").
+- Header actions (Edit, Edit Rankings, …) are `<Button variant="outline" size="sm">`.
+
+## Generated-UI tells we avoid
+
+Checked against Anthropic's frontend-design guidance and Vercel's Web Interface
+Guidelines:
+
+- No "→" appended to link or button text. A link's styling says it's a link.
+- No fade/slide-up entrance on every card (`.reveal` / `.stagger-reveal` are
+  inert on purpose). One short route fade is the only automatic motion.
+- No tracked-caps eyebrow above every heading; no "WORD — fragment" labels.
+- Cards meant to be flush use `<Card padding="none">`, which really is flush now
+  (it used to fall back to `p-4`).
+- Tables that repeat per season/section use fixed column widths so columns line
+  up from one table to the next.
+
 ## Icons
 
 The project rule in CLAUDE.md: no decorative icons. Reaffirmed here. An icon earns its place only when it is load-bearing information (team logo, conference logo) — never decoration.
@@ -193,6 +225,7 @@ The project rule in CLAUDE.md: no decorative icons. Reaffirmed here. An icon ear
 ## Animation
 
 Use existing utility classes:
+- `.page-enter` — the single short route fade (opacity only)
 - `.shimmer` for loading skeletons
 - `.animate-pulse-subtle` for current-week / active indicators
 - `.animate-glow` for live events (only if truly live)

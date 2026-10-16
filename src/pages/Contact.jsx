@@ -75,7 +75,6 @@ export default function Contact() {
 
         {/* Hero */}
         <header className="mb-10">
-          <div className="label-xs text-txt-tertiary mb-2">Dynasty Tracker</div>
           <h1
             className="font-display font-black uppercase leading-none text-txt-primary"
             style={{ fontSize: 'clamp(2.5rem, 6vw, 4rem)', letterSpacing: '-0.02em' }}
@@ -129,11 +128,8 @@ export default function Contact() {
               </div>
             </div>
 
-            <div className="hidden sm:flex items-center gap-2 text-white font-semibold text-sm flex-shrink-0 px-4 py-2.5 rounded-xl bg-white/15 group-hover:bg-white/25 transition-all group-hover:gap-3">
+            <div className="hidden sm:flex items-center text-white font-semibold text-sm flex-shrink-0 px-4 py-2.5 rounded-xl bg-white/15 group-hover:bg-white/25 transition-colors">
               Join
-              <svg className="w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
             </div>
           </div>
         </a>
@@ -319,9 +315,6 @@ export default function Contact() {
                   ) : (
                     <>
                       Send message
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                      </svg>
                     </>
                   )}
                 </button>
