@@ -95,7 +95,9 @@ export default function PlayerCards({
     <section className="space-y-5">
       {/* Header — count + add button, no editor controls visible */}
       <header className="flex items-end justify-between gap-4 flex-wrap">
-        <div className="min-w-0 flex items-baseline gap-2">
+        {/* Count and Add only once there are cards; the empty state below
+            carries its own call to action. */}
+        <div className={`min-w-0 flex items-baseline gap-2 ${list.length === 0 ? 'invisible' : ''}`}>
           <span
             className="font-display tabular-nums leading-none"
             style={{
@@ -116,7 +118,7 @@ export default function PlayerCards({
           {onSave && (
             <SaveButton onSave={onSave} saving={saving} dirty={dirty} accent={accent} />
           )}
-          <AddCardButton accent={accent} onClick={() => setEditingIdx(-1)} />
+          {list.length > 0 && <AddCardButton accent={accent} onClick={() => setEditingIdx(-1)} />}
         </div>
       </header>
 
@@ -308,23 +310,12 @@ function EmptyState({ accent, onAdd }) {
       className="rounded-xl px-6 py-12 text-center"
       style={{ backgroundColor: 'var(--surface-2)', border: '1px dashed var(--surface-4)' }}
     >
-      <div
-        className="font-display tabular-nums leading-none mx-auto"
-        style={{
-          fontFamily: "'Bebas Neue', sans-serif",
-          fontSize: 64,
-          color: 'var(--text-muted)',
-        }}
-      >
-        0
-      </div>
-      <div
-        className="label-xs text-txt-tertiary mt-2"
-        style={{ letterSpacing: '2px' }}
-      >
-        NO CARDS YET
-      </div>
-      <p className="mt-3 text-sm text-txt-secondary max-w-md mx-auto leading-relaxed">
+      {/* Same heading treatment as the shared EmptyState (the header above
+          already shows the '0 cards' count, so no giant 0 here). */}
+      <h2 className="font-display font-bold text-xl sm:text-2xl tracking-tight text-txt-primary leading-tight m-0">
+        No cards yet
+      </h2>
+      <p className="mt-2 text-sm text-txt-secondary max-w-md mx-auto leading-relaxed">
         Build a trading-card collection for this player. Pick a real card brand and year, the app fills in your AI-image-gen prompt with the player's data, you generate the front and back, and upload them here.
       </p>
       <button

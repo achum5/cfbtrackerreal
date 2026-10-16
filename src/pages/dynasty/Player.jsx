@@ -16,6 +16,7 @@ import { composeTitle } from '../../utils/pageTitle'
 import { sortGamesNewestFirst, gameSeasonRank } from '../../utils/gameOrder'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { StatRings, CardSectionHeader } from '../../components/CfbUI'
+import EmptyState from '../../components/ui/EmptyState'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { isOpenTarget } from '../../utils/recruitingTargets'
@@ -2922,7 +2923,7 @@ function PlayerInner() {
               <div className="card overflow-hidden order-2 xl:order-none w-full xl:flex-1 xl:min-w-0">
                 {sectionHeader('Recent Games')}
                 {recentGames.length === 0 ? (
-                  <div className="px-4 py-4 text-sm" style={{ color: secondaryText }}>No game log data</div>
+                  <div className="px-4 py-4 text-sm" style={{ color: secondaryText }}>No games logged yet</div>
                 ) : (
                   <div className="divide-y divide-surface-4">
                     {recentGames.map((entry, idx) => {
@@ -5637,8 +5638,11 @@ function PlayerInner() {
       {activeTab === 'gamelog' && (() => {
         if (playerGameLog.length === 0) {
           return (
-            <div className="text-center py-8" style={{ color: secondaryText }}>
-              <p>No game log data available</p>
+            <div className="card">
+              <EmptyState
+                title="No games logged"
+                message="Game-by-game lines show up here once box scores with this player are entered."
+              />
             </div>
           )
         }
