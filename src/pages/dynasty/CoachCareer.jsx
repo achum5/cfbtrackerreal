@@ -1111,12 +1111,17 @@ export default function CoachCareer() {
               </div>
             </div>
           )
-          if (!onClick) return inner
+          // Every cell shares the row equally (flex-basis 0, min 7rem so they
+          // wrap on phones). Only clickable cells used to grow, so the
+          // non-clickable SEASONS cell sat cramped beside wide gaps and no two
+          // teams' strips lined up.
+          const cellStyle = { flex: '1 1 0', minWidth: '7rem' }
+          if (!onClick) return <div style={cellStyle}>{inner}</div>
           return (
             <button
               onClick={onClick}
               className="text-left transition-colors hover:bg-surface-3"
-              style={{ flex: '1 1 auto' }}
+              style={cellStyle}
             >
               {inner}
             </button>
@@ -1774,10 +1779,10 @@ function YearByYearTable({ stint, currentDynasty, pathPrefix, navigate }) {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--surface-4)', backgroundColor: 'var(--surface-1)' }}>
-              <th className="px-4 py-2.5 text-left label-xs text-txt-tertiary" style={{ letterSpacing: '1.5px' }}>Year</th>
-              <th className="px-4 py-2.5 text-left label-xs text-txt-tertiary" style={{ letterSpacing: '1.5px' }}>Record</th>
-              <th className="px-4 py-2.5 text-left label-xs text-txt-tertiary" style={{ letterSpacing: '1.5px' }}>Final Rank</th>
-              <th className="px-4 py-2.5 text-left label-xs text-txt-tertiary" style={{ letterSpacing: '1.5px' }}>Postseason</th>
+              <th className="px-3 sm:px-4 py-2.5 text-left label-xs text-txt-tertiary whitespace-nowrap" style={{ letterSpacing: '1.5px' }}>Year</th>
+              <th className="px-3 sm:px-4 py-2.5 text-left label-xs text-txt-tertiary whitespace-nowrap" style={{ letterSpacing: '1.5px' }}>Record</th>
+              <th className="px-3 sm:px-4 py-2.5 text-left label-xs text-txt-tertiary whitespace-nowrap" style={{ letterSpacing: '1.5px' }}><span className="sm:hidden">Rank</span><span className="hidden sm:inline">Final Rank</span></th>
+              <th className="px-3 sm:px-4 py-2.5 text-left label-xs text-txt-tertiary whitespace-nowrap" style={{ letterSpacing: '1.5px' }}>Postseason</th>
             </tr>
           </thead>
           <tbody>
@@ -1795,7 +1800,7 @@ function YearByYearTable({ stint, currentDynasty, pathPrefix, navigate }) {
                 >
                   {/* Year cell — champion years get a star prefix in
                       gold; standard years just show the number. */}
-                  <td className="px-4 py-3 font-semibold tabular text-txt-primary">
+                  <td className="px-3 sm:px-4 py-3 font-semibold tabular text-txt-primary">
                     {yr.isNationalChamp && (
                       <span
                         aria-hidden="true"
@@ -1808,7 +1813,7 @@ function YearByYearTable({ stint, currentDynasty, pathPrefix, navigate }) {
                     <span className="align-middle">{yr.year}</span>
                   </td>
                   <td
-                    className="px-4 py-3 tabular"
+                    className="px-3 sm:px-4 py-3 tabular"
                     style={{
                       color: yr.hasRecord ? 'var(--text-primary)' : 'var(--text-tertiary)',
                       fontWeight: yr.hasRecord ? 600 : 400,
@@ -1817,7 +1822,7 @@ function YearByYearTable({ stint, currentDynasty, pathPrefix, navigate }) {
                     {yr.hasRecord ? `${yr.wins}-${yr.losses}` : '—'}
                   </td>
                   <td
-                    className="px-4 py-3 tabular"
+                    className="px-3 sm:px-4 py-3 tabular"
                     style={{ color: rank.color, fontWeight: rank.bold ? 700 : 500 }}
                   >
                     {rank.text}
@@ -1825,7 +1830,7 @@ function YearByYearTable({ stint, currentDynasty, pathPrefix, navigate }) {
                   {/* Postseason cell — champion years stay gold; everything
                       else is text-secondary. */}
                   <td
-                    className="px-4 py-3"
+                    className="px-3 sm:px-4 py-3"
                     style={{ color: yr.isNationalChamp ? 'var(--accent-warning)' : 'var(--text-secondary)' }}
                   >
                     <span className="align-middle">
