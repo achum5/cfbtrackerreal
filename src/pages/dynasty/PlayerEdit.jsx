@@ -3012,7 +3012,9 @@ export default function PlayerEdit() {
                           </select>
                         </div>
                         <button
+                          type="button"
                           onClick={() => removeAccolade(index)}
+                          aria-label="Remove accolade"
                           className="p-2 rounded-lg text-red-400 hover:bg-surface-3 transition-colors"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

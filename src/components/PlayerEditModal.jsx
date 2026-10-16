@@ -701,10 +701,10 @@ export default function PlayerEditModalNew({
                     </select>
 
                     {/* Delete */}
-                    <button aria-label="Close"
+                    <button aria-label={`Remove ${year}`}
                       type="button"
                       onClick={() => removeYear(year)}
-                      className="p-1 text-txt-muted hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      className="p-1 text-txt-muted hover:text-red-400 hover:bg-surface-3 rounded-lg transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -728,7 +728,7 @@ export default function PlayerEditModalNew({
                             {ovrChange > 0 ? '+' : ''}{ovrChange}
                           </span>
                         )}
-                        <button aria-label="Close"
+                        <button aria-label={`Remove ${year}`}
                           type="button"
                           onClick={() => removeYear(year)}
                           className="p-1 text-txt-muted hover:text-red-500 rounded transition-colors"
@@ -1066,7 +1066,8 @@ export default function PlayerEditModalNew({
                   <button
                     type="button"
                     onClick={() => handleRemove(index)}
-                    className="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
+                    aria-label="Remove accolade"
+                    className="p-2 text-red-400 hover:bg-surface-3 rounded-lg transition-colors"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">{Icons.trash}</svg>
                   </button>
@@ -1114,6 +1115,7 @@ export default function PlayerEditModalNew({
             <button
               type="button"
               onClick={onClose}
+              aria-label="Close"
               className="absolute top-4 right-4 p-2 rounded-full text-txt-tertiary hover:text-txt-primary hover:bg-surface-3 transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">{Icons.close}</svg>

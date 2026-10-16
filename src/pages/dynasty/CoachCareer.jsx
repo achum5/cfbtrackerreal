@@ -1579,12 +1579,14 @@ export default function CoachCareer() {
           className="grid gap-2 overflow-y-auto"
           style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', maxHeight: '65vh' }}
         >
-          {ALL_COACH_PORTRAITS.map((path) => {
+          {ALL_COACH_PORTRAITS.map((path, i) => {
             const isSelected = photoDraft === `${window.location.origin}${path}`
             return (
               <button
                 key={path}
                 type="button"
+                aria-label={`Portrait ${i + 1}`}
+                aria-pressed={isSelected}
                 onClick={() => {
                   setPhotoDraft(`${window.location.origin}${path}`)
                   setShowPortraitGallery(false)
