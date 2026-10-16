@@ -293,14 +293,18 @@ export default function BowlHistoryEditModal({ isOpen, onClose, teamColors }) {
                 key={year}
                 onClick={() => setSelectedYear(year)}
                 className={`px-4 py-3 font-semibold whitespace-nowrap transition-colors relative ${
-                  selectedYear === year ? '' : 'hover:bg-white/10'
+                  selectedYear === year ? '' : 'hover:text-txt-secondary'
                 }`}
                 style={{
-                  backgroundColor: selectedYear === year ? modalColors.accent : 'transparent',
-                  color: selectedYear === year ? '#ffffff' : modalColors.textMuted
+                  color: selectedYear === year ? modalColors.text : modalColors.textMuted
                 }}
               >
                 {year}
+                {/* Underline marks the selected year, like every other tab
+                    strip (was a solid team-color block). */}
+                {selectedYear === year && (
+                  <span aria-hidden="true" className="absolute left-3 right-3 bottom-0 h-[2px]" style={{ backgroundColor: modalColors.text }} />
+                )}
                 {yearHasGames && selectedYear !== year && (
                   <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-green-500" />
                 )}
@@ -325,7 +329,10 @@ export default function BowlHistoryEditModal({ isOpen, onClose, teamColors }) {
                   borderColor: hasData ? modalColors.accent : modalColors.inputBorder
                 }}
               >
-                <div className="flex items-center gap-3">
+                {/* Phones: logo + bowl name on one line, the matchup inputs on
+                    the next (one row ran ~420px wide and pushed Team 2 off
+                    screen, squeezing the name to nothing). From sm it's one row. */}
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2">
                   {/* Bowl Logo */}
                   <div className="w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center bg-white border border-surface-5" style={{ padding: '2px' }}>
                     {logo ? (
@@ -340,13 +347,14 @@ export default function BowlHistoryEditModal({ isOpen, onClose, teamColors }) {
                     <div className="font-bold text-sm truncate" style={{ color: modalColors.text }}>{bowlName}</div>
                   </div>
 
+                  <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
                   {/* Team 1 */}
                   <input
                     type="text"
                     value={game.team1}
                     onChange={(e) => handleGameChange(selectedYear, bowlName, 'team1', e.target.value.toUpperCase())}
                     placeholder="Team 1"
-                    className="w-20 px-2 py-1.5 text-sm font-semibold border rounded text-center uppercase"
+                    className="flex-1 min-w-0 sm:flex-none sm:w-20 px-2 py-1.5 text-sm font-semibold border rounded text-center uppercase"
                     style={{ backgroundColor: modalColors.inputBg, color: modalColors.text, borderColor: modalColors.inputBorder }}
                   />
 
@@ -378,9 +386,10 @@ export default function BowlHistoryEditModal({ isOpen, onClose, teamColors }) {
                     value={game.team2}
                     onChange={(e) => handleGameChange(selectedYear, bowlName, 'team2', e.target.value.toUpperCase())}
                     placeholder="Team 2"
-                    className="w-20 px-2 py-1.5 text-sm font-semibold border rounded text-center uppercase"
+                    className="flex-1 min-w-0 sm:flex-none sm:w-20 px-2 py-1.5 text-sm font-semibold border rounded text-center uppercase"
                     style={{ backgroundColor: modalColors.inputBg, color: modalColors.text, borderColor: modalColors.inputBorder }}
                   />
+                  </div>
                 </div>
               </div>
             )
@@ -388,27 +397,20 @@ export default function BowlHistoryEditModal({ isOpen, onClose, teamColors }) {
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t flex items-center justify-between gap-4" style={{ borderColor: modalColors.border }}>
+        <div className="p-4 border-t flex flex-wrap items-center justify-between gap-x-4 gap-y-3" style={{ borderColor: modalColors.border }}>
           <div className="text-sm" style={{ color: modalColors.textMuted }}>
             {bowlsWithData.length} bowl game{bowlsWithData.length !== 1 ? 's' : ''} for {selectedYear}
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg font-semibold bg-surface-3 hover:bg-surface-4 text-white transition-colors"
-            >
+            <button onClick={onClose} className="btn-refined">
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={saving || !hasChanges}
-              className="px-6 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50"
-              style={{
-                backgroundColor: modalColors.accent,
-                color: '#ffffff'
-              }}
+              className="btn-refined btn-refined--solid whitespace-nowrap"
             >
-              {saving ? 'Saving...' : 'Save Changes'}
+              {saving ? 'Saving…' : 'Save Changes'}
             </button>
           </div>
         </div>
