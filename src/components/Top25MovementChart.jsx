@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useCallback } from 'react'
+import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import { getTeamLogoByAbbr } from '../data/teams'
 import { getTeamColorsByAbbr } from '../data/teamColors'
 
@@ -41,6 +41,11 @@ export default function Top25MovementChart({ dynasty, year, weeks, weekLabel }) 
   })
   const [cursor, setCursor] = useState(null) // { xi, tid, rank, clientX, clientY }
   const svgRef = useRef(null)
+  // The chart stretches to its container (it used to sit at its 560px
+  // minimum, leaving half of a wide card empty early in the season). The
+  // SVG is drawn 1:1 with its viewBox, so logos and labels keep their size.
+  const wrapRef = useRef(null)
+  const [wrapW, setWrapW] = useState(0)
 
 
   // One series per team that was ranked in at least one of these weeks.
@@ -98,7 +103,7 @@ export default function Top25MovementChart({ dynasty, year, weeks, weekLabel }) 
   const hasPinned = pinTid != null && series.some(s => s.tid === pinTid)
   const activeTid = hoverTid ?? (hasPinned ? pinTid : null)
 
-  const plotW = Math.max(560, weeks.length * COL_W)
+  const plotW = Math.max(560, weeks.length * COL_W, wrapW - PAD_L - PAD_R)
   const width = PAD_L + plotW + PAD_R
   const height = PAD_T + ROW_H * 25 + PAD_B
   const x = useCallback((xi) => PAD_L + (weeks.length === 1 ? plotW / 2 : (xi / (weeks.length - 1)) * plotW), [weeks.length, plotW])
@@ -130,7 +135,16 @@ export default function Top25MovementChart({ dynasty, year, weeks, weekLabel }) 
 
   const clearHover = () => { setHoverTid(null); setCursor(null) }
 
-  if (series.length === 0) return null
+  const hasSeries = series.length > 0
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return undefined
+    const ro = new ResizeObserver(([entry]) => setWrapW(Math.floor(entry.contentRect.width)))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [hasSeries])
+
+  if (!hasSeries) return null
 
   // Movement vs the team's previous ranked week, for the tooltip.
   const delta = (() => {
@@ -146,7 +160,7 @@ export default function Top25MovementChart({ dynasty, year, weeks, weekLabel }) 
 
   return (
     <div>
-      <div className="overflow-x-auto">
+      <div ref={wrapRef} className="overflow-x-auto">
         <svg
           ref={svgRef}
           viewBox={`0 0 ${width} ${height}`}
@@ -248,6 +262,10 @@ export default function Top25MovementChart({ dynasty, year, weeks, weekLabel }) 
         </button>
         {series.map(s => {
           const on = activeTid === s.tid
+          // While another team is highlighted, recede with a dimmer text
+          // color and a faded logo rather than fading the whole chip: 45%
+          // opacity left the 11px abbreviations at ~3:1, hard to read.
+          const dimmed = activeTid != null && !on
           return (
             <button
               key={s.tid}
@@ -259,11 +277,10 @@ export default function Top25MovementChart({ dynasty, year, weeks, weekLabel }) 
               onClick={() => setPinTid(pinTid === s.tid ? null : s.tid)}
               aria-pressed={pinTid === s.tid}
               title={`${s.name} — best #${s.best}`}
-              className="inline-flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded text-[11px] font-semibold transition-opacity"
+              className="inline-flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded text-[11px] font-semibold transition-colors"
               style={{
-                backgroundColor: on ? 'var(--surface-4)' : 'var(--surface-3)',
-                color: 'var(--text-secondary)',
-                opacity: activeTid == null || on ? 1 : 0.45,
+                backgroundColor: on ? 'var(--surface-4)' : dimmed ? 'var(--surface-2)' : 'var(--surface-3)',
+                color: dimmed ? 'var(--text-tertiary)' : 'var(--text-secondary)',
                 border: `1px solid ${on ? s.color : 'transparent'}`,
               }}
             >
@@ -271,7 +288,7 @@ export default function Top25MovementChart({ dynasty, year, weeks, weekLabel }) 
                   identifies the team, and the chip's own border turns the
                   team's line color when it's active — so the dot was a third
                   redundant identifier crowding a very small chip. */}
-              {s.logo && <img src={s.logo} alt="" className="w-3.5 h-3.5 object-contain" />}
+              {s.logo && <img src={s.logo} alt="" className="w-3.5 h-3.5 object-contain transition-opacity" style={{ opacity: dimmed ? 0.45 : 1 }} />}
               {s.abbr}
             </button>
           )
