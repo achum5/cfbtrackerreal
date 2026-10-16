@@ -83,15 +83,24 @@ function PcLoadProgress({ dynastyId, getPcLoadProgress }) {
 
 // Blocks the entire dynasty area for a PC dynasty until its first Sync from
 // Save completes — see needsInitialSync's own comment for why.
-function InitialSyncRequired() {
+function InitialSyncRequired({ onSync }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 py-16 px-4 text-center">
-      <p className="text-sm font-medium text-txt-primary max-w-md">
-        Your dynasty needs an initial sync with the game's save file to start your Dynasty Tracker
+    <div className="flex flex-col items-center justify-center text-center py-16 px-4">
+      <h1 className="font-display font-bold text-2xl sm:text-3xl tracking-tight text-txt-primary leading-tight m-0">
+        Sync your save to get started
+      </h1>
+      <p className="mt-3 text-sm text-txt-secondary max-w-md m-0">
+        Your dynasty needs an initial sync with the game's save file to start your Dynasty Tracker.
       </p>
-      <p className="text-sm text-txt-secondary max-w-md">
-        Please use the "Sync from Save" button at the top of the page to begin.
-      </p>
+      {onSync ? (
+        <button type="button" onClick={onSync} className="btn-refined btn-refined--solid btn-refined--lg mt-6">
+          Sync from Save
+        </button>
+      ) : (
+        <p className="mt-2 text-sm text-txt-tertiary max-w-md m-0">
+          The dynasty owner needs to run the first Sync from Save.
+        </p>
+      )}
     </div>
   )
 }
@@ -1254,7 +1263,7 @@ export default function Layout({ children }) {
             {pcDataPending ? (
               <PcLoadProgress dynastyId={currentDynasty?.id} getPcLoadProgress={getPcLoadProgress} />
             ) : needsInitialSync ? (
-              <InitialSyncRequired />
+              <InitialSyncRequired onSync={isViewOnly ? null : () => setShowCfb27SyncModal(true)} />
             ) : (
               children
             )}

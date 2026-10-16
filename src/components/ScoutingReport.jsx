@@ -161,9 +161,9 @@ Do not include conversational filler, markdown bolding, or bullet points anywher
   };
 
   return (
-    <div className="max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
-      <div className="flex items-center gap-4 p-4 bg-slate-950 border-b border-slate-800">
-        {scoutImg ? <img src={scoutImg} alt="National Scout" className="w-12 h-12 rounded-lg object-cover border border-slate-700" /> : <div className="w-12 h-12 bg-slate-800 rounded-lg flex items-center justify-center text-[8px] text-slate-500">N/A</div>}
+    <div className="max-w-md mx-auto bg-surface-1 border border-surface-4 rounded-xl overflow-hidden shadow-2xl">
+      <div className="flex items-center gap-4 p-4 bg-surface-0 border-b border-surface-4">
+        {scoutImg ? <img src={scoutImg} alt="National Scout" className="w-12 h-12 rounded-lg object-cover border border-surface-5" /> : <div className="w-12 h-12 bg-surface-3 rounded-lg flex items-center justify-center text-[8px] text-txt-muted">N/A</div>}
         <div>
           <h3 className="text-xs font-bold text-white">{scoutName}</h3>
           <p className="text-[9px] font-black uppercase text-sky-500 tracking-wider">National Scout</p>
@@ -172,8 +172,8 @@ Do not include conversational filler, markdown bolding, or bullet points anywher
       <form onSubmit={executeSubmit} className="p-5 space-y-4">
         {/* ... form fields ... */}
 
-        <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 my-4">
-  <p className="text-xs text-slate-300 mb-3">
+        <div className="bg-surface-3 p-4 rounded-lg border border-surface-5 my-4">
+  <p className="text-xs text-txt-secondary mb-3">
     Screenshot up to 10 players' attributes, copy and paste the AI prompt, 
     and/or enter in the data 1 by 1 and send to your Data Analyst.
   </p>

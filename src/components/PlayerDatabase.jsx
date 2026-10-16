@@ -99,7 +99,7 @@ export const GRADE_TIERS = [
 // styling.
 export function DevTraitPill({ devTrait }) {
   if (isHiddenDev(devTrait)) {
-    return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-950 border border-slate-700 text-slate-600 italic">HIDDEN</span>;
+    return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-surface-0 border border-surface-5 text-txt-muted italic">HIDDEN</span>;
   }
   return (
     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -203,7 +203,7 @@ function seeded(seed, min, max) {
 // all) — this renders as a plain "-" everywhere a grade badge shows, same
 // shape as a real tier so every caller can keep using tier.grade/badgeCls
 // without a separate null-check.
-export const UNGRADED_TIER = { grade: '-', min: null, color: '#6B7280', badgeCls: 'bg-surface-3 border-surface-4 text-slate-500' };
+export const UNGRADED_TIER = { grade: '-', min: null, color: '#6B7280', badgeCls: 'bg-surface-3 border-surface-4 text-txt-muted' };
 
 export function getGradeTier(score) {
   if (score == null) return UNGRADED_TIER;
@@ -676,11 +676,11 @@ export function GradeReportContent({ player: rawPlayer, allPlayers, weightsMap, 
         {!wide && (
           <div className="p-5 border-b border-surface-4 flex items-start justify-between gap-4">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">
+              <p className="text-[10px] font-black uppercase tracking-widest text-txt-muted mb-1">
                 {recruitingPosLabel(player.rawPosition ?? player.position)} · {player.archetype}
               </p>
               <h2 className="text-xl font-black text-white">{player.name}</h2>
-              <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1.5">
+              <p className="text-[10px] text-txt-tertiary mt-0.5 flex items-center gap-1.5">
                 {player.stars}★
                 <DevTraitPill devTrait={player.devTrait} />
               </p>
@@ -696,11 +696,11 @@ export function GradeReportContent({ player: rawPlayer, allPlayers, weightsMap, 
           // Score breakdown and Strengths/Needs Work
           const scoreBreakdownEl = (
             <section>
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Score Breakdown</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-txt-muted mb-2">Score Breakdown</h3>
               {score == null ? (
                 <div className="bg-surface-3 border border-surface-4 rounded-lg p-4 text-center">
-                  <p className="text-xl font-black text-slate-500">-</p>
-                  <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                  <p className="text-xl font-black text-txt-muted">-</p>
+                  <p className="text-[11px] text-txt-muted mt-1.5 leading-relaxed">
                     {Object.keys(player.attributes).length === 0
                       ? 'Not scouted yet — enter attributes to grade this recruit.'
                       : `Can't grade yet — no scouted comps exist for ${player.archetype || 'this archetype'} at any star level to compare his attributes against.`}
@@ -710,7 +710,7 @@ export function GradeReportContent({ player: rawPlayer, allPlayers, weightsMap, 
                 <>
                   <div className="bg-surface-3 border border-surface-4 rounded-lg overflow-hidden divide-y divide-surface-4 text-xs">
                     <div className="flex justify-between items-center px-3 py-2">
-                      <span className="text-slate-400">Learned Attribute Score</span>
+                      <span className="text-txt-tertiary">Learned Attribute Score</span>
                       <div className="flex items-center gap-2">
                         {confidence && (
                           <span
@@ -729,12 +729,12 @@ export function GradeReportContent({ player: rawPlayer, allPlayers, weightsMap, 
                       </div>
                     </div>
                     <div className="flex justify-between px-3 py-2 opacity-50">
-                      <span className="text-slate-500 text-[11px] italic">Attr avg (all entered)</span>
-                      <span className="text-slate-500 text-[11px]">{baseAvg.toFixed(1)}</span>
+                      <span className="text-txt-muted text-[11px] italic">Attr avg (all entered)</span>
+                      <span className="text-txt-muted text-[11px]">{baseAvg.toFixed(1)}</span>
                     </div>
                     {starBonus !== 0 && (
                       <div className="flex justify-between px-3 py-2">
-                        <span className="text-slate-400">{player.stars}-Star Rating Bonus</span>
+                        <span className="text-txt-tertiary">{player.stars}-Star Rating Bonus</span>
                         <span className={'font-bold text-txt-secondary'}>
                           {starBonus > 0 ? '+' : ''}{starBonus}
                         </span>
@@ -742,14 +742,14 @@ export function GradeReportContent({ player: rawPlayer, allPlayers, weightsMap, 
                     )}
                     {gemBonus !== 0 && (
                       <div className="flex justify-between px-3 py-2">
-                        <span className="text-slate-400">{player.gemBust} Adjustment</span>
+                        <span className="text-txt-tertiary">{player.gemBust} Adjustment</span>
                         <span className={'font-bold text-txt-secondary'}>
                           {gemBonus > 0 ? '+' : ''}{gemBonus}
                         </span>
                       </div>
                     )}
                     <div className="flex justify-between px-3 py-2 bg-surface-4">
-                      <span className="text-slate-300 font-bold">Composite Score</span>
+                      <span className="text-txt-secondary font-bold">Composite Score</span>
                       <span className="font-black text-white">{score.toFixed(1)}</span>
                     </div>
                   </div>
@@ -760,11 +760,11 @@ export function GradeReportContent({ player: rawPlayer, allPlayers, weightsMap, 
                       { label: player.archetype || 'Archetype', stat: rankArchetype },
                     ].map(({ label, stat }) => stat.rank > 0 && (
                       <div key={label} className="bg-surface-3 border border-surface-4 rounded-lg px-2.5 py-2.5 text-center">
-                        <p className="text-[8px] font-bold uppercase tracking-wider text-slate-500 mb-1 truncate" title={label}>{label}</p>
+                        <p className="text-[8px] font-bold uppercase tracking-wider text-txt-muted mb-1 truncate" title={label}>{label}</p>
                         <p className="text-lg font-black text-white leading-none">
-                          #{stat.rank}<span className="text-slate-500 font-bold text-[11px]"> / {stat.total}</span>
+                          #{stat.rank}<span className="text-txt-muted font-bold text-[11px]"> / {stat.total}</span>
                         </p>
-                        <p className="text-[10px] text-slate-500 mt-1">Avg <span className="text-slate-300 font-bold">{stat.avg.toFixed(1)}</span></p>
+                        <p className="text-[10px] text-txt-muted mt-1">Avg <span className="text-txt-secondary font-bold">{stat.avg.toFixed(1)}</span></p>
                       </div>
                     ))}
                   </div>
@@ -823,19 +823,19 @@ export function GradeReportContent({ player: rawPlayer, allPlayers, weightsMap, 
 
           const combineEl = (
             <section>
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Combine Projections</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-txt-muted mb-2">Combine Projections</h3>
               {scouted ? (
                 <div className="grid grid-cols-5 gap-2">
                   {combineStats.map(({ label, value }) => (
                     <div key={label} className="bg-surface-3 border border-surface-4 rounded-lg p-2.5 text-center">
-                      <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1">{label}</p>
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-txt-muted mb-1">{label}</p>
                       <p className="text-xs font-black text-white">{value}</p>
                     </div>
                   ))}
                 </div>
               ) : (
                 <div className="bg-surface-3 border border-surface-4 rounded-lg p-3 text-center">
-                  <p className="text-xs text-slate-500 italic">Not Scouted — enter attributes to generate a projection</p>
+                  <p className="text-xs text-txt-muted italic">Not Scouted — enter attributes to generate a projection</p>
                 </div>
               )}
             </section>
@@ -844,25 +844,25 @@ export function GradeReportContent({ player: rawPlayer, allPlayers, weightsMap, 
           const academicEl = scouted ? (
             <section className="flex items-center justify-between bg-surface-3 border border-surface-4 rounded-lg px-4 py-3">
               <div>
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Degree</p>
+                <p className="text-[9px] font-black uppercase tracking-widest text-txt-muted">Degree</p>
                 <p className="text-sm font-bold text-white mt-0.5">{major}</p>
               </div>
               <div className="text-right">
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">GPA</p>
+                <p className="text-[9px] font-black uppercase tracking-widest text-txt-muted">GPA</p>
                 <p className="text-xl font-black text-txt-secondary">{gpa}</p>
               </div>
             </section>
           ) : (
             <section className="bg-surface-3 border border-surface-4 rounded-lg px-4 py-3 text-center">
-              <p className="text-xs text-slate-500 italic">Not Scouted — enter attributes to generate a GPA</p>
+              <p className="text-xs text-txt-muted italic">Not Scouted — enter attributes to generate a GPA</p>
             </section>
           );
 
           const quoteEl = (
             <section className="bg-surface-3 border border-surface-4 rounded-lg p-4 space-y-2">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Scout: "Describe your game for me."</p>
-              <p className="text-xs text-slate-200 leading-relaxed italic">"{quote}"</p>
-              <p className="text-[9px] text-slate-500 mt-1">— {player.name}</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-txt-muted">Scout: "Describe your game for me."</p>
+              <p className="text-xs text-txt-primary leading-relaxed italic">"{quote}"</p>
+              <p className="text-[9px] text-txt-muted mt-1">— {player.name}</p>
             </section>
           );
 
@@ -874,7 +874,7 @@ export function GradeReportContent({ player: rawPlayer, allPlayers, weightsMap, 
           // own ScoutScore card for the same panel used the same way.
           const scoutScoreEl = showScoutScore ? (
             <section>
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">MaxPlaysCFB ScoutScore</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-txt-muted mb-2">MaxPlaysCFB ScoutScore</h3>
               <div className="bg-surface-3 border border-surface-4 rounded-lg p-3">
                 <ScoutScorePanel recruit={player} collapsible />
               </div>
@@ -889,23 +889,23 @@ export function GradeReportContent({ player: rawPlayer, allPlayers, weightsMap, 
                 return (
                   <div className="grid grid-cols-2 gap-3">
                     <div className={`bg-surface-3 border rounded-lg px-4 py-4 transition-colors ${devTraitBoxCls(floorTrait)}`}>
-                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1.5">Floor · Higher Confidence</p>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-txt-muted mb-1.5">Floor · Higher Confidence</p>
                       <p className="text-2xl font-black leading-none">
                         {hidden
                           ? (devPills
-                              ? <><span className={devTraitTextCls(devPills.floorLabel)}>{devPills.floorLabel}</span> <span className="text-slate-400 font-black">{devPills.floorPct}%</span></>
-                              : <span className="text-slate-500 italic text-lg">Hidden</span>)
-                          : <><span className={devTraitTextCls(player.devTrait)}>{player.devTrait}</span> <span className="text-slate-400 font-black">100%</span></>}
+                              ? <><span className={devTraitTextCls(devPills.floorLabel)}>{devPills.floorLabel}</span> <span className="text-txt-tertiary font-black">{devPills.floorPct}%</span></>
+                              : <span className="text-txt-muted italic text-lg">Hidden</span>)
+                          : <><span className={devTraitTextCls(player.devTrait)}>{player.devTrait}</span> <span className="text-txt-tertiary font-black">100%</span></>}
                       </p>
                     </div>
                     <div className={`bg-surface-3 border rounded-lg px-4 py-4 transition-colors ${devTraitBoxCls(ceilingTrait)}`}>
-                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1.5">Ceiling · Lower Confidence</p>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-txt-muted mb-1.5">Ceiling · Lower Confidence</p>
                       <p className="text-2xl font-black leading-none">
                         {hidden
                           ? (devPills
-                              ? <><span className={devTraitTextCls(devPills.ceilingLabel)}>{devPills.ceilingLabel}</span> <span className="text-slate-400 font-black">{devPills.ceilingPct}%</span></>
-                              : <span className="text-slate-500 italic text-lg">Hidden</span>)
-                          : <span className="text-slate-500 italic">—</span>}
+                              ? <><span className={devTraitTextCls(devPills.ceilingLabel)}>{devPills.ceilingLabel}</span> <span className="text-txt-tertiary font-black">{devPills.ceilingPct}%</span></>
+                              : <span className="text-txt-muted italic text-lg">Hidden</span>)
+                          : <span className="text-txt-muted italic">—</span>}
                       </p>
                     </div>
                   </div>
@@ -1068,7 +1068,7 @@ function EditModal({ player, pool, weightsMap, maxRank, onSave, onClose, onDelet
       >
         <div className="p-5 border-b border-surface-4 flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Edit Prospect</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-txt-muted mb-3">Edit Prospect</p>
             {/* Same name+icon markup as the database row/Recently Filed, bound to the
                 live form state — so the icon's position here is guaranteed to match
                 exactly what saving will produce, instead of a bare name with no preview. */}
@@ -1079,28 +1079,28 @@ function EditModal({ player, pool, weightsMap, maxRank, onSave, onClose, onDelet
           <div className="flex items-center gap-3">
             <div className="inline-flex flex-col items-center gap-0.5" title="Live grade — updates as you edit">
               <span className={`font-black tracking-wide text-xs px-2 py-0.5 rounded border ${liveTier.badgeCls}`}>{liveTier.grade}</span>
-              {liveScore != null && <span className="text-[9px] tabular-nums text-slate-500">{liveScore.toFixed(1)}</span>}
+              {liveScore != null && <span className="text-[9px] tabular-nums text-txt-muted">{liveScore.toFixed(1)}</span>}
             </div>
-            <button onClick={onClose} className="text-slate-500 hover:text-white transition text-lg font-bold">✕</button>
+            <button onClick={onClose} className="text-txt-muted hover:text-white transition text-lg font-bold">✕</button>
           </div>
         </div>
 
         <div className="p-5 space-y-5">
           {/* Basic Info */}
           <section>
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Basic Info</h3>
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-txt-muted mb-3">Basic Info</h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Name</label>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-txt-tertiary block mb-1">Name</label>
                 <input
                   type="text"
                   value={form.name}
                   onChange={e => setField('name', e.target.value)}
-                  className="w-full bg-surface-3 border border-surface-4 text-xs p-2.5 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-surface-5 transition"
+                  className="w-full bg-surface-3 border border-surface-4 text-xs p-2.5 rounded-lg text-white placeholder:text-txt-tertiary focus:outline-none focus:border-surface-5 transition"
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Position</label>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-txt-tertiary block mb-1">Position</label>
                 <select
                   value={form.position}
                   onChange={e => setPosition(e.target.value)}
@@ -1110,7 +1110,7 @@ function EditModal({ player, pool, weightsMap, maxRank, onSave, onClose, onDelet
                 </select>
               </div>
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Stars</label>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-txt-tertiary block mb-1">Stars</label>
                 <select
                   value={form.stars}
                   onChange={e => setField('stars', e.target.value)}
@@ -1120,7 +1120,7 @@ function EditModal({ player, pool, weightsMap, maxRank, onSave, onClose, onDelet
                 </select>
               </div>
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Recent #</label>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-txt-tertiary block mb-1">Recent #</label>
                 <input
                   type="number"
                   min="1"
@@ -1129,10 +1129,10 @@ function EditModal({ player, pool, weightsMap, maxRank, onSave, onClose, onDelet
                   onChange={e => setField('recentRank', e.target.value)}
                   className="w-full bg-surface-3 border border-surface-4 text-xs p-2.5 rounded-lg text-white focus:outline-none focus:border-surface-5 transition"
                 />
-                <p className="text-[9px] text-slate-500 mt-1">Move this recruit to a different spot in the Recent order.</p>
+                <p className="text-[9px] text-txt-muted mt-1">Move this recruit to a different spot in the Recent order.</p>
               </div>
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Dev Trait</label>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-txt-tertiary block mb-1">Dev Trait</label>
                 <select
                   value={form.devTrait}
                   onChange={e => setField('devTrait', e.target.value)}
@@ -1155,7 +1155,7 @@ function EditModal({ player, pool, weightsMap, maxRank, onSave, onClose, onDelet
                 )}
               </div>
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Archetype</label>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-txt-tertiary block mb-1">Archetype</label>
                 <select
                   value={form.archetype}
                   onChange={e => setArchetype(e.target.value)}
@@ -1168,7 +1168,7 @@ function EditModal({ player, pool, weightsMap, maxRank, onSave, onClose, onDelet
                 </select>
               </div>
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Gem/Bust</label>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-txt-tertiary block mb-1">Gem/Bust</label>
                 <select
                   value={form.gemBust}
                   onChange={e => setField('gemBust', e.target.value)}
@@ -1184,7 +1184,7 @@ function EditModal({ player, pool, weightsMap, maxRank, onSave, onClose, onDelet
 
           {/* Attributes */}
           <section>
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Attributes</h3>
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-txt-muted mb-3">Attributes</h3>
             {/* First half of the position's canonical form order down the left
                 column, the rest down the right — NOT a row-major interleave
                 (which would zigzag AWR/THP, SAC/MAC, ... across the two
@@ -1198,7 +1198,7 @@ function EditModal({ player, pool, weightsMap, maxRank, onSave, onClose, onDelet
                 <div key={colIdx} className="space-y-2">
                   {col.map(([key, val]) => (
                     <div key={key} className="flex items-center gap-2 bg-surface-3 border border-surface-4 rounded-lg px-3 py-2">
-                      <label className="text-[10px] uppercase text-slate-400 flex-1 truncate">{key}</label>
+                      <label className="text-[10px] uppercase text-txt-tertiary flex-1 truncate">{key}</label>
                       <input
                         type="number"
                         min="0"
@@ -1229,7 +1229,7 @@ function EditModal({ player, pool, weightsMap, maxRank, onSave, onClose, onDelet
               <button
                 onClick={() => setConfirmingDelete(false)}
                 disabled={deleting}
-                className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-slate-300 transition disabled:opacity-60"
+                className="flex-1 py-2.5 bg-surface-1 hover:bg-surface-3 border border-surface-5 rounded-lg text-xs font-bold text-txt-secondary transition disabled:opacity-60"
               >
                 No, Keep Editing
               </button>
@@ -1247,7 +1247,7 @@ function EditModal({ player, pool, weightsMap, maxRank, onSave, onClose, onDelet
               </button>
               <button
                 onClick={onClose}
-                className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-slate-300 transition"
+                className="flex-1 py-2.5 bg-surface-1 hover:bg-surface-3 border border-surface-5 rounded-lg text-xs font-bold text-txt-secondary transition"
               >
                 Cancel
               </button>
@@ -1933,7 +1933,7 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
                 <SortTh sortKey="stars" className="text-center">Stars</SortTh>
                 <SortTh sortKey="dev">Dev</SortTh>
                 <SortTh sortKey="gpa" className="text-center">GPA</SortTh>
-                <th className="px-2 py-3.5 text-slate-500">Attributes</th>
+                <th className="px-2 py-3.5 text-txt-muted">Attributes</th>
                 <th className="px-2 py-3.5"></th>
               </tr>
             </thead>
@@ -1976,7 +1976,7 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
                       <td className="px-2 py-3.5 text-center overflow-hidden">
                         <div className="inline-flex flex-col items-center gap-0.5">
                           <span className={`font-black tracking-wide text-xs px-2 py-0.5 rounded border ${tier.badgeCls}`}>{tier.grade}</span>
-                          {score != null && <span className="text-[9px] tabular-nums text-slate-600">{score.toFixed(1)}</span>}
+                          {score != null && <span className="text-[9px] tabular-nums text-txt-muted">{score.toFixed(1)}</span>}
                         </div>
                       </td>
                       <td className="px-2 py-3.5 uppercase font-semibold text-txt-tertiary text-[10px] tracking-wider overflow-hidden truncate">{pl.group}</td>
@@ -1994,7 +1994,7 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
                             defaultValue={pl.devTrait || 'Hidden'}
                             onChange={e => { onEdit && onEdit({ ...pl, devTrait: e.target.value }, pl); setEditingDevFor(null); }}
                             onBlur={() => setEditingDevFor(null)}
-                            className="bg-slate-900 border border-emerald-600 text-[10px] font-bold text-white rounded px-1.5 py-0.5 focus:outline-none cursor-pointer"
+                            className="bg-surface-1 border border-emerald-600 text-[10px] font-bold text-white rounded px-1.5 py-0.5 focus:outline-none cursor-pointer"
                           >
                             {DEV_TRAITS.map(d => <option key={d} value={d}>{d}</option>)}
                           </select>
@@ -2007,7 +2007,7 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
                               pl.devTrait === 'Star'   ? 'bg-surface-3 border border-[#9C7209] text-[#FFD100]' :
                               pl.devTrait === 'Impact' ? 'bg-surface-3 border border-[#7C8991] text-[#D6DEE2]' :
                               pl.devTrait === 'Normal' ? 'bg-surface-3 border border-[#8C5524] text-[#CD7F32]' :
-                                                         'bg-slate-950 border border-slate-700 text-slate-600 italic'
+                                                         'bg-surface-0 border border-surface-5 text-txt-muted italic'
                             }`}>
                             {hiddenDev ? 'HIDDEN' : pl.devTrait.toUpperCase()}
                           </span>
@@ -2016,7 +2016,7 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
                       <td className="px-2 py-3.5 text-center overflow-hidden">
                         {scouted
                           ? <span className="text-xs font-bold text-txt-tertiary">{gpa}</span>
-                          : <span className="text-[9px] italic text-slate-600" title="No attributes entered yet">Not Scouted</span>}
+                          : <span className="text-[9px] italic text-txt-muted" title="No attributes entered yet">Not Scouted</span>}
                       </td>
                       <td className="px-2 py-3.5 tabular-nums text-[10px] text-txt-tertiary overflow-hidden">
                         {/* Same first-half/second-half column split as the Edit
@@ -2024,7 +2024,7 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
                             attrs 1&2, 3&4, ... across the two columns instead
                             of grouping 1-5 and 6-10 together). */}
                         {orderedAttrs.length === 0 ? (
-                          <span className="text-[9px] italic text-slate-600">Not Scouted</span>
+                          <span className="text-[9px] italic text-txt-muted">Not Scouted</span>
                         ) : (
                           <div className="grid grid-cols-2 gap-1 min-w-0">
                             {(() => {
@@ -2054,7 +2054,7 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
                       <td className="py-3.5 px-1 text-center overflow-hidden" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-1 justify-center opacity-0 group-hover:opacity-100 transition">
                           {onEdit && (
-                            <button onClick={() => setEditingPlayer(pl)} className="p-1.5 rounded text-slate-600 hover:text-txt-primary hover:bg-surface-3 transition" title="Edit prospect">
+                            <button onClick={() => setEditingPlayer(pl)} className="p-1.5 rounded text-txt-muted hover:text-txt-primary hover:bg-surface-3 transition" title="Edit prospect">
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
                                 <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
                               </svg>

@@ -943,7 +943,7 @@ export default function ThresholdLookup({ players = [], teamColors, teamLogo, on
                     { level: 'Broad', cls: 'text-sky-400 border-sky-800', desc: 'That exact bucket didn’t have enough data, so the system widened to every star rating of this archetype instead — and THAT found 2+ boundaries. Still real data, just a broader comparison than the ideal exact-star match.' },
                     { level: 'Limited', cls: 'text-amber-400 border-amber-800', desc: 'Only 1 of the 3 boundaries has real 2-sided data (in the exact bucket). Enough to grade, but the read rests on a thinner comparison.' },
                     { level: 'Thin', cls: 'text-orange-400 border-orange-800', desc: 'Even after widening to every star rating, there’s at most 1 boundary with real data. A number is still produced, but it’s the least trustworthy one that isn’t a flat "-".' },
-                    { level: '-', cls: 'text-slate-500 border-surface-4', desc: 'Zero boundaries anywhere — not even the widened any-star pool has 2 adjacent dev-trait tiers with a real comp. Nothing real to compare against, so the system shows "-" instead of guessing.' },
+                    { level: '-', cls: 'text-txt-muted border-surface-4', desc: 'Zero boundaries anywhere — not even the widened any-star pool has 2 adjacent dev-trait tiers with a real comp. Nothing real to compare against, so the system shows "-" instead of guessing.' },
                   ].map(({ level, cls, desc }) => (
                     <div key={level} className="flex items-start gap-3 bg-surface-3 border border-surface-4 rounded-lg p-3">
                       <span className={`flex-shrink-0 text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded border ${cls}`}>{level}</span>
@@ -1216,7 +1216,7 @@ export default function ThresholdLookup({ players = [], teamColors, teamLogo, on
                             {isOpen ? 'Hide' : 'Stats'}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-300 leading-relaxed">{tier.cond}</p>
+                        <p className="text-[11px] text-txt-secondary leading-relaxed">{tier.cond}</p>
                       </div>
                       <div className="flex sm:flex-col gap-1.5 shrink-0">
                         <div className="bg-surface-3 border border-surface-4 px-2.5 py-1 rounded-lg text-[9px] tabular-nums text-txt-secondary uppercase whitespace-nowrap">
@@ -1255,13 +1255,13 @@ export default function ThresholdLookup({ players = [], teamColors, teamLogo, on
                                 {stat ? (
                                   <div className="flex items-center gap-0.5 text-[9px] font-semibold tabular-nums">
                                     <span className="text-red-400/80">{stat.min}</span>
-                                    <span className="text-slate-700 mx-0.5">/</span>
-                                    <span className="text-slate-200">{stat.avg.toFixed(0)}</span>
-                                    <span className="text-slate-700 mx-0.5">/</span>
+                                    <span className="text-surface-5 mx-0.5">/</span>
+                                    <span className="text-txt-primary">{stat.avg.toFixed(0)}</span>
+                                    <span className="text-surface-5 mx-0.5">/</span>
                                     <span className="text-emerald-400/80">{stat.max}</span>
                                   </div>
                                 ) : (
-                                  <span className="text-[9px] font-semibold text-slate-600 tabular-nums">— / — / —</span>
+                                  <span className="text-[9px] font-semibold text-txt-muted tabular-nums">— / — / —</span>
                                 )}
                               </div>
                             );

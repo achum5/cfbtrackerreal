@@ -9,7 +9,7 @@ import { DEV_TRAITS, buildRevealedPool, countBoundaries, gapToStrong } from '../
 import { useCurrentTeamColors } from '../hooks/useTeamColors';
 import { createStaffAccessor } from './staffDB';
 import { getContrastTextColor } from '../utils/colorUtils';
-import { Modal } from './ui';
+import { Modal, EmptyState } from './ui';
 
 const POS_ORDER = ['QB','HB','WR','TE','OT','OG','C','DE','DT','OLB','MIKE','CB','FS','SS','ATH'];
 
@@ -170,8 +170,8 @@ export default function PlayerCount({ onSelectBucket = null, actionsRef = null, 
       </Modal>
 
       {total === 0 ? (
-        <div className="card p-10 text-center">
-          <p className="text-sm text-txt-tertiary italic">Add recruiting targets to build the database.</p>
+        <div className="card">
+          <EmptyState title="No Targets Yet" message="Add recruiting targets to build the database." />
         </div>
       ) : (
         <>

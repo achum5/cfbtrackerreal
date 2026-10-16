@@ -212,7 +212,7 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring, localScore, useLocalSc
               </span>
             )}
             {removed && (
-              <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider text-slate-500 border border-slate-700 bg-slate-900 flex-shrink-0">Removed</span>
+              <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider text-txt-muted border border-surface-5 bg-surface-1 flex-shrink-0">Removed</span>
             )}
             {!committed && !lost && p.lockedOut && (
               <span className="text-[9px] font-bold uppercase tracking-wide flex-shrink-0" style={{ color: 'var(--accent-error)' }} title="This recruit has narrowed their list and your team didn't make the cut">
@@ -290,7 +290,7 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring, localScore, useLocalSc
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onToggleRemove(p) }}
-            className={`flex-shrink-0 p-1.5 rounded transition ${removed ? 'text-slate-600 hover:text-emerald-400 hover:bg-emerald-950/40' : 'text-slate-600 hover:text-red-400 hover:bg-red-950/40'}`}
+            className={`flex-shrink-0 p-1.5 rounded transition ${removed ? 'text-txt-muted hover:text-emerald-400 hover:bg-emerald-950/40' : 'text-txt-muted hover:text-red-400 hover:bg-red-950/40'}`}
             title={removed ? 'Restore to board' : 'Remove from board'}
           >
             {removed ? (
@@ -309,7 +309,7 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring, localScore, useLocalSc
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onHide(p) }}
-            className="flex-shrink-0 p-1.5 rounded transition text-slate-600 hover:text-red-500 hover:bg-red-950/40"
+            className="flex-shrink-0 p-1.5 rounded transition text-txt-muted hover:text-red-500 hover:bg-red-950/40"
             title="Hide from this page completely (kept in the Recruiting Database)"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
