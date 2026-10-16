@@ -204,7 +204,6 @@ export default function Players() {
   return (
     <div className="space-y-4 page-enter" style={{ '--row-accent': teamAccent }}>
       <PageHero
-        eyebrow="Roster Directory"
         title="All Players"
         meta={
           <>

@@ -2344,7 +2344,7 @@ export default function PlayerEdit() {
                                         to={`${pathPrefix}/recruiting/${teamTid}/${year}`}
                                         className="label-xs hover:text-txt-primary transition-colors"
                                       >
-                                        View Class →
+                                        View Class
                                       </Link>
                                     ) : null}
                                   </div>

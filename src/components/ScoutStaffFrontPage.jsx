@@ -1204,7 +1204,7 @@ Staff Note: (${noteContext} The specific true fact behind this line is: ${connec
                         onClick={() => goToAnalysisOverview()}
                         className="text-xs text-txt-tertiary hover:text-txt-secondary transition-colors font-medium tracking-wide"
                       >
-                        Program Outlook →
+                        Program Outlook
                       </button>
                     </div>
                   </div>

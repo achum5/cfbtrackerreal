@@ -58,7 +58,6 @@ export default function Roster() {
   return (
     <div className="space-y-6">
       <PageHero
-        eyebrow="Roster"
         title={`${currentDynasty.currentYear} Roster`}
         meta={<span>{filteredPlayers.length} {selectedPosition === 'All' ? 'players' : `at ${selectedPosition}`}</span>}
         actions={!isViewOnly && (

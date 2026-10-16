@@ -147,7 +147,7 @@ export default function LeagueSettings() {
   if (!myRole) {
     return (
       <div className="space-y-4 page-enter">
-        <PageHero eyebrow="Members" title="League Members" />
+        <PageHero title="League Members" />
         <Card>
           <EmptyState title="No access" message="You aren't a member of this dynasty." />
           <div className="mt-4 flex justify-center">

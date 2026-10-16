@@ -371,11 +371,8 @@ export default function BowlHistory() {
                       >
                         {results.length}
                       </span>
-                      <span
-                        className="label-xs text-txt-tertiary"
-                        style={{ letterSpacing: '1.5px', fontSize: '9px' }}
-                      >
-                        {results.length === 1 ? 'GAME' : 'GAMES'}
+                      <span className="text-xs text-txt-tertiary">
+                        {results.length === 1 ? 'game' : 'games'}
                       </span>
                     </div>
 

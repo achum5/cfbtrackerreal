@@ -7,6 +7,7 @@ import { getTeamLogoByTid, stripMascotFromName } from '../data/teams'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../utils/recruitAttributes'
 import { scoutReport } from '../utils/scoutGrade'
 import { computeScore } from './archetypeWeights'
+import { readableTextOn } from '../utils/colorUtils'
 
 const SS_GRADES = [
   { letter: 'A+', min: 95 }, { letter: 'A', min: 90 }, { letter: 'A-', min: 86 },
@@ -123,7 +124,7 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, team
       padding="none"
       variant="bordered"
       interactive={interactive}
-      className="relative h-full overflow-hidden group"
+      className="relative h-full overflow-hidden group p-3 sm:p-4"
       style={{
         color: teamBgText,
         borderColor: `${teamBgText}33`,
@@ -295,7 +296,7 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, team
             {showFromChip ? (() => {
               const prevTeam = previousTeamTid ? teamsSource[previousTeamTid] : null
               const prevPrimary = prevTeam?.primaryColor
-              const prevSecondary = prevTeam?.secondaryColor || '#ffffff'
+              const prevSecondary = readableTextOn(prevPrimary, prevTeam?.secondaryColor || '#ffffff')
               const themed = !!prevPrimary
               return (
                 <span

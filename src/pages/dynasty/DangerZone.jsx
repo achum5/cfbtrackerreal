@@ -2668,7 +2668,6 @@ export default function DangerZone() {
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <PageHero
-        eyebrow="Admin"
         title="Danger Zone"
         meta={<span>Data repair and maintenance</span>}
         actions={

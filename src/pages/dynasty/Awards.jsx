@@ -386,7 +386,7 @@ export default function Awards() {
   const hasAnyAwards = presentAwards.length > 0
 
   const heroActions = canEdit ? (
-    <Button variant="secondary" size="sm" onClick={() => setShowAwardsModal(true)}>
+    <Button variant="outline" size="sm" onClick={() => setShowAwardsModal(true)}>
       Edit
     </Button>
   ) : null

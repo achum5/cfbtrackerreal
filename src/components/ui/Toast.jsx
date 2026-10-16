@@ -93,7 +93,9 @@ function ToastItem({ variant, message, onDismiss }) {
      
     >
       <div className="flex-1 min-w-0">
-        <div className="label-xs mb-0.5" style={{ color: borderColor }}>
+        {/* Lifted toward white so the tiny label clears contrast on the
+            elevated surface (raw accent-info/error read ~3.5:1 there). */}
+        <div className="label-xs mb-0.5" style={{ color: `color-mix(in srgb, ${borderColor} 65%, #ffffff)` }}>
           {label}
         </div>
         <div className="text-sm text-txt-primary break-words">{message}</div>

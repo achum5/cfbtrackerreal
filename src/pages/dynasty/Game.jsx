@@ -2448,12 +2448,13 @@ export default function Game() {
 
             return (
           <div className="flex items-stretch border-b border-surface-4">
-            {/* Tabs stay on ONE row at all times — they share the available
-                width (flex-1) and shrink their padding/text rather than wrapping
-                to a second row, no matter how many tabs are visible. */}
-            <div className="flex flex-nowrap flex-1 min-w-0">
+            {/* Tabs stay on ONE row at all times. From sm up they share the
+                width (flex-1). On phones, squeezing 8-9 tabs into ~360px cut
+                labels to "Pho…"/"Seri…", so there each tab keeps its natural
+                width and the strip swipes sideways (scrollbar hidden). */}
+            <div className="flex flex-nowrap flex-1 min-w-0 overflow-x-auto no-scrollbar sm:overflow-visible">
               {[
-                { key: 'gamecast', label: 'Gamecast', shortLabel: 'Cast', show: hasGamecastContent },
+                { key: 'gamecast', label: 'Gamecast', shortLabel: 'Gamecast', show: hasGamecastContent },
                 { key: 'boxscore', label: 'Box Score', shortLabel: 'Box', show: hasBoxForLeaders },
                 { key: 'scoring', label: 'Plays', shortLabel: 'Plays', show: hasScoringSummary },
                 { key: 'stats', label: 'Team Stats', shortLabel: 'Stats', show: hasTeamStatsData },
@@ -2474,7 +2475,7 @@ export default function Game() {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex-1 min-w-0 truncate px-1 sm:px-1.5 py-2.5 sm:py-3 text-xs sm:text-sm font-medium transition-colors ${
+                  className={`flex-none sm:flex-1 sm:min-w-0 whitespace-nowrap sm:truncate px-3 sm:px-1.5 py-2.5 sm:py-3 text-xs sm:text-sm font-medium transition-colors ${
                     activeTab === tab.key
                       ? 'text-txt-primary border-b-2 border-white bg-surface-2'
                       : 'text-txt-tertiary hover:text-txt-primary hover:bg-surface-2/50'

@@ -257,7 +257,7 @@ function PlayerPickerModal({ dynasty, onPick, onClose }) {
                       </div>
                     </div>
                     <span className="text-[11px] font-semibold text-txt-primary flex-shrink-0">
-                      Pick →
+                      Pick
                     </span>
                   </button>
                 </li>

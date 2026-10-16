@@ -80,6 +80,22 @@ export function getContrastTextColor(backgroundColor, secondaryColor = null) {
 }
 
 /**
+ * A team's secondary color as text on its primary — unless the pair is
+ * unreadable (e.g. Tulane's light blue on its dark green, ~2:1), in which
+ * case fall back to black/white via getContrastTextColor. `min` defaults to
+ * 3:1, the floor for bold UI text; most real team pairings clear it and keep
+ * their two-tone look.
+ */
+export function readableTextOn(backgroundColor, preferredColor, min = 3) {
+  const hex = /^#[0-9A-Fa-f]{6}$/
+  if (!hex.test(backgroundColor || '')) return preferredColor || '#ffffff'
+  if (hex.test(preferredColor || '') && getContrastRatio(backgroundColor, preferredColor) >= min) {
+    return preferredColor
+  }
+  return getContrastTextColor(backgroundColor)
+}
+
+/**
  * Calculate contrast ratio between two colors
  */
 export function getContrastRatio(color1, color2) {

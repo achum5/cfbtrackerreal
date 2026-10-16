@@ -29,12 +29,14 @@ export default function Card({
     elevated: 'card-elevated',
   }[variant] || 'card-bordered'
 
+  // `??`, not `||`: padding="none" maps to '' (falsy), and `||` used to turn
+  // it back into p-4 — every "flush" card on the site was silently padded.
   const paddingClass = {
     none: '',
     sm: 'p-3',
     md: 'p-4',
     lg: 'p-6',
-  }[padding] || 'p-4'
+  }[padding] ?? 'p-4'
 
   const interactiveClass = interactive
     ? 'lift cursor-pointer hover:border-surface-5'

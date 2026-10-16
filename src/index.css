@@ -44,7 +44,7 @@
   --text-primary: #f5f5f7;
   --text-secondary: #d3d4da;
   --text-tertiary: #a4a5af;
-  --text-muted: #7e7f8a;
+  --text-muted: #90919d;   /* ≥4.5:1 on surface-0..2 — it carries real 10–11px labels */
 
   /* Semantic accents */
   --accent-success: #22c55e;
@@ -132,6 +132,19 @@
 html, body {
   overflow-x: clip;
   max-width: 100vw;
+}
+
+/* Dark UI end to end: native scrollbars, date pickers and form chrome render
+   dark instead of flashing light-grey widgets on the dark surfaces. */
+html {
+  color-scheme: dark;
+}
+
+/* Taps act immediately (no double-tap-zoom wait) and don't flash the default
+   grey highlight box over controls; pressed states come from our own styles. */
+a, button, input, select, textarea, label, summary, [role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -622,8 +635,13 @@ button.card-elevated:hover {
   }
 }
 
+/* .reveal and .stagger-reveal are intentionally inert. Every card fading
+   and sliding up on mount (staggered down a grid) is the generic generated-UI
+   look, and it made content look missing for half a second on every page.
+   The class names stay on the markup so this one place controls it; the
+   keyframes remain for anything that opts in deliberately. */
 .reveal {
-  animation: reveal-up var(--dur-slower) var(--ease-out-expo) both;
+  animation: none;
 }
 
 /* Page-level entry — opacity-only fade when a route mounts.
@@ -637,24 +655,13 @@ button.card-elevated:hover {
 }
 
 .page-enter {
-  animation: page-enter var(--dur-slow) var(--ease-out-expo) both;
+  animation: page-enter var(--dur-fast) var(--ease-out-expo) both;
 }
 
-/* Stagger children — apply to a parent, children animate in 60ms apart.
-   Use on card grids so they cascade instead of popping in all at once. */
+/* Stagger children — inert (see .reveal above). */
 .stagger-reveal > * {
-  animation: reveal-up var(--dur-slower) var(--ease-out-expo) both;
-  opacity: 0;
+  animation: none;
 }
-.stagger-reveal > *:nth-child(1) { animation-delay: 20ms; }
-.stagger-reveal > *:nth-child(2) { animation-delay: 80ms; }
-.stagger-reveal > *:nth-child(3) { animation-delay: 140ms; }
-.stagger-reveal > *:nth-child(4) { animation-delay: 200ms; }
-.stagger-reveal > *:nth-child(5) { animation-delay: 260ms; }
-.stagger-reveal > *:nth-child(6) { animation-delay: 320ms; }
-.stagger-reveal > *:nth-child(7) { animation-delay: 380ms; }
-.stagger-reveal > *:nth-child(8) { animation-delay: 440ms; }
-.stagger-reveal > *:nth-child(n+9) { animation-delay: 500ms; }
 
 /* Section rule — tracked all-caps header with a hairline underline.
    Use as <h3 class="section-rule">...</h3> or <div class="section-rule">...</div>

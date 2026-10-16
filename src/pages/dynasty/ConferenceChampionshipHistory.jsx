@@ -573,14 +573,8 @@ export default function ConferenceChampionshipHistory() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div
-                      className="label-xs text-txt-tertiary mb-0.5"
-                      style={{ letterSpacing: '1.5px', fontSize: '9px' }}
-                    >
-                      {conferenceName.toUpperCase()}
-                    </div>
                     <div className="font-display font-bold text-txt-primary truncate text-base leading-tight">
-                      Championship
+                      {conferenceName} Championship
                     </div>
                   </div>
 
@@ -600,11 +594,8 @@ export default function ConferenceChampionshipHistory() {
                       >
                         {results.length}
                       </span>
-                      <span
-                        className="label-xs text-txt-tertiary"
-                        style={{ letterSpacing: '1.5px', fontSize: '9px' }}
-                      >
-                        {results.length === 1 ? 'GAME' : 'GAMES'}
+                      <span className="text-xs text-txt-tertiary">
+                        {results.length === 1 ? 'game' : 'games'}
                       </span>
                     </div>
 

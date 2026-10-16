@@ -1713,7 +1713,6 @@ function PlayerInner() {
             <>
               <span style={{ opacity: 0.66 }}>Class of </span>
               <span className="tabular-nums">{classYear}</span>
-              {canLink && <span aria-hidden="true"> →</span>}
             </>
           )
           const cls = 'ml-auto text-[10px] font-bold uppercase tracking-widest'
@@ -1760,7 +1759,6 @@ function PlayerInner() {
         >
           <span style={{ opacity: 0.66 }}>Class of </span>
           <span className="tabular-nums">{rc.classYear}</span>
-          <span aria-hidden="true"> →</span>
         </Link>
       </div>
     )
@@ -2662,7 +2660,7 @@ function PlayerInner() {
                   className="w-full px-4 py-2.5 text-[11px] tracking-wide font-bold border-t border-surface-4 hover:bg-surface-3 transition-colors"
                   style={{ color: secondaryText, fontFamily: "var(--font-display)" }}
                 >
-                  Full Timeline →
+                  Full Timeline
                 </button>
               </div>
 
@@ -2885,7 +2883,7 @@ function PlayerInner() {
                   className="w-full px-4 py-2.5 text-[11px] tracking-wide font-bold border-t border-surface-4 hover:bg-surface-3 transition-colors"
                   style={{ color: secondaryText, fontFamily: "var(--font-display)" }}
                 >
-                  Full Stats →
+                  Full Stats
                 </button>
               </div>
 
@@ -3024,7 +3022,7 @@ function PlayerInner() {
                   className="w-full px-4 py-2.5 text-[11px] tracking-wide font-bold border-t border-surface-4 hover:bg-surface-3 transition-colors"
                   style={{ color: secondaryText, fontFamily: "var(--font-display)" }}
                 >
-                  Full Game Log →
+                  Full Game Log
                 </button>
               </div>
             </div>
@@ -5419,7 +5417,7 @@ function PlayerInner() {
                           rel="noopener noreferrer"
                           className="text-sm font-semibold hover:underline text-txt-primary"
                         >
-                          Watch on YouTube →
+                          Watch on YouTube
                         </a>
                       </div>
                     </div>
@@ -6053,7 +6051,7 @@ function PlayerInner() {
                   onClick={() => navigate(`${pathPrefix}/player/${pid}/edit?tab=card`)}
                   className="px-3 py-1.5 rounded-md text-xs font-semibold border border-surface-4 text-txt-secondary hover:bg-surface-3 transition-colors"
                 >
-                  Edit collection →
+                  Edit collection
                 </button>
               </div>
             )}
@@ -6105,7 +6103,7 @@ function PlayerInner() {
                           to={`${pathPrefix}/game/${linkedGame.id}`}
                           className="mt-3 px-3 py-1.5 rounded-md text-xs font-semibold border border-surface-4 text-txt-secondary hover:bg-surface-3 transition-colors"
                         >
-                          View game {gameLinkLabel} →
+                          View game {gameLinkLabel}
                         </Link>
                       )}
                     </div>

@@ -153,7 +153,7 @@ export default function SortableStatsTable({
                   return (
                     <td
                       key={col.key}
-                      className={`${align} ${padX} py-2 ${tabular} ${bold}`}
+                      className={`${align} ${padX} py-2 whitespace-nowrap ${tabular} ${bold}`}
                       style={{ color: col.bold ? accentColor : accentColorMuted }}
                     >
                       {col.render(row, teamLogo)}

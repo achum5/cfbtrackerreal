@@ -3572,7 +3572,7 @@ export default function TeamYear() {
             return (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <Link to={`${pathPrefix}/awards/${selectedYear}`} className="text-sm font-bold uppercase tracking-wider hover:underline" style={{ color: accentColorMuted }}>{selectedYear} Awards →</Link>
+                  <Link to={`${pathPrefix}/awards/${selectedYear}`} className="text-sm font-bold uppercase tracking-wider hover:underline" style={{ color: accentColorMuted }}>{selectedYear} Awards</Link>
                 </div>
                 <div className="card p-4 flex flex-wrap gap-x-6 gap-y-2 cfb-texture">
                   {teamAwardWinners.map((award) => {
@@ -3731,7 +3731,7 @@ export default function TeamYear() {
                     onClick={() => setActiveTab('stats')}
                     className="text-xs font-semibold text-txt-tertiary hover:text-txt-secondary transition-colors"
                   >
-                    Full Stats →
+                    Full Stats
                   </button>
                 </div>
 
@@ -3826,7 +3826,7 @@ export default function TeamYear() {
                     onClick={() => setActiveTab('roster')}
                     className="text-xs font-semibold text-txt-tertiary hover:text-txt-secondary transition-colors"
                   >
-                    Full Roster →
+                    Full Roster
                   </button>
                 </div>
                 <ul
@@ -4279,7 +4279,7 @@ export default function TeamYear() {
                     onClick={() => setActiveTab('schedule')}
                     className="text-xs font-semibold text-txt-tertiary hover:text-txt-secondary transition-colors"
                   >
-                    Full Schedule →
+                    Full Schedule
                   </button>
                 </div>
 

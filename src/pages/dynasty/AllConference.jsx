@@ -579,7 +579,7 @@ export default function AllConference() {
   const hasAnyPlayers = allConference.length > 0
 
   const heroActions = canEdit ? (
-    <Button variant="secondary" size="sm" onClick={() => setShowEditModal(true)}>
+    <Button variant="outline" size="sm" onClick={() => setShowEditModal(true)}>
       Edit
     </Button>
   ) : null

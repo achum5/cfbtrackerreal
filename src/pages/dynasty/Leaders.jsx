@@ -8,7 +8,7 @@ export default function Leaders() {
 
   return (
     <div className="space-y-6">
-      <PageHero eyebrow="Leaderboard" title="Leaders" />
+      <PageHero title="Leaders" />
       <Card>
         <EmptyState
           title="Coming Soon"

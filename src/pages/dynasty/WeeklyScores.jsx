@@ -879,23 +879,14 @@ export default function WeeklyScores() {
 
   return (
     <div className="space-y-6 page-enter">
-      {/* Hero — CFB 27 broadcast panel. NEUTRAL (no team color): this is a
-          league-wide page, not about the user's team. */}
+      {/* Header — same plain editorial treatment as PageHero on every other
+          league-wide page (title on the page, underline tab strip below), not
+          a boxed panel. NEUTRAL (no team color): this page isn't about the
+          user's team. */}
       {(() => {
-        const btnStyle = {
-          backgroundColor: 'var(--surface-3)',
-          borderColor: 'var(--surface-4)',
-          color: 'var(--text-secondary)',
-          letterSpacing: '1.4px',
-        }
         return (
-        <div
-          className="card overflow-hidden relative reveal"
-          style={{
-            backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 32%, rgba(0,0,0,0.25) 100%)',
-          }}
-        >
-          <div className="relative p-4 sm:p-5 pb-2 sm:pb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="relative">
+          <div className="relative pb-1 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
             <h1
               className="group font-display font-extrabold uppercase tracking-tight leading-none m-0 break-words inline-flex items-baseline flex-wrap gap-x-3 text-txt-primary"
               style={{ fontSize: 'clamp(1.6rem, 3.4vw, 2.6rem)' }}
@@ -920,8 +911,8 @@ export default function WeeklyScores() {
               <select
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                className="text-sm px-2 py-2 rounded border focus:outline-none transition-colors cursor-pointer text-txt-primary"
-                style={{ minWidth: '9rem', backgroundColor: 'var(--surface-3)', borderColor: 'var(--surface-4)' }}
+                className="text-sm px-2 py-[7px] rounded-md border focus:outline-none transition-colors cursor-pointer text-txt-primary"
+                style={{ minWidth: '9rem', backgroundColor: 'var(--surface-2)', borderColor: 'var(--surface-4)' }}
                 aria-label="Filter games"
               >
                 <option value="all">All FBS</option>
@@ -936,40 +927,40 @@ export default function WeeklyScores() {
               {!isViewOnly && (
                 <>
                   {!isPcAuto && displayWeek <= 15 && (
-                    <button type="button" onClick={() => setEditing(true)} className="px-2.5 py-1.5 text-[11px] font-semibold uppercase rounded border transition-colors flex-shrink-0 hover:bg-surface-4" style={btnStyle} title={`Edit ${weekLabelFor(displayWeek)} scores`}>
+                    <button type="button" onClick={() => setEditing(true)} className="btn-refined flex-shrink-0" title={`Edit ${weekLabelFor(displayWeek)} scores`}>
                       Edit Scores
                     </button>
                   )}
                   {!isPcAuto && displayWeek === 16 && (
-                    <button type="button" onClick={() => setCcModalOpen(true)} className="px-2.5 py-1.5 text-[11px] font-semibold uppercase rounded border transition-colors flex-shrink-0 hover:bg-surface-4" style={btnStyle} title="Enter Conference Championship scores">
+                    <button type="button" onClick={() => setCcModalOpen(true)} className="btn-refined flex-shrink-0" title="Enter Conference Championship scores">
                       Enter Scores
                     </button>
                   )}
                   {!isPcAuto && displayWeek === 17 && (
-                    <button type="button" onClick={() => setBowlWeek1Open(true)} className="px-2.5 py-1.5 text-[11px] font-semibold uppercase rounded border transition-colors flex-shrink-0 hover:bg-surface-4" style={btnStyle} title="Enter Bowl Week 1 scores">
+                    <button type="button" onClick={() => setBowlWeek1Open(true)} className="btn-refined flex-shrink-0" title="Enter Bowl Week 1 scores">
                       Enter Scores
                     </button>
                   )}
                   {!isPcAuto && displayWeek === 18 && (
-                    <button type="button" onClick={() => setBowlWeek2Open(true)} className="px-2.5 py-1.5 text-[11px] font-semibold uppercase rounded border transition-colors flex-shrink-0 hover:bg-surface-4" style={btnStyle} title="Enter Bowl Week 2 scores">
+                    <button type="button" onClick={() => setBowlWeek2Open(true)} className="btn-refined flex-shrink-0" title="Enter Bowl Week 2 scores">
                       Enter Scores
                     </button>
                   )}
-                  <button type="button" onClick={() => setRecapModalOpen(true)} className="px-2.5 py-1.5 text-[11px] font-semibold uppercase rounded border transition-colors flex-shrink-0 hover:bg-surface-4" style={btnStyle} title={`Edit ${weekLabelFor(displayWeek)} recap`}>
+                  <button type="button" onClick={() => setRecapModalOpen(true)} className="btn-refined flex-shrink-0" title={`Edit ${weekLabelFor(displayWeek)} recap`}>
                     Edit Recap
                   </button>
                   {displayWeek === 16 && (
-                    <button type="button" onClick={() => setPreviewModalOpen(true)} className="px-2.5 py-1.5 text-[11px] font-semibold uppercase rounded border transition-colors flex-shrink-0 hover:bg-surface-4" style={btnStyle} title="Generate and edit the CFP playoff preview">
+                    <button type="button" onClick={() => setPreviewModalOpen(true)} className="btn-refined flex-shrink-0" title="Generate and edit the CFP playoff preview">
                       Edit Preview
                     </button>
                   )}
                   {displayWeek === 0 && (
-                    <button type="button" onClick={() => setWeekOnePreviewModalOpen(true)} className="px-2.5 py-1.5 text-[11px] font-semibold uppercase rounded border transition-colors flex-shrink-0 hover:bg-surface-4" style={btnStyle} title="Generate and edit the Week 1 preview">
+                    <button type="button" onClick={() => setWeekOnePreviewModalOpen(true)} className="btn-refined flex-shrink-0" title="Generate and edit the Week 1 preview">
                       Edit Preview
                     </button>
                   )}
                   {displayWeek !== -1 && (
-                    <button type="button" onClick={() => setSocialModalOpen(true)} className="px-2.5 py-1.5 text-[11px] font-semibold uppercase rounded border transition-colors flex-shrink-0 hover:bg-surface-4" style={btnStyle} title="Generate and edit social posts">
+                    <button type="button" onClick={() => setSocialModalOpen(true)} className="btn-refined flex-shrink-0" title="Generate and edit social posts">
                       Edit Social
                     </button>
                   )}
@@ -978,11 +969,10 @@ export default function WeeklyScores() {
             </div>
           </div>
 
-          {/* Tab nav docked to the bottom edge of the hero panel — Scores /
-              Recap — so it reads as part of the header, like the team and
-              player pages. Neutral (light) accent; this is a league-wide page. */}
-          <div className="relative mt-1 border-t" style={{ borderColor: 'rgba(255,255,255,0.14)' }}>
-            <div className="flex overflow-x-auto no-scrollbar px-4 sm:px-5">
+          {/* Tab strip — underline tabs ruled off from the content, matching
+              PageHero's. Neutral (light) accent; this is a league-wide page. */}
+          <div className="relative mt-3" style={{ borderBottom: '1px solid var(--surface-4)' }}>
+            <div className="flex overflow-x-auto no-scrollbar -mx-1">
               {[
                 ...(displayWeek !== -1 ? [{ key: 'scores', label: 'Scores' }] : []),
                 { key: 'recap', label: displayWeek === -1 ? 'Preseason Preview' : 'Recap' },
@@ -997,20 +987,18 @@ export default function WeeklyScores() {
                   <button
                     key={tab.key}
                     onClick={() => setTab(tab.key)}
-                    className="relative flex-shrink-0 px-3 sm:px-4 lg:px-5 py-3 font-bold uppercase whitespace-nowrap transition-opacity hover:opacity-100"
+                    className={`relative flex-shrink-0 px-3 sm:px-4 py-3 font-bold uppercase whitespace-nowrap transition-colors ${isActive ? 'text-txt-primary' : 'text-txt-tertiary hover:text-txt-secondary'}`}
                     style={{
                       fontFamily: 'var(--font-display)',
                       fontSize: '0.85rem',
                       letterSpacing: '0.06em',
-                      color: 'var(--text-primary)',
-                      opacity: isActive ? 1 : 0.5,
                     }}
                   >
                     {tab.label}
                     {isActive && (
                       <span
                         aria-hidden="true"
-                        className="absolute left-2 right-2 bottom-0 h-[3px] rounded-t-sm"
+                        className="absolute left-3 right-3 sm:left-4 sm:right-4 -bottom-px h-[2px]"
                         style={{ backgroundColor: 'var(--text-primary)' }}
                       />
                     )}
@@ -1022,8 +1010,8 @@ export default function WeeklyScores() {
           {/* Second tab row — Sportsbook market sub-tabs, an extension of the
               header directly under the main tabs (only while Sportsbook is on). */}
           {tabParam === 'sportsbook' && (
-            <div className="relative border-t" style={{ borderColor: 'rgba(255,255,255,0.10)' }}>
-              <div className="flex overflow-x-auto no-scrollbar px-4 sm:px-5">
+            <div className="relative" style={{ borderBottom: '1px solid var(--surface-4)' }}>
+              <div className="flex overflow-x-auto no-scrollbar -mx-1">
                 {SPORTSBOOK_TABS.map(t => {
                   const isActive = sbSubTab === t.value
                   return (
@@ -1053,8 +1041,8 @@ export default function WeeklyScores() {
             const fallback = sbSubTab === 'wintotals' ? 'ALL' : (champConfs[0] || '')
             const active = confs.includes(sbConf) ? sbConf : fallback
             return (
-              <div className="relative border-t" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-                <div className="flex overflow-x-auto no-scrollbar px-4 sm:px-5">
+              <div className="relative" style={{ borderBottom: '1px solid var(--surface-4)' }}>
+                <div className="flex overflow-x-auto no-scrollbar -mx-1">
                   {confs.map(c => {
                     const isActive = c === active
                     return (

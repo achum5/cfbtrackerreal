@@ -474,41 +474,20 @@ export default function AllAmericans() {
     )
   }
 
-  // Editorial section header — big tracked-uppercase team designation
-  // ("FIRST TEAM ALL-AMERICANS") that scans like a magazine spread
-  // rather than a generic "Section Title" label.
+  // One quiet line above the grid: which team this is and how many players.
+  // The tab strip already says First/Second/Freshman, so this stays small —
+  // it used to repeat the tab as a 32px headline over a tracked-caps label.
   const TeamSection = ({ designation, players }) => {
     if (players.length === 0) return null
 
     return (
       <section className="space-y-3">
-        <header className="flex items-end gap-4 pb-1">
-          <div className="flex-shrink-0">
-            <div
-              className="font-display font-black text-txt-primary leading-none"
-              style={{
-                fontSize: '32px',
-                letterSpacing: '-0.02em',
-                lineHeight: 1,
-              }}
-            >
-              {DESIGNATION_LABEL[designation].split(' ')[0]}
-            </div>
-            <div
-              className="label-xs text-txt-tertiary mt-1"
-              style={{ letterSpacing: '2.5px', fontSize: '10px' }}
-            >
-              {designation === 'first' && 'TEAM ALL-AMERICAN'}
-              {designation === 'second' && 'TEAM ALL-AMERICAN'}
-              {designation === 'freshman' && 'ALL-AMERICAN'}
-            </div>
-          </div>
-          <div className="flex-1 h-px bg-surface-4 mb-2" />
-          <span
-            className="label-xs tabular text-txt-tertiary mb-1"
-            style={{ letterSpacing: '1.5px', fontSize: '10px' }}
-          >
-            {players.length} {players.length === 1 ? 'PLAYER' : 'PLAYERS'}
+        <header className="flex items-baseline justify-between gap-4">
+          <h2 className="font-display font-bold uppercase text-txt-primary leading-none m-0" style={{ fontSize: '1.125rem', letterSpacing: '0.02em' }}>
+            {DESIGNATION_LABEL[designation]}{designation === 'freshman' ? ' All-Americans' : ''}
+          </h2>
+          <span className="text-sm tabular-nums text-txt-tertiary">
+            {players.length} {players.length === 1 ? 'player' : 'players'}
           </span>
         </header>
 
@@ -527,7 +506,7 @@ export default function AllAmericans() {
   const hasAnyPlayers = allAmericans.length > 0
 
   const heroActions = canEdit ? (
-    <Button variant="secondary" size="sm" onClick={() => setShowEditModal(true)}>
+    <Button variant="outline" size="sm" onClick={() => setShowEditModal(true)}>
       Edit
     </Button>
   ) : null

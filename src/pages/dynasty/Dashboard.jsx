@@ -3035,12 +3035,12 @@ export default function Dashboard() {
                         #{currentRank}
                       </span>
                     )}
-                    <h2
+                    <h1
                       className="font-display font-extrabold uppercase tracking-tight leading-none truncate"
                       style={{ color: heroText, fontSize: 'clamp(1.375rem, 2.6vw, 2.125rem)' }}
                     >
                       {userTeamName}
-                    </h2>
+                    </h1>
                   </div>
                   <div className="mt-1.5 flex items-center gap-2 flex-wrap" style={{ color: heroText }}>
                     <span className="font-display font-bold text-lg tabular" style={{ opacity: 0.95 }}>
@@ -7475,9 +7475,11 @@ export default function Dashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
                 </Link>
+                {/* The first heading keeps clear of the floating link icon. */}
                 <FormattedRecap
                   text={lastWeekRecap.text}
                   playerLinks={recapLinks}
+                  className="[&>:first-child]:pr-8"
                 />
               </div>
             </div>
@@ -8209,7 +8211,7 @@ export default function Dashboard() {
                 to={`${pathPrefix}/weekly-scores/${currentDynasty.currentYear}/${scoreboardData.week}`}
                 className="text-xs text-txt-tertiary hover:text-txt-secondary transition-colors"
               >
-                View all {scoreboardData.games.length} games →
+                View all {scoreboardData.games.length} games
               </Link>
             </div>
           )}

@@ -347,7 +347,7 @@ export default function Rankings() {
   if (availableYears.length === 0) {
     return (
       <div className="space-y-6">
-        <PageHero eyebrow="Top 25" title="Rankings" />
+        <PageHero title="Top 25" />
         <Card>
           <EmptyState
             title="No Rankings Yet"

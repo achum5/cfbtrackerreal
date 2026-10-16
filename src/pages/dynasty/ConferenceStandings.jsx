@@ -339,7 +339,7 @@ export default function ConferenceStandings() {
   })
 
   const heroActions = canEdit ? (
-    <Button variant="secondary" size="sm" onClick={() => setShowConferencesModal(true)}>
+    <Button variant="outline" size="sm" onClick={() => setShowConferencesModal(true)}>
       Edit
     </Button>
   ) : null

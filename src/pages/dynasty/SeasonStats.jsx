@@ -357,7 +357,7 @@ export default function SeasonStats() {
         </Card>
       ) : (
         <SortableStatsTable
-          title={`${tab.label}${effectiveYear != null ? ` — ${effectiveYear}` : ''}`}
+          title={`${effectiveYear != null ? `${effectiveYear} ` : ''}${tab.label}`}
           rows={filteredRows}
           columns={columns}
           defaultSortKey={DEFAULT_SORT[tab.key]}
