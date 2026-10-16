@@ -289,7 +289,7 @@ export default function BowlHistory() {
           // PC (CFB27 auto-sync) dynasties get bowl results entirely from
           // the save — same reasoning as CC History's own canEdit gate.
           !isViewOnly && !isPcAutoDynasty(currentDynasty) && (
-            <Button variant="secondary" size="sm" onClick={() => setShowEditModal(true)}>
+            <Button variant="outline" size="sm" onClick={() => setShowEditModal(true)}>
               Edit
             </Button>
           )

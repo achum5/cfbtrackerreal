@@ -904,7 +904,7 @@ export default function Layout({ children }) {
                 <>
                   <button
                     onClick={() => window.toggleDynastySidebar?.()}
-                    className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
+                    className="p-1.5 sm:p-2 rounded-md hover:bg-surface-3 transition-colors"
                     style={{ color: headerText }}
                     aria-label="Toggle sidebar"
                   >
@@ -915,7 +915,7 @@ export default function Layout({ children }) {
                   {/* Home Button */}
                   <Link
                     to={`/dynasty/${currentDynasty.id}`}
-                    className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
+                    className="p-1.5 sm:p-2 rounded-md hover:bg-surface-3 transition-colors"
                     style={{ color: headerText }}
                     title="Dashboard"
                     aria-label="Dashboard"
@@ -958,7 +958,7 @@ export default function Layout({ children }) {
                 return (
                 <>
                   {/* Separator */}
-                  <span className="hidden sm:inline text-sm" style={{ color: headerText, opacity: 0.3 }}>|</span>
+                  <span aria-hidden="true" className="hidden sm:block w-px h-6 flex-shrink-0" style={{ backgroundColor: 'var(--surface-5)' }} />
 
                   {/* Team Logo */}
                   {currentTeamLogo && (
@@ -984,7 +984,7 @@ export default function Layout({ children }) {
                       {currentDynasty.currentYear}
                     </span>
                     {phaseDisplayReady ? (
-                    <span className="font-medium text-xs sm:text-sm truncate" style={{ color: headerText }}>
+                    <span className="font-medium text-xs sm:text-sm truncate text-txt-secondary">
                       <span className="sm:hidden">
                         {currentDynasty.currentPhase === 'conference_championship' ? 'CC' :
                          currentDynasty.currentPhase === 'regular_season' ? `Wk ${currentDynasty.currentWeek}` :
@@ -1026,7 +1026,7 @@ export default function Layout({ children }) {
                   {/* Contact button — quick access to bug reports / feature requests */}
                   <Link
                     to="/contact"
-                    className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
+                    className="p-1.5 sm:p-2 rounded-md hover:bg-surface-3 transition-colors"
                     style={{ color: headerText }}
                     title="Contact / Feedback"
                     aria-label="Contact"
@@ -1088,7 +1088,7 @@ export default function Layout({ children }) {
                     <button
                       onClick={handleAdvanceWeek}
                       disabled={isAdvancing}
-                      className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity disabled:opacity-60 disabled:cursor-wait"
+                      className="p-1.5 sm:p-2 rounded-md hover:bg-surface-3 transition-colors disabled:opacity-60 disabled:cursor-wait"
                       style={{ color: headerText }}
                       title={isAdvancing ? 'Advancing…' : (advanceReadyInfo?.isShared ? 'Force Advance' : 'Advance Week')}
                       aria-label={isAdvancing ? 'Advancing week' : 'Advance week'}
@@ -1111,7 +1111,7 @@ export default function Layout({ children }) {
                     <button
                       onClick={() => setShowWeekDropdown(!showWeekDropdown)}
                       disabled={isAdvancing}
-                      className="p-1 rounded-lg hover:opacity-70 transition-opacity -ml-1 disabled:opacity-60 disabled:cursor-wait"
+                      className="p-1 rounded-md hover:bg-surface-3 transition-colors -ml-1 disabled:opacity-60 disabled:cursor-wait"
                       style={{ color: headerText }}
                       aria-label="Week menu"
                       aria-expanded={showWeekDropdown}

@@ -508,7 +508,7 @@ export default function ConferenceChampionshipHistory() {
         actions={canEdit ? (
           <button
             onClick={() => setEditSheetOpen(true)}
-            className="btn-refined btn-refined--solid"
+            className="btn-refined"
           >
             Edit
           </button>

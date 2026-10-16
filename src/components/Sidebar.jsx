@@ -211,6 +211,9 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
   // that ground).
   const showSchemeBuilder = getEditionKey(currentDynasty) === 'cfb27' && !isPcAuto
 
+  // `name` is the stable key: saved sidebar order, hidden items and chunk
+  // preloading are all keyed by it, so never rename one. `label` (optional)
+  // is what the row shows — change that freely.
   const navItems = [
     { name: 'Dashboard', path: pathPrefix },
     ...(showBlueprint ? [{ name: 'Dynasty Blueprint', path: `${pathPrefix}/team/${teamTid}/${currentYear}?tab=blueprint` }] : []),
@@ -218,7 +221,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
     { name: 'Around the Country', path: `${pathPrefix}/weekly-scores` },
     { name: 'Top 25', path: `${pathPrefix}/rankings` },
     { name: 'CFP Bracket', path: `${pathPrefix}/cfp-bracket` },
-    { name: 'Conf. Standings', path: `${pathPrefix}/conference-standings` },
+    { name: 'Conf. Standings', label: 'Conference Standings', path: `${pathPrefix}/conference-standings` },
     { name: 'Recruiting', path: `${pathPrefix}/recruiting/${teamTid}/${currentYear}` },
     // Top Classes deliberately has NO sidebar entry — it's reached via a
     // pill button on Recruiting's Commitments tab instead, per the user's
@@ -230,7 +233,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
     { name: 'Season Stats', path: `${pathPrefix}/season-stats` },
     { name: 'Team Stats', path: `${pathPrefix}/team-stats` },
     { name: 'Bowl History', path: `${pathPrefix}/bowl-history` },
-    { name: 'CC History', path: `${pathPrefix}/conference-championship-history` },
+    { name: 'CC History', label: 'Conference Championships', path: `${pathPrefix}/conference-championship-history` },
     ...(isPcAuto ? [{ name: 'Records', path: `${pathPrefix}/records` }] : []),
     { name: 'Awards', path: `${pathPrefix}/awards` },
     ...(isPcAuto ? [{ name: 'Players of the Week', path: `${pathPrefix}/players-of-week/${currentYear}` }] : []),
@@ -325,20 +328,18 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
     try { preloadByNavName[name]?.() } catch {}
   }
 
-  // Nav item styling — active uses 3px left team-accent stripe + subtle tint background.
-  // Inactive uses a flat neutral hover. See docs/DESIGN.md "Team color as accent only".
+  // Nav item styling — neutral rounded rows. Active = raised surface + full
+  // white text; inactive = secondary text with a quieter hover. Padding is
+  // identical in both states so the label never shifts when it activates.
   const navItemClass = (active) =>
-    `relative block pl-4 pr-3 py-2 font-medium transition-colors text-sm ${
-      active ? 'text-txt-primary' : 'text-txt-secondary hover:text-txt-primary hover:bg-surface-3'
+    `relative block px-3 py-[7px] rounded-md text-sm transition-colors ${
+      active
+        ? 'text-txt-primary font-semibold'
+        : 'text-txt-secondary font-medium hover:text-txt-primary hover:bg-surface-2'
     }`
 
   const navItemStyle = (active) =>
-    active
-      ? {
-          backgroundColor: 'var(--surface-3)',
-          paddingLeft: 'calc(1rem - 3px)',
-        }
-      : undefined
+    active ? { backgroundColor: 'var(--surface-3)' } : undefined
 
   return (
     <>
@@ -371,7 +372,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
                 <SortableContext items={visibleMain.map((i) => i.name)} strategy={verticalListSortingStrategy}>
                   <div className={`flex flex-col ${locking ? 'animate-pulse' : ''}`}>
                     {visibleMain.map((item) => (
-                      <SortableNavRow key={item.name} name={item.name} onHide={() => hideItem(item.name)} />
+                      <SortableNavRow key={item.name} name={item.name} label={item.label || item.name} onHide={() => hideItem(item.name)} />
                     ))}
                   </div>
                 </SortableContext>
@@ -393,7 +394,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
                 ) : (
                   <div className="flex flex-col">
                     {hiddenMain.map((item) => (
-                      <HiddenNavRow key={item.name} name={item.name} onShow={() => showItem(item.name)} />
+                      <HiddenNavRow key={item.name} label={item.label || item.name} onShow={() => showItem(item.name)} />
                     ))}
                   </div>
                 )}
@@ -414,7 +415,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
                     className={navItemClass(active)}
                     style={navItemStyle(active)}
                   >
-                    {item.name}
+                    {item.label || item.name}
                   </Link>
                 )
               })}
@@ -424,7 +425,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
           {/* Admin Section */}
           {!isViewOnly && (
             <div className="mt-6 pt-4" style={{ borderTop: '1px solid var(--surface-4)' }}>
-              <div className="px-4 mb-2">
+              <div className="px-3 mb-1.5">
                 <span className="label-xs text-txt-tertiary">Settings</span>
               </div>
 
@@ -593,7 +594,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
 // A single draggable nav row shown while reordering. The burger handle (three
 // stacked lines) carries the drag listeners; `touch-action: none` on it lets
 // the TouchSensor grab without the scroll container stealing the gesture.
-function SortableNavRow({ name, onHide }) {
+function SortableNavRow({ name, label, onHide }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: name })
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -616,7 +617,7 @@ function SortableNavRow({ name, onHide }) {
         type="button"
         {...attributes}
         {...listeners}
-        aria-label={`Drag ${name}`}
+        aria-label={`Drag ${label}`}
         className="flex flex-col justify-center gap-[3px] shrink-0 px-1 py-1 -ml-1 rounded text-txt-tertiary hover:text-txt-primary cursor-grab active:cursor-grabbing"
         style={{ touchAction: 'none' }}
       >
@@ -624,11 +625,11 @@ function SortableNavRow({ name, onHide }) {
         <span className="block w-3.5 h-px bg-current" />
         <span className="block w-3.5 h-px bg-current" />
       </button>
-      <span className="flex-1 text-sm font-medium text-txt-primary truncate">{name}</span>
+      <span className="flex-1 text-sm font-medium text-txt-primary truncate">{label}</span>
       <button
         type="button"
         onClick={onHide}
-        aria-label={`Hide ${name}`}
+        aria-label={`Hide ${label}`}
         className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary hover:text-txt-primary px-1.5 py-1 rounded hover:bg-surface-3 transition-colors"
       >
         Hide
@@ -639,17 +640,17 @@ function SortableNavRow({ name, onHide }) {
 
 // A hidden nav item shown in the Hidden section while editing. "Show" returns it
 // to its saved slot in the live sidebar.
-function HiddenNavRow({ name, onShow }) {
+function HiddenNavRow({ label, onShow }) {
   return (
     <div
       className="flex items-center gap-2 my-0.5 pl-3 pr-2 py-2 rounded-md select-none"
       style={{ backgroundColor: 'var(--surface-2)', border: '1px dashed var(--surface-4)', opacity: 0.85 }}
     >
-      <span className="flex-1 text-sm font-medium text-txt-secondary truncate">{name}</span>
+      <span className="flex-1 text-sm font-medium text-txt-secondary truncate">{label}</span>
       <button
         type="button"
         onClick={onShow}
-        aria-label={`Show ${name}`}
+        aria-label={`Show ${label}`}
         className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary hover:text-txt-primary px-1.5 py-1 rounded hover:bg-surface-3 transition-colors"
       >
         Show

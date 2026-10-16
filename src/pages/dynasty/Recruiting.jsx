@@ -1441,8 +1441,13 @@ export default function Recruiting() {
               the same selectedStars filter: [] = All, [n] = that tier.
               flex-shrink-0 (not flex-1 min-w-0) so the select sizes to its
               content and doesn't get squeezed/clipped. */}
-          <div className="flex items-center gap-1.5 px-3 sm:px-4 py-3 flex-shrink-0">
-            <span className="label-xs text-txt-tertiary hidden sm:inline" style={{ letterSpacing: '1.5px' }}>Stars</span>
+          {/* Phones: the three filters share one row as a 3-up grid instead
+              of stacking as three full-width dropdowns. From md the wrapper
+              dissolves (display: contents) and each filter is its own
+              divided toolbar cell again. */}
+          <div className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.1fr)_minmax(0,1.1fr)] gap-2 px-3 py-3 md:contents">
+          <div className="flex items-center gap-1.5 min-w-0 md:px-4 md:py-3 md:flex-shrink-0 md:border-l md:border-white/15">
+            <span className="label-xs text-txt-tertiary hidden md:inline" style={{ letterSpacing: '1.5px' }}>Stars</span>
             <Select
               size="sm"
               style={filterSelectStyle}
@@ -1460,8 +1465,8 @@ export default function Recruiting() {
           </div>
 
           {/* Position filter — Offense/Defense/Special Teams plus finer groups. */}
-          <div className="flex items-center gap-1.5 px-3 sm:px-4 py-3 flex-shrink-0">
-            <span className="label-xs text-txt-tertiary hidden sm:inline" style={{ letterSpacing: '1.5px' }}>Pos</span>
+          <div className="flex items-center gap-1.5 min-w-0 md:px-4 md:py-3 md:flex-shrink-0 md:border-l md:border-white/15">
+            <span className="label-xs text-txt-tertiary hidden md:inline" style={{ letterSpacing: '1.5px' }}>Pos</span>
             <Select
               size="sm"
               style={filterSelectStyle}
@@ -1476,8 +1481,8 @@ export default function Recruiting() {
           </div>
 
           {/* Sort control — anchored to the right edge on desktop. */}
-          <div className="flex items-center gap-1.5 px-3 sm:px-4 py-3 flex-shrink-0 md:ml-auto">
-            <span className="label-xs text-txt-tertiary hidden sm:inline" style={{ letterSpacing: '1.5px' }}>Sort</span>
+          <div className="flex items-center gap-1.5 min-w-0 md:px-4 md:py-3 md:flex-shrink-0 md:ml-auto md:border-l md:border-white/15">
+            <span className="label-xs text-txt-tertiary hidden md:inline" style={{ letterSpacing: '1.5px' }}>Sort</span>
             <Select
               size="sm"
               style={filterSelectStyle}
@@ -1489,6 +1494,7 @@ export default function Recruiting() {
               <option value="position">Position</option>
               <option value="dev">Dev Trait</option>
             </Select>
+          </div>
           </div>
         </div>
       </div>

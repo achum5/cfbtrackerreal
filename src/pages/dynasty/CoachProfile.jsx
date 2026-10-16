@@ -65,7 +65,7 @@ export default function CoachProfile() {
   const currentSeasonYear = seasonYears.length ? seasonYears[seasonYears.length - 1] : Number(currentDynasty.currentYear)
 
   return (
-    <div className="space-y-4 sm:space-y-6 max-w-5xl mx-auto -mt-4 sm:-mt-6 px-4 sm:px-6 lg:px-8 pt-2 sm:pt-3 pb-6">
+    <div className="space-y-4 sm:space-y-6 max-w-5xl mx-auto pb-6">
       {/* Hero — team-color broadcast banner (matches the player page) */}
       <div
         className="card overflow-hidden relative reveal cfb-texture cfb-texture-strong"

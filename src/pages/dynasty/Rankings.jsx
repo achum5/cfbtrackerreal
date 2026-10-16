@@ -548,16 +548,14 @@ export default function Rankings() {
         ) : null}
       />
 
-      <div className="max-w-6xl mx-auto">
-        <PollColumn data={top25} pollType="media" />
-      </div>
+      <PollColumn data={top25} pollType="media" />
 
       {/* Season-long rank movement. Needs at least two polls to plot a line —
           a single snapshot is what the table above already is. */}
       {availableWeeks.length >= 2 && (
-        <div className="max-w-6xl mx-auto">
+        <div>
           <Card>
-            <h2 className="text-sm font-black uppercase tracking-[0.12em] text-txt-secondary mb-3">
+            <h2 className="label-sm text-txt-secondary mb-3">
               Rank Movement
             </h2>
             <Top25MovementChart

@@ -299,7 +299,7 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, team
               const themed = !!prevPrimary
               return (
                 <span
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-widest min-w-0"
+                  className="inline-flex items-center gap-1 max-w-full px-1.5 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-widest whitespace-nowrap min-w-0"
                   style={{
                     letterSpacing: '1.5px',
                     color: themed ? prevSecondary : 'var(--text-secondary)',
@@ -321,21 +321,21 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, team
               )
             })() : showRecommitChip ? (
               <span
-                className="inline-flex items-center px-1.5 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-widest"
+                className="inline-flex items-center max-w-full px-1.5 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-widest whitespace-nowrap overflow-hidden"
                 style={{ letterSpacing: '1.5px', color: teamAccent, backgroundColor: teamBgText, border: `1px solid ${teamBgText}` }}
               >
                 Portal Recommit
               </span>
             ) : showJucoMarker ? (
               <span
-                className="inline-flex items-center px-1.5 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-widest"
+                className="inline-flex items-center max-w-full px-1.5 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-widest whitespace-nowrap overflow-hidden"
                 style={{ letterSpacing: '1.5px', color: teamAccent, backgroundColor: teamBgText, border: `1px solid ${teamBgText}` }}
               >
                 Junior College
               </span>
             ) : (
               <span
-                className="inline-flex items-center px-1.5 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-widest"
+                className="inline-flex items-center max-w-full px-1.5 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-widest whitespace-nowrap overflow-hidden"
                 style={{ letterSpacing: '1.5px', color: teamAccent, backgroundColor: teamBgText, border: `1px solid ${teamBgText}` }}
               >
                 High School

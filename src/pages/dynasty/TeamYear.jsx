@@ -2875,7 +2875,7 @@ export default function TeamYear() {
           ...(teamLogo ? { '--cfb-watermark': `url("${teamLogo}")`, '--cfb-watermark-right': '7rem' } : {}),
         }}
       >
-        <div className="relative overflow-hidden p-4 sm:p-5 pb-2 sm:pb-2 flex flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 cfb-watermark">
+        <div className="relative overflow-hidden p-4 sm:p-5 pb-2 sm:pb-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 cfb-watermark">
           {/* Edit button — mobile only (no desktop equivalent), pinned to the
               bottom-right of the hero CONTENT row so it stays above the docked
               tab nav and never overlaps the tabs. */}
@@ -3130,18 +3130,22 @@ export default function TeamYear() {
                     )}
                   </div>
                 )}
-                {displayRecord && conference && (
-                  <span style={{ color: teamBgText, opacity: 0.4 }}>•</span>
-                )}
+                {/* Separator travels with the conference link so a wrap on a
+                    narrow screen never strands a lone "•" at the line end. */}
                 {conference && (
-                  <Link
-                    to={`${pathPrefix}/conference-standings/${selectedYear}?conf=${encodeURIComponent(conference)}`}
-                    className="text-sm font-semibold uppercase tracking-wide hover:underline cursor-pointer"
-                    style={{ color: teamBgText, opacity: 0.85 }}
-                    title={`View ${conference} standings`}
-                  >
-                    {confRank ? `${ordinal(confRank)} in ${conferenceLabel}` : conferenceLabel}
-                  </Link>
+                  <span className="inline-flex items-center gap-2 sm:gap-3">
+                    {displayRecord && (
+                      <span style={{ color: teamBgText, opacity: 0.4 }}>•</span>
+                    )}
+                    <Link
+                      to={`${pathPrefix}/conference-standings/${selectedYear}?conf=${encodeURIComponent(conference)}`}
+                      className="text-sm font-semibold uppercase tracking-wide hover:underline cursor-pointer"
+                      style={{ color: teamBgText, opacity: 0.85 }}
+                      title={`View ${conference} standings`}
+                    >
+                      {confRank ? `${ordinal(confRank)} in ${conferenceLabel}` : conferenceLabel}
+                    </Link>
+                  </span>
                 )}
               </div>
             )}
@@ -3302,8 +3306,11 @@ export default function TeamYear() {
           </div>
           </div>
 
-          {/* RIGHT: ratings + conference + edit */}
-          <div className="flex items-center gap-2 sm:gap-3 self-start sm:self-center empty:hidden">
+          {/* RIGHT: ratings + conference + edit. On phones this drops below
+              the identity (indented to the name column) so the school name
+              gets the full width instead of being shrunk to fit beside the
+              rings. */}
+          <div className={`flex items-center gap-2 sm:gap-3 self-start sm:self-center empty:hidden ${teamLogo ? 'pl-[4.25rem] sm:pl-0' : ''}`}>
             {/* Team Ratings — circular CFB-style rings (contrast outline on the
                 team-colored banner). Compact on mobile so the team name keeps
                 its room and never has to truncate; full size from sm up. */}
@@ -3650,30 +3657,35 @@ export default function TeamYear() {
                     const matchingPlayer = matchHonorToPlayer(currentDynasty, h.player, h.school, h.schoolTid)
                     const linkTo = `${pathPrefix}/${h.honorType === 'All-American' ? 'all-americans' : 'all-conference'}/${selectedYear}`
                     return (
-                      <div key={`${h.honorType}-${idx}`} className="flex items-center gap-1.5 text-sm">
+                      // Badge + one inline run of text, so on a narrow screen the
+                      // line wraps like a sentence instead of splitting the label,
+                      // name and position into three ragged columns.
+                      <div key={`${h.honorType}-${idx}`} className="flex items-start gap-1.5 text-sm">
                         <img
                           src={h.honorType === 'All-Conference' && conferenceLogo ? conferenceLogo : '/badges/all-american.png'}
                           alt=""
-                          className="w-auto shrink-0"
+                          className="w-auto shrink-0 mt-[0.25em]"
                           style={{ height: '1em' }}
                         />
-                        <Link to={linkTo} className="hover:underline" style={{ color: accentColorMuted }}>
-                          {h.honorType} ({desTier(h.designation)}):
-                        </Link>
-                        {matchingPlayer ? (
-                          <Link
-                            to={`${pathPrefix}/player/${matchingPlayer.pid}`}
-                            className="font-semibold hover:underline"
-                            style={{ color: accentColor }}
-                          >
-                            {h.player}
-                          </Link>
-                        ) : (
-                          <span className="font-semibold" style={{ color: accentColor }}>{h.player}</span>
-                        )}
-                        {h.position && (
-                          <span className="text-xs" style={{ color: accentColorMuted }}>({h.position})</span>
-                        )}
+                        <span className="min-w-0">
+                          <Link to={linkTo} className="hover:underline" style={{ color: accentColorMuted }}>
+                            {h.honorType} ({desTier(h.designation)}):
+                          </Link>{' '}
+                          {matchingPlayer ? (
+                            <Link
+                              to={`${pathPrefix}/player/${matchingPlayer.pid}`}
+                              className="font-semibold hover:underline"
+                              style={{ color: accentColor }}
+                            >
+                              {h.player}
+                            </Link>
+                          ) : (
+                            <span className="font-semibold" style={{ color: accentColor }}>{h.player}</span>
+                          )}
+                          {h.position && (
+                            <span className="text-xs whitespace-nowrap" style={{ color: accentColorMuted }}> ({h.position})</span>
+                          )}
+                        </span>
                       </div>
                     )
                   })}

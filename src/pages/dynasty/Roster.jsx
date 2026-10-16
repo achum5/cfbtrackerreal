@@ -62,7 +62,7 @@ export default function Roster() {
         title={`${currentDynasty.currentYear} Roster`}
         meta={<span>{filteredPlayers.length} {selectedPosition === 'All' ? 'players' : `at ${selectedPosition}`}</span>}
         actions={!isViewOnly && (
-          <Button variant="primary" size="sm" onClick={() => setShowRosterModal(true)}>
+          <Button variant="outline" size="sm" onClick={() => setShowRosterModal(true)}>
             Edit Roster
           </Button>
         )}

@@ -600,7 +600,7 @@ export default function ComparePlayers() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div>
       {/* Header — matched to the table width + mx-auto so its left edge lines
           up with the centered comparison table below. */}
       <div className="mb-5 mx-auto" style={{ maxWidth: `${tableWidth}px` }}>

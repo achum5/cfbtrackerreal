@@ -1947,11 +1947,11 @@ function PlayerInner() {
 
   return (
     <div
-      // No horizontal padding of its own: Layout already wraps every page in
-      // px-2 sm:px-4, and stacking px-4/px-6/px-8 on top left the player page
-      // visibly more inset than the Dashboard (which adds none) — 24px per
-      // side on a phone. Vertical spacing is unchanged.
-      className="space-y-4 sm:space-y-6 max-w-6xl mx-auto -mt-4 sm:-mt-6 pt-2 sm:pt-3 pb-4 sm:pb-6"
+      // No padding, width cap or top offset of its own: Layout already wraps
+      // every dynasty page in the same gutter and max width, so the player
+      // masthead lines up edge-for-edge (and top-for-top) with the Dashboard,
+      // Team and league pages instead of sitting inset beside them.
+      className="space-y-4 sm:space-y-6 pb-4 sm:pb-6"
     >
       {/* Player Header — CFB 27 broadcast banner (team-color wash, chalk
           texture, contrast text). One responsive block for mobile + desktop. */}

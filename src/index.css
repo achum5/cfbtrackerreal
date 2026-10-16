@@ -112,6 +112,14 @@
   --dur-slower: 560ms;
 }
 
+/* Phone: page titles step down so a two-word title + year fits one line
+   instead of eating the first screen. */
+@media (max-width: 639.98px) {
+  :root {
+    --text-display-lg: 1.875rem;
+  }
+}
+
 /* Pages scoped to a team theme re-declare team-color derivatives relative to their own primary.
    This prevents cross-team contamination when two team contexts render on one page. */
 [data-team-theme] {

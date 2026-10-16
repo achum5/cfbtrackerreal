@@ -3067,7 +3067,19 @@ export default function Dashboard() {
                   </div>
                 </div>
               </Link>
-              {teamRatings && (
+              {/* No ratings entered yet (e.g. a new season before the
+                  preseason ratings task): one quiet "Add ratings" action
+                  instead of three empty rings reading "—". */}
+              {teamRatings && !ratingItems.some(r => r.value != null && r.value !== '') && !isViewOnly && !isCfb27Auto && (
+                <button
+                  onClick={() => setShowTeamRatingsModal(true)}
+                  className="self-start sm:self-center px-3 py-1.5 rounded-md text-xs font-semibold transition-colors hover:bg-black/20"
+                  style={{ color: heroText, border: `1px solid color-mix(in srgb, ${heroText} 35%, transparent)` }}
+                >
+                  Add team ratings
+                </button>
+              )}
+              {teamRatings && ratingItems.some(r => r.value != null && r.value !== '') && (
                 <div className="flex items-center gap-2 sm:gap-3 self-start sm:self-center">
                   {/* Compact rings on mobile so OVR/OFF/DEF fit inline beside
                       the identity instead of wrapping to their own row. */}

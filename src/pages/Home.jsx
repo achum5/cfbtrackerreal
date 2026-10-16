@@ -608,10 +608,10 @@ export default function Home() {
               className="hidden"
             />
 
-            {/* Sample / Contact / Install — one dashed section, a single dashed
-                divider between each of the three rows. Install is mobile-only. */}
+            {/* Sample / Contact / Install — one bordered list, a hairline divider
+                between each of the three rows. Install is mobile-only. */}
             <div className="max-w-3xl space-y-3">
-              <div className="rounded-lg border border-dashed border-surface-5 divide-y divide-dashed divide-surface-5">
+              <div className="card-bordered overflow-hidden divide-y divide-surface-4">
                 <div className="px-5 py-3.5 sm:px-6 sm:py-4 flex items-center justify-between gap-4">
                   <h3 className="font-display text-sm sm:text-base font-semibold text-txt-secondary leading-tight min-w-0">
                     Try a sample dynasty (my own personal one)
@@ -625,13 +625,13 @@ export default function Home() {
                     {importing ? 'Loading…' : 'Load sample'}
                   </button>
                 </div>
-                <Link to="/contact" className="px-5 py-3.5 sm:px-6 sm:py-4 flex items-center justify-between gap-4 hover:bg-surface-2/40 transition-colors">
+                <Link to="/contact" className="px-5 py-3.5 sm:px-6 sm:py-4 flex items-center justify-between gap-4 hover:bg-surface-3 transition-colors">
                   <span className="font-display text-sm sm:text-base font-semibold text-txt-secondary tracking-tight leading-tight min-w-0">
                     Got feedback, bugs, or ideas?
                   </span>
                   <span className="btn-refined flex-shrink-0">Contact</span>
                 </Link>
-                <Link to="/install" className="lg:hidden px-5 py-3.5 sm:px-6 sm:py-4 flex items-center justify-between gap-4 hover:bg-surface-2/40 transition-colors">
+                <Link to="/install" className="lg:hidden px-5 py-3.5 sm:px-6 sm:py-4 flex items-center justify-between gap-4 hover:bg-surface-3 transition-colors">
                   <span className="font-display text-sm sm:text-base font-semibold text-txt-secondary tracking-tight leading-tight min-w-0">
                     Install Mobile App
                   </span>
@@ -895,14 +895,14 @@ export default function Home() {
                           )}
                           {conference && (
                             <>
-                              <span className="truncate">{conference}</span>
-                              
+                              <span className="flex-shrink-0">{conference}</span>
+                              <span aria-hidden="true" className="flex-shrink-0" style={{ opacity: 0.5 }}>·</span>
                             </>
                           )}
-                          <span>{dynasty.currentYear}</span>
+                          <span className="flex-shrink-0">{dynasty.currentYear}</span>
                           {weekShort && (
                             <>
-
+                              <span aria-hidden="true" className="flex-shrink-0" style={{ opacity: 0.5 }}>·</span>
                               <span className="truncate">{weekShort}</span>
                             </>
                           )}
@@ -1026,9 +1026,9 @@ export default function Home() {
               })}
             </div>
 
-            {/* Sample / Contact / Install — one dashed section, a single dashed
-                divider between each of the three rows. Install is mobile-only. */}
-            <div className="mt-6 rounded-lg border border-dashed border-surface-5 divide-y divide-dashed divide-surface-5">
+            {/* Sample / Contact / Install — one bordered list, a hairline divider
+                between each of the three rows. Install is mobile-only. */}
+            <div className="mt-6 card-bordered overflow-hidden divide-y divide-surface-4">
               <div className="px-4 py-3.5 sm:px-5 sm:py-4 flex items-center justify-between gap-4">
                 <h3 className="font-display text-sm sm:text-base font-semibold text-txt-secondary tracking-tight leading-tight min-w-0">
                   Try a sample dynasty (my own personal one)
@@ -1042,13 +1042,13 @@ export default function Home() {
                   {importing ? 'Loading…' : 'Load sample'}
                 </button>
               </div>
-              <Link to="/contact" className="px-4 py-3.5 sm:px-5 sm:py-4 flex items-center justify-between gap-4 hover:bg-surface-2/40 transition-colors">
+              <Link to="/contact" className="px-4 py-3.5 sm:px-5 sm:py-4 flex items-center justify-between gap-4 hover:bg-surface-3 transition-colors">
                 <span className="font-display text-sm sm:text-base font-semibold text-txt-secondary tracking-tight leading-tight min-w-0">
                   Got feedback, bugs, or ideas?
                 </span>
                 <span className="btn-refined flex-shrink-0">Contact</span>
               </Link>
-              <Link to="/install" className="lg:hidden px-4 py-3.5 sm:px-5 sm:py-4 flex items-center justify-between gap-4 hover:bg-surface-2/40 transition-colors">
+              <Link to="/install" className="lg:hidden px-4 py-3.5 sm:px-5 sm:py-4 flex items-center justify-between gap-4 hover:bg-surface-3 transition-colors">
                 <span className="font-display text-sm sm:text-base font-semibold text-txt-secondary tracking-tight leading-tight min-w-0">
                   Install Mobile App
                 </span>

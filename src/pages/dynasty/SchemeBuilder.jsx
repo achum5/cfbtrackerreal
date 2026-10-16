@@ -714,7 +714,7 @@ export default function SchemeBuilder() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
+    <div>
       <PageHero
         title="Scheme Builder"
         eyebrow={team?.name ? `${team.name} — ${year}` : String(year)}
