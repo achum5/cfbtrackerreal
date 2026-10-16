@@ -2569,11 +2569,14 @@ function PlayerInner() {
                 row stretching when the game log is much taller than the
                 other columns. Middle column uses display:contents on mobile
                 so Stats / Video can be reordered individually relative to
-                the other top-level items; on lg it becomes a proper flex
-                column that keeps the video directly below stats. */}
-            <div className="flex flex-col lg:flex-row lg:items-start gap-6 lg:gap-4 xl:gap-6">
+                the other top-level items; from xl it becomes a proper flex
+                column that keeps the video directly below stats. Three
+                columns wait for xl: at laptop width (sidebar open) each was
+                ~240px, which clipped the stats table and cut opponents to
+                "vs O…". */}
+            <div className="flex flex-col xl:flex-row xl:items-start gap-6 xl:gap-5 2xl:gap-6">
               {/* LEFT — Timeline (condensed, with connecting line) */}
-              <div className="card overflow-hidden order-4 lg:order-none w-full lg:flex-1 lg:min-w-0">
+              <div className="card overflow-hidden order-4 xl:order-none w-full xl:flex-1 xl:min-w-0">
                 {sectionHeader('Timeline')}
                 {timelineYears.length === 0 ? (
                   <div className="px-4 py-4 text-sm" style={{ color: secondaryText }}>No timeline data</div>
@@ -2668,9 +2671,9 @@ function PlayerInner() {
                   flex column on desktop; on mobile they split out via the
                   `contents` trick so order classes on each child control
                   their individual position in the mobile stack. */}
-              <div className="contents lg:flex lg:flex-col lg:flex-1 lg:min-w-0 lg:gap-6 lg:order-none">
+              <div className="contents xl:flex xl:flex-col xl:flex-1 xl:min-w-0 xl:gap-6 xl:order-none">
               {/* Career Stats */}
-              <div className="card overflow-hidden min-w-0 order-1 lg:order-none">
+              <div className="card overflow-hidden min-w-0 order-1 xl:order-none">
                 {(() => {
                   const categories = [
                     { key: 'passing', label: 'Passing', has: totals.hasPassing,
@@ -2891,7 +2894,7 @@ function PlayerInner() {
                   forward by the seconds elapsed in the inline clip so
                   playback "resumes" instead of restarting. */}
               {allPlayerScoringPlays.length > 0 && (
-                <div className="min-w-0 order-3 lg:order-none">
+                <div className="min-w-0 order-3 xl:order-none">
                   <InlineScoringHighlights
                     scoringPlays={allPlayerScoringPlays}
                     startIndex={randomScoringStartIndex}
@@ -2910,7 +2913,7 @@ function PlayerInner() {
               </div>
 
               {/* RIGHT — Recent Game Log */}
-              <div className="card overflow-hidden order-2 lg:order-none w-full lg:flex-1 lg:min-w-0">
+              <div className="card overflow-hidden order-2 xl:order-none w-full xl:flex-1 xl:min-w-0">
                 {sectionHeader('Recent Games')}
                 {recentGames.length === 0 ? (
                   <div className="px-4 py-4 text-sm" style={{ color: secondaryText }}>No game log data</div>
