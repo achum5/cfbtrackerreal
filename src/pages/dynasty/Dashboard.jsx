@@ -5504,8 +5504,8 @@ export default function Dashboard() {
               // Coordinator Vacancy — only render when applicable. The
               // initial Yes/Not Yet for each pending position lives
               // inline on this row (one position at a time — OC first,
-              // then DC). The "Enter new OC/DC name" text inputs still
-              // render as panels below when the wizard is mid-flow.
+              // then DC). The "Enter new OC/DC name" input opens under the
+              // row (belowContent) when the wizard is mid-flow.
               const ccDataForYear = currentDynasty.conferenceChampionshipDataByYear?.[currentDynasty.currentYear] || {}
               const firedOC = ccDataForYear.firedOCName
               const firedDC = ccDataForYear.firedDCName
@@ -5525,11 +5525,113 @@ export default function Dashboard() {
                   const askingDC = !!firedDC && coordOcAnswered && filledDCVacancy === null
                   const askingPos = askingOC ? 'OC' : askingDC ? 'DC' : null
                   const askingFiredName = askingOC ? firedOC : askingDC ? firedDC : null
+                  // The new-name step renders under this row (belowContent)
+                  // rather than after the whole task list.
+                  const coordNamePanels = (showCoordinator && firedOC && filledOCVacancy === true && !newOCName) || (showCoordinator && firedDC && coordOcAnswered && filledDCVacancy === true && !newDCName) ? (
+                    <>
+                  
+                  {showCoordinator && firedOC && filledOCVacancy === true && !newOCName && (
+                    <div>
+                      <p className="mb-2 text-xs sm:text-sm text-txt-secondary">Enter new OC name:</p>
+                      <div className="flex gap-2 max-w-sm">
+                        <input
+                          type="text"
+                          id="new-oc-name"
+                          className="flex-1 px-3 py-2 rounded-lg border border-surface-4 bg-surface-1 text-txt-primary placeholder:text-txt-tertiary focus:outline-none focus:border-surface-5"
+                          aria-label="New OC name"
+                          placeholder="New OC name…"
+                          onKeyDown={async (e) => {
+                            if (e.key === 'Enter' && e.target.value.trim()) {
+                              const name = e.target.value.trim()
+                              setNewOCName(name)
+                              await updateDynasty(currentDynasty.id, {
+                                pendingCoordinatorHires: {
+                                  ...currentDynasty.pendingCoordinatorHires,
+                                  filledOC: true,
+                                  newOCName: name,
+                                },
+                              })
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={async () => {
+                            const input = document.getElementById('new-oc-name')
+                            if (input?.value.trim()) {
+                              const name = input.value.trim()
+                              setNewOCName(name)
+                              await updateDynasty(currentDynasty.id, {
+                                pendingCoordinatorHires: {
+                                  ...currentDynasty.pendingCoordinatorHires,
+                                  filledOC: true,
+                                  newOCName: name,
+                                },
+                              })
+                            }
+                          }}
+                          className="btn-refined btn-refined--solid"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {showCoordinator && firedDC && coordOcAnswered && filledDCVacancy === true && !newDCName && (
+                    <div>
+                      <p className="mb-2 text-xs sm:text-sm text-txt-secondary">Enter new DC name:</p>
+                      <div className="flex gap-2 max-w-sm">
+                        <input
+                          type="text"
+                          id="new-dc-name"
+                          className="flex-1 px-3 py-2 rounded-lg border border-surface-4 bg-surface-1 text-txt-primary placeholder:text-txt-tertiary focus:outline-none focus:border-surface-5"
+                          aria-label="New DC name"
+                          placeholder="New DC name…"
+                          onKeyDown={async (e) => {
+                            if (e.key === 'Enter' && e.target.value.trim()) {
+                              const name = e.target.value.trim()
+                              setNewDCName(name)
+                              await updateDynasty(currentDynasty.id, {
+                                pendingCoordinatorHires: {
+                                  ...currentDynasty.pendingCoordinatorHires,
+                                  filledDC: true,
+                                  newDCName: name,
+                                },
+                              })
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={async () => {
+                            const input = document.getElementById('new-dc-name')
+                            if (input?.value.trim()) {
+                              const name = input.value.trim()
+                              setNewDCName(name)
+                              await updateDynasty(currentDynasty.id, {
+                                pendingCoordinatorHires: {
+                                  ...currentDynasty.pendingCoordinatorHires,
+                                  filledDC: true,
+                                  newDCName: name,
+                                },
+                              })
+                            }
+                          }}
+                          className="btn-refined btn-refined--solid"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                    </>
+                  ) : null
                   bw2Todos.push({
                     key: 'coord-vacancy',
+                    belowContent: coordNamePanels,
                     done: false,
                     title: `Fill Coordinator ${firedOC && firedDC ? 'Vacancies' : 'Vacancy'}`,
-                    subtitle: askingPos
+                    subtitle: coordNamePanels
+                      ? `Enter the new ${(showCoordinator && firedOC && filledOCVacancy === true && !newOCName) ? 'OC' : 'DC'}'s name`
+                      : askingPos
                       ? `Has the ${askingPos} vacancy been filled? (Fired ${askingFiredName})`
                       : coordAllAnswered
                         ? `${firedOC ? (coordOcFilled ? `OC: ${newOCName}` : 'OC: Not filled yet') : ''}${firedOC && firedDC ? ' • ' : ''}${firedDC ? (coordDcFilled ? `DC: ${newDCName}` : 'DC: Not filled yet') : ''}`
@@ -5615,102 +5717,6 @@ export default function Dashboard() {
                       new-job row (belowContent); only the coordinator-name
                       step below still renders after the list. */}
 
-                  {/* Coordinator vacancy mid-flow panels — initial
-                      Yes/Not Yet for each pending position lives inline
-                      on the coord-vacancy row; only the new-name input
-                      step renders here. */}
-                  {showCoordinator && firedOC && filledOCVacancy === true && !newOCName && (
-                    <div className="media-card mt-3 px-3 py-3 sm:px-5 sm:py-4">
-                      <p className="mb-2 text-xs sm:text-sm text-txt-secondary">Enter new OC name:</p>
-                      <div className="flex gap-2 max-w-sm">
-                        <input
-                          type="text"
-                          id="new-oc-name"
-                          className="flex-1 px-3 py-2 rounded-lg border border-surface-4 bg-surface-1 text-txt-primary placeholder:text-txt-tertiary focus:outline-none focus:border-surface-5"
-                          aria-label="New OC name"
-                          placeholder="New OC name…"
-                          onKeyDown={async (e) => {
-                            if (e.key === 'Enter' && e.target.value.trim()) {
-                              const name = e.target.value.trim()
-                              setNewOCName(name)
-                              await updateDynasty(currentDynasty.id, {
-                                pendingCoordinatorHires: {
-                                  ...currentDynasty.pendingCoordinatorHires,
-                                  filledOC: true,
-                                  newOCName: name,
-                                },
-                              })
-                            }
-                          }}
-                        />
-                        <button
-                          onClick={async () => {
-                            const input = document.getElementById('new-oc-name')
-                            if (input?.value.trim()) {
-                              const name = input.value.trim()
-                              setNewOCName(name)
-                              await updateDynasty(currentDynasty.id, {
-                                pendingCoordinatorHires: {
-                                  ...currentDynasty.pendingCoordinatorHires,
-                                  filledOC: true,
-                                  newOCName: name,
-                                },
-                              })
-                            }
-                          }}
-                          className="btn-refined btn-refined--solid"
-                        >
-                          Save
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  {showCoordinator && firedDC && coordOcAnswered && filledDCVacancy === true && !newDCName && (
-                    <div className="media-card mt-3 px-3 py-3 sm:px-5 sm:py-4">
-                      <p className="mb-2 text-xs sm:text-sm text-txt-secondary">Enter new DC name:</p>
-                      <div className="flex gap-2 max-w-sm">
-                        <input
-                          type="text"
-                          id="new-dc-name"
-                          className="flex-1 px-3 py-2 rounded-lg border border-surface-4 bg-surface-1 text-txt-primary placeholder:text-txt-tertiary focus:outline-none focus:border-surface-5"
-                          aria-label="New DC name"
-                          placeholder="New DC name…"
-                          onKeyDown={async (e) => {
-                            if (e.key === 'Enter' && e.target.value.trim()) {
-                              const name = e.target.value.trim()
-                              setNewDCName(name)
-                              await updateDynasty(currentDynasty.id, {
-                                pendingCoordinatorHires: {
-                                  ...currentDynasty.pendingCoordinatorHires,
-                                  filledDC: true,
-                                  newDCName: name,
-                                },
-                              })
-                            }
-                          }}
-                        />
-                        <button
-                          onClick={async () => {
-                            const input = document.getElementById('new-dc-name')
-                            if (input?.value.trim()) {
-                              const name = input.value.trim()
-                              setNewDCName(name)
-                              await updateDynasty(currentDynasty.id, {
-                                pendingCoordinatorHires: {
-                                  ...currentDynasty.pendingCoordinatorHires,
-                                  filledDC: true,
-                                  newDCName: name,
-                                },
-                              })
-                            }
-                          }}
-                          className="btn-refined btn-refined--solid"
-                        >
-                          Save
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </>
               )
             }
@@ -6399,11 +6405,113 @@ export default function Dashboard() {
                 const w34AskingDC = !!w34FiredDC && w34OcAnswered && filledDCVacancy === null
                 const w34AskingPos = w34AskingOC ? 'OC' : w34AskingDC ? 'DC' : null
                 const w34AskingFiredName = w34AskingOC ? w34FiredOC : w34AskingDC ? w34FiredDC : null
+                  // The new-name step renders under this row (belowContent)
+                  // rather than after the whole task list.
+                  const w34CoordNamePanels = (w34ShowCoordinator && w34FiredOC && filledOCVacancy === true && !newOCName) || (w34ShowCoordinator && w34FiredDC && (!w34FiredOC || filledOCVacancy !== null) && filledDCVacancy === true && !newDCName) ? (
+                    <>
+                
+                {w34ShowCoordinator && w34FiredOC && filledOCVacancy === true && !newOCName && (
+                  <div>
+                    <p className="mb-2 text-xs sm:text-sm text-txt-secondary">Enter new OC name:</p>
+                    <div className="flex gap-2 max-w-sm">
+                      <input
+                        type="text"
+                        id="new-oc-name-week34"
+                        className="flex-1 px-3 py-2 rounded-lg border border-surface-4 bg-surface-1 text-txt-primary placeholder:text-txt-tertiary focus:outline-none focus:border-surface-5"
+                        aria-label="New OC name"
+                        placeholder="New OC name…"
+                        onKeyDown={async (e) => {
+                          if (e.key === 'Enter' && e.target.value.trim()) {
+                            const name = e.target.value.trim()
+                            setNewOCName(name)
+                            await updateDynasty(currentDynasty.id, {
+                              pendingCoordinatorHires: {
+                                ...currentDynasty.pendingCoordinatorHires,
+                                filledOC: true,
+                                newOCName: name,
+                              },
+                            })
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={async () => {
+                          const input = document.getElementById('new-oc-name-week34')
+                          if (input?.value.trim()) {
+                            const name = input.value.trim()
+                            setNewOCName(name)
+                            await updateDynasty(currentDynasty.id, {
+                              pendingCoordinatorHires: {
+                                ...currentDynasty.pendingCoordinatorHires,
+                                filledOC: true,
+                                newOCName: name,
+                              },
+                            })
+                          }
+                        }}
+                        className="btn-refined btn-refined--solid"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {w34ShowCoordinator && w34FiredDC && (!w34FiredOC || filledOCVacancy !== null) && filledDCVacancy === true && !newDCName && (
+                  <div>
+                    <p className="mb-2 text-xs sm:text-sm text-txt-secondary">Enter new DC name:</p>
+                    <div className="flex gap-2 max-w-sm">
+                      <input
+                        type="text"
+                        id="new-dc-name-week34"
+                        className="flex-1 px-3 py-2 rounded-lg border border-surface-4 bg-surface-1 text-txt-primary placeholder:text-txt-tertiary focus:outline-none focus:border-surface-5"
+                        aria-label="New DC name"
+                        placeholder="New DC name…"
+                        onKeyDown={async (e) => {
+                          if (e.key === 'Enter' && e.target.value.trim()) {
+                            const name = e.target.value.trim()
+                            setNewDCName(name)
+                            await updateDynasty(currentDynasty.id, {
+                              pendingCoordinatorHires: {
+                                ...currentDynasty.pendingCoordinatorHires,
+                                filledDC: true,
+                                newDCName: name,
+                              },
+                            })
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={async () => {
+                          const input = document.getElementById('new-dc-name-week34')
+                          if (input?.value.trim()) {
+                            const name = input.value.trim()
+                            setNewDCName(name)
+                            await updateDynasty(currentDynasty.id, {
+                              pendingCoordinatorHires: {
+                                ...currentDynasty.pendingCoordinatorHires,
+                                filledDC: true,
+                                newDCName: name,
+                              },
+                            })
+                          }
+                        }}
+                        className="btn-refined btn-refined--solid"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                )}
+                    </>
+                  ) : null
                 w34Todos.push({
                   key: 'coord-vacancy-bw34',
+                    belowContent: w34CoordNamePanels,
                   done: false,
                   title: `Fill Coordinator ${w34FiredOC && w34FiredDC ? 'Vacancies' : 'Vacancy'}`,
-                  subtitle: w34AskingPos
+                  subtitle: w34CoordNamePanels
+                    ? `Enter the new ${(w34ShowCoordinator && w34FiredOC && filledOCVacancy === true && !newOCName) ? 'OC' : 'DC'}'s name`
+                    : w34AskingPos
                     ? `Has the ${w34AskingPos} vacancy been filled? (Fired ${w34AskingFiredName})`
                     : w34CoordAllAnswered
                       ? `${w34FiredOC ? (w34CoordOcFilled ? `OC: ${newOCName}` : 'OC: Not filled yet') : ''}${w34FiredOC && w34FiredDC ? ' • ' : ''}${w34FiredDC ? (w34CoordDcFilled ? `DC: ${newDCName}` : 'DC: Not filled yet') : ''}`
@@ -6485,102 +6593,6 @@ export default function Dashboard() {
                 </h2>
                 {renderTodoList({ todos: w34Todos, isViewOnly })}
 
-                {/* Coordinator vacancy mid-flow panels — initial
-                    Yes/Not Yet for each pending position lives inline on
-                    the coord-vacancy-bw34 row; only the new-name input
-                    step renders here. */}
-                {w34ShowCoordinator && w34FiredOC && filledOCVacancy === true && !newOCName && (
-                  <div className="media-card mt-3 px-3 py-3 sm:px-5 sm:py-4">
-                    <p className="mb-2 text-xs sm:text-sm text-txt-secondary">Enter new OC name:</p>
-                    <div className="flex gap-2 max-w-sm">
-                      <input
-                        type="text"
-                        id="new-oc-name-week34"
-                        className="flex-1 px-3 py-2 rounded-lg border border-surface-4 bg-surface-1 text-txt-primary placeholder:text-txt-tertiary focus:outline-none focus:border-surface-5"
-                        aria-label="New OC name"
-                        placeholder="New OC name…"
-                        onKeyDown={async (e) => {
-                          if (e.key === 'Enter' && e.target.value.trim()) {
-                            const name = e.target.value.trim()
-                            setNewOCName(name)
-                            await updateDynasty(currentDynasty.id, {
-                              pendingCoordinatorHires: {
-                                ...currentDynasty.pendingCoordinatorHires,
-                                filledOC: true,
-                                newOCName: name,
-                              },
-                            })
-                          }
-                        }}
-                      />
-                      <button
-                        onClick={async () => {
-                          const input = document.getElementById('new-oc-name-week34')
-                          if (input?.value.trim()) {
-                            const name = input.value.trim()
-                            setNewOCName(name)
-                            await updateDynasty(currentDynasty.id, {
-                              pendingCoordinatorHires: {
-                                ...currentDynasty.pendingCoordinatorHires,
-                                filledOC: true,
-                                newOCName: name,
-                              },
-                            })
-                          }
-                        }}
-                        className="btn-refined btn-refined--solid"
-                      >
-                        Save
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {w34ShowCoordinator && w34FiredDC && (!w34FiredOC || filledOCVacancy !== null) && filledDCVacancy === true && !newDCName && (
-                  <div className="media-card mt-3 px-3 py-3 sm:px-5 sm:py-4">
-                    <p className="mb-2 text-xs sm:text-sm text-txt-secondary">Enter new DC name:</p>
-                    <div className="flex gap-2 max-w-sm">
-                      <input
-                        type="text"
-                        id="new-dc-name-week34"
-                        className="flex-1 px-3 py-2 rounded-lg border border-surface-4 bg-surface-1 text-txt-primary placeholder:text-txt-tertiary focus:outline-none focus:border-surface-5"
-                        aria-label="New DC name"
-                        placeholder="New DC name…"
-                        onKeyDown={async (e) => {
-                          if (e.key === 'Enter' && e.target.value.trim()) {
-                            const name = e.target.value.trim()
-                            setNewDCName(name)
-                            await updateDynasty(currentDynasty.id, {
-                              pendingCoordinatorHires: {
-                                ...currentDynasty.pendingCoordinatorHires,
-                                filledDC: true,
-                                newDCName: name,
-                              },
-                            })
-                          }
-                        }}
-                      />
-                      <button
-                        onClick={async () => {
-                          const input = document.getElementById('new-dc-name-week34')
-                          if (input?.value.trim()) {
-                            const name = input.value.trim()
-                            setNewDCName(name)
-                            await updateDynasty(currentDynasty.id, {
-                              pendingCoordinatorHires: {
-                                ...currentDynasty.pendingCoordinatorHires,
-                                filledDC: true,
-                                newDCName: name,
-                              },
-                            })
-                          }
-                        }}
-                        className="btn-refined btn-refined--solid"
-                      >
-                        Save
-                      </button>
-                    </div>
-                  </div>
-                )}
               </>
             )
           })()}
