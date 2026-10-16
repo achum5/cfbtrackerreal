@@ -77,7 +77,7 @@ function SignIn({ onSignIn, onTryDemo, demoLoading }) {
       {/* Try-it-out: load a sample dynasty into local storage, no sign-in. */}
       <div className="flex items-center gap-3 my-4">
         <div className="flex-1 h-px bg-surface-4" />
-        <span className="label-xs text-txt-tertiary">or</span>
+        <span className="label-xs text-txt-tertiary bg-surface-1 px-2 rounded-sm">or</span>
         <div className="flex-1 h-px bg-surface-4" />
       </div>
 
@@ -93,20 +93,19 @@ function SignIn({ onSignIn, onTryDemo, demoLoading }) {
         <ContactCTA />
       </div>
 
-      <div className="flex items-center justify-center gap-3 mt-4 text-xs text-txt-tertiary">
-        <Link to="/privacy" className="hover:text-txt-secondary transition-colors">
-          Privacy Policy
-        </Link>
-        
-        <Link to="/terms" className="hover:text-txt-secondary transition-colors">
-          Terms of Service
-        </Link>
-        
-        <Link to="/contact" className="hover:text-txt-secondary transition-colors">
-          Contact
-        </Link>
-      </div>
     </>
+  )
+}
+
+// Legal links close the page (below the features list on phones). They
+// used to sit inside the sign-in block, which on phones is now mid-page.
+function LegalLinks() {
+  return (
+    <nav aria-label="Legal" className="flex items-center justify-center gap-4 text-xs text-txt-tertiary">
+      <Link to="/privacy" className="hover:text-txt-secondary transition-colors">Privacy Policy</Link>
+      <Link to="/terms" className="hover:text-txt-secondary transition-colors">Terms of Service</Link>
+      <Link to="/contact" className="hover:text-txt-secondary transition-colors">Contact</Link>
+    </nav>
   )
 }
 
@@ -199,10 +198,14 @@ export default function Login() {
           onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://i.imgur.com/e1iYDSZ.png' }}
         />
 
-        {/* Features + app preview carousel */}
-        <div className="w-full max-w-5xl flex flex-col lg:flex-row lg:items-start lg:justify-center gap-6 lg:gap-12">
+        {/* Features + app preview carousel. Below lg this row is
+            display:contents, so its two children join the page column and can
+            be ordered around the sign-in block: preview, then sign in, then
+            the features list. Sign in used to sit under the whole features
+            list on phones, more than a screen down. */}
+        <div className="contents lg:flex w-full max-w-5xl lg:flex-row lg:items-start lg:justify-center lg:gap-12 lg:order-1">
 
-          <div className="w-full max-w-sm flex-shrink-0 mx-auto lg:mx-0 order-2 lg:order-1">
+          <div className="w-full max-w-sm flex-shrink-0 mx-auto lg:mx-0 order-3 lg:order-1">
             <Features />
           </div>
 
@@ -246,8 +249,12 @@ export default function Login() {
         </div>
 
         {/* Sign in — centered below */}
-        <div className="w-full max-w-sm mx-auto">
+        <div className="w-full max-w-sm mx-auto order-2">
           <SignIn onSignIn={handleGoogleSignIn} onTryDemo={handleTryDemo} demoLoading={demoLoading} />
+        </div>
+
+        <div className="order-4 lg:order-3 rounded-md bg-surface-1/80 px-3 py-1.5">
+          <LegalLinks />
         </div>
       </div>
     </div>
