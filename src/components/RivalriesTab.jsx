@@ -635,7 +635,11 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
           )}
           <span className="font-bold text-base flex-1" style={{ color: bgText }}>{teamName}</span>
           {savedIndicator && <span className="text-xs opacity-70 mr-1" style={{ color: bgText }}>Saved</span>}
-          <button onClick={onClose} className="text-lg leading-none opacity-60 hover:opacity-100" style={{ color: bgText }}>×</button>
+          <button type="button" onClick={onClose} aria-label="Close" className="-mr-1.5 p-1.5 rounded-md opacity-70 hover:opacity-100 hover:bg-black/15 transition" style={{ color: bgText }}>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* Scrollable body. min-h-0 is required here — without it, a flex
@@ -954,7 +958,11 @@ function BrewingRivalryModal({ rivalTid, dynasty, teamName, logo, points, events
         <div className="px-5 py-4 flex items-center gap-3 flex-shrink-0" style={{ backgroundColor: bg }}>
           {logo && <img src={logo} alt={teamName} className="w-8 h-8 object-contain" />}
           <span className="font-bold text-base flex-1" style={{ color: bgText }}>{teamName}</span>
-          <button onClick={onClose} className="text-lg leading-none opacity-60 hover:opacity-100" style={{ color: bgText }}>×</button>
+          <button type="button" onClick={onClose} aria-label="Close" className="-mr-1.5 p-1.5 rounded-md opacity-70 hover:opacity-100 hover:bg-black/15 transition" style={{ color: bgText }}>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         <div className="overflow-y-auto flex-1 min-h-0">
