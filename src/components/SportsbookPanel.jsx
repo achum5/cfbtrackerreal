@@ -1033,14 +1033,18 @@ function LinesHeader() {
   )
 }
 
-function TeamRow({ logo, name, score, isPlayed, isWinner, fav, spread, ml, ou, total, vigOver, vigUnder, spreadHit, mlHit, totalHit, top }) {
+function TeamRow({ logo, name, abbr, score, isPlayed, isWinner, fav, spread, ml, ou, total, vigOver, vigUnder, spreadHit, mlHit, totalHit, top }) {
   return (
     <div className={`grid grid-cols-[1fr_repeat(3,64px)] items-stretch ${top ? '' : 'border-t border-surface-3'}`}>
       <div className="flex items-center gap-2 px-3 py-2.5 min-w-0">
         {logo
           ? <img src={logo} alt="" className="w-6 h-6 object-contain flex-shrink-0" />
           : <span className="w-6 h-6 flex-shrink-0" />}
-        <span className={`text-[13px] truncate ${isPlayed && isWinner ? 'text-txt-primary font-bold' : isPlayed ? 'text-txt-secondary font-semibold' : 'text-txt-primary font-semibold'}`}>{name}</span>
+        {/* Abbreviation on phones: the name column is ~90px beside three
+            64px odds columns, which cut names to 'Ball St...' / 'Wester...'. */}
+        <span className={`text-[13px] truncate ${isPlayed && isWinner ? 'text-txt-primary font-bold' : isPlayed ? 'text-txt-secondary font-semibold' : 'text-txt-primary font-semibold'}`} title={name}>
+          {abbr ? <><span className="sm:hidden">{abbr}</span><span className="hidden sm:inline">{name}</span></> : name}
+        </span>
         {isPlayed && (
           <span
             className="ml-auto pl-2 font-display tabular-nums text-lg flex-shrink-0"
@@ -1064,13 +1068,13 @@ function MatchupRows({ m, compact }) {
   return (
     <div>
       <TeamRow
-        top logo={m.awayLogo} name={compact ? m.awaySchool : m.awayName} score={m.awayScore} isPlayed={m.isPlayed}
+        top logo={m.awayLogo} name={compact ? m.awaySchool : m.awayName} abbr={m.awayAbbr} score={m.awayScore} isPlayed={m.isPlayed}
         isWinner={r?.ml === 'away'} fav={m.awayFav} spread={m.awaySpreadDisplay} ml={m.awayML}
         ou="O" total={m.totalData.total} vigOver={fmt(m.totalData.overVig)} vigUnder={fmt(m.totalData.underVig)}
         spreadHit={r?.spread === 'away'} mlHit={r?.ml === 'away'} totalHit={r?.total === 'over'}
       />
       <TeamRow
-        logo={m.homeLogo} name={compact ? m.homeSchool : m.homeName} score={m.homeScore} isPlayed={m.isPlayed}
+        logo={m.homeLogo} name={compact ? m.homeSchool : m.homeName} abbr={m.homeAbbr} score={m.homeScore} isPlayed={m.isPlayed}
         isWinner={r?.ml === 'home'} fav={m.homeFav} spread={m.homeSpreadDisplay} ml={m.homeML}
         ou="U" total={m.totalData.total} vigOver={fmt(m.totalData.overVig)} vigUnder={fmt(m.totalData.underVig)}
         spreadHit={r?.spread === 'home'} mlHit={r?.ml === 'home'} totalHit={r?.total === 'under'}
