@@ -24,17 +24,34 @@ const InfoIcon = ({ className }) => (
   </svg>
 )
 
-function Caption({ num, title, active, onToggle }) {
+// "Copy Prompt" reads "Copy" on the narrowest phones so all three steps fit
+// on one row; custom labels pass through untouched.
+function CopyLabel({ text }) {
+  if (text !== 'Copy Prompt') return text
   return (
-    <div className="flex items-center gap-1 sm:gap-1.5 h-4">
-      <span className="text-[10px] sm:text-[11px] font-bold tabular text-txt-secondary">{num}</span>
-      <span className="text-[10px] sm:text-[11px] font-medium text-txt-tertiary whitespace-nowrap">{title}</span>
+    <>
+      <span className="min-[400px]:hidden">Copy</span>
+      <span className="hidden min-[400px]:inline">Copy Prompt</span>
+    </>
+  )
+}
+
+function Caption({ num, title, active, onToggle }) {
+  // One inline text run (number, title, info dot) so a wrapped caption reads
+  // naturally. On phones it takes its step's width — set by the button below
+  // it, via w-0 + min-w-full — and wraps, instead of widening the step: three
+  // nowrap captions made the row wider than the modal, and the centered row
+  // clipped both ends.
+  return (
+    <div className="w-0 min-w-full sm:w-auto sm:min-w-0 sm:h-4 sm:whitespace-nowrap text-[10px] sm:text-[11px] leading-tight">
+      <span className="font-bold tabular text-txt-secondary mr-1">{num}</span>
+      <span className="font-medium text-txt-tertiary">{title}</span>
       <button
         type="button"
         onClick={onToggle}
         aria-label={`What do I do in step ${num}?`}
         aria-pressed={active}
-        className={`transition-colors ${active ? 'text-txt-primary' : 'text-txt-tertiary/50 hover:text-txt-secondary'}`}
+        className={`inline-flex align-[-2px] ml-1 transition-colors ${active ? 'text-txt-primary' : 'text-txt-tertiary/50 hover:text-txt-secondary'}`}
       >
         <InfoIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
       </button>
@@ -65,7 +82,7 @@ const menuStyle = (rect, minWidth, measuredWidth) => {
 
 // A hairline chevron between steps, aligned to the control row (not the caption).
 const Chevron = () => (
-  <svg className="hidden min-[380px]:block self-end mb-2 sm:mb-2.5 w-3 h-3 sm:w-4 sm:h-4 text-txt-tertiary/40 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <svg className="hidden min-[440px]:block self-end mb-2 sm:mb-2.5 w-3 h-3 sm:w-4 sm:h-4 text-txt-tertiary/40 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M9 6l6 6-6 6" />
   </svg>
 )
@@ -203,7 +220,7 @@ export default function PasteEntrySteps({
 
   return (
     <div className="flex-shrink-0">
-      <div className="flex flex-row items-end justify-center gap-1.5 sm:gap-3">
+      <div className="flex flex-row items-end [justify-content:safe_center] gap-2 sm:gap-3 overflow-x-auto no-scrollbar">
         {/* Step 1 — screenshot & copy */}
         <div className="flex flex-col gap-2">
           <Caption num="1" title={label.copy} active={openInfo === 'screenshot'} onToggle={() => toggleInfo('screenshot')} />
@@ -212,13 +229,13 @@ export default function PasteEntrySteps({
               {copyLeading}
               <button type="button" onClick={copyPrompt} disabled={!aiPrompt} className={WHITE_BTN} style={WHITE_STYLE}>
                 {copyEmoji && <span className="text-base leading-none" role="img" aria-label="Screenshot">{copyEmoji}</span>}
-                {copied ? 'Copied!' : label.copyButton}
+                {copied ? 'Copied!' : <CopyLabel text={label.copyButton} />}
               </button>
             </div>
           ) : (
             <button type="button" onClick={copyPrompt} disabled={!aiPrompt} className={`rounded-md ${WHITE_BTN}`} style={WHITE_STYLE}>
               {copyEmoji && <span className="text-base leading-none" role="img" aria-label="Screenshot">{copyEmoji}</span>}
-              {copied ? 'Copied!' : label.copyButton}
+              {copied ? 'Copied!' : <CopyLabel text={label.copyButton} />}
             </button>
           )}
         </div>
