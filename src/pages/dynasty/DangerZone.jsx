@@ -3127,7 +3127,7 @@ export default function DangerZone() {
                 disabled={statsSyncStatus === 'running'}
                 className="w-full"
               >
-                {statsSyncStatus === 'running' ? 'Syncing...' : 'Sync Stats'}
+                {statsSyncStatus === 'running' ? 'Syncing…' : 'Sync Stats'}
               </Button>
               <StatusLine status={statsSyncStatus} />
             </div>
@@ -3790,7 +3790,7 @@ export default function DangerZone() {
                 onClick={handleSyncGamesFromRankByWeek}
                 disabled={syncGamesStatus === 'running'}
               >
-                {syncGamesStatus === 'running' ? 'Syncing...' : 'Sync Games (from Top 25)'}
+                {syncGamesStatus === 'running' ? 'Syncing…' : 'Sync Games (from Top 25)'}
               </Button>
             </div>
             <p className="text-[11px] text-txt-tertiary mt-1">

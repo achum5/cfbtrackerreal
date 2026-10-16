@@ -757,7 +757,7 @@ export default function PlayerEdit() {
     try {
       setUploading(true)
       const base64 = await compressImage(file)
-      setUploadStatus('Uploading...')
+      setUploadStatus('Uploading…')
       const url = await uploadImage(base64)
       setFormData(prev => ({ ...prev, pictureUrl: url }))
       setShowImageUpload(false)
@@ -1153,7 +1153,7 @@ export default function PlayerEdit() {
   if (!dynasty) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="text-txt-muted">Loading...</div>
+        <div className="text-txt-muted">Loading…</div>
       </div>
     )
   }
@@ -1350,7 +1350,7 @@ export default function PlayerEdit() {
                     {uploading && (
                       <div className="mt-2 flex items-center justify-center gap-2">
                         <div className="w-3 h-3 border-2 border-surface-5 border-t-transparent rounded-full animate-spin" />
-                        <span className="text-xs text-txt-primary">{uploadStatus || 'Uploading...'}</span>
+                        <span className="text-xs text-txt-primary">{uploadStatus || 'Uploading…'}</span>
                       </div>
                     )}
                   </div>

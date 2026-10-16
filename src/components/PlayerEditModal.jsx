@@ -1199,7 +1199,7 @@ export default function PlayerEditModalNew({
                     disabled={uploading}
                     className="flex-1 px-3 py-2 bg-surface-3 text-white rounded-lg text-sm font-medium hover:bg-surface-3 disabled:opacity-50"
                   >
-                    {uploading ? 'Uploading...' : 'Upload Image'}
+                    {uploading ? 'Uploading…' : 'Upload Image'}
                   </button>
                   <button
                     type="button"

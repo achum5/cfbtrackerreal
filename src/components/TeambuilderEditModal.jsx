@@ -430,7 +430,7 @@ export default function TeambuilderEditModal({
                   color: primaryTextColor
                 }}
               >
-                {saving ? 'Saving...' : isAddMode ? 'Add Team' : 'Save Changes'}
+                {saving ? 'Saving…' : isAddMode ? 'Add Team' : 'Save Changes'}
               </button>
               <button
                 type="button"

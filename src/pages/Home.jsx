@@ -1111,7 +1111,7 @@ export default function Home() {
             disabled={confirmText !== dynastyToDelete?.teamName || deletingDynastyId}
             onClick={handleFinalConfirmDelete}
           >
-            {deletingDynastyId ? 'Deleting...' : 'Permanently Delete'}
+            {deletingDynastyId ? 'Deleting…' : 'Permanently Delete'}
           </Button>
           <Button variant="outline" className="flex-1" onClick={handleCancelFinalConfirm} disabled={deletingDynastyId}>
             Cancel
@@ -1173,7 +1173,7 @@ export default function Home() {
             disabled={deleteAllConfirmText !== 'DELETE ALL' || deletingAll}
             onClick={handleDeleteAllConfirm2}
           >
-            {deletingAll ? 'Deleting...' : `Delete ${nonStarredDynasties.length} ${nonStarredDynasties.length === 1 ? 'Dynasty' : 'Dynasties'}`}
+            {deletingAll ? 'Deleting…' : `Delete ${nonStarredDynasties.length} ${nonStarredDynasties.length === 1 ? 'Dynasty' : 'Dynasties'}`}
           </Button>
           <Button variant="outline" className="flex-1" onClick={handleCancelDeleteAll} disabled={deletingAll}>
             Cancel

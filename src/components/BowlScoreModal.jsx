@@ -252,7 +252,7 @@ export default function BowlScoreModal({ isOpen, onClose, onSave, currentYear, c
               backgroundColor: modalColors.accent
             }}
           >
-            {saving ? 'Saving...' : 'Save Results'}
+            {saving ? 'Saving…' : 'Save Results'}
           </button>
           <button
             onClick={handleClose}

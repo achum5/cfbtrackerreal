@@ -260,7 +260,7 @@ export default function CFPBracket() {
   }, [bracketBoxWidth])
 
   if (!currentDynasty) {
-    return <div className="p-6">Loading...</div>
+    return <div className="p-6">Loading…</div>
   }
 
   // Get available years that have CFP seeds data (most recent first)

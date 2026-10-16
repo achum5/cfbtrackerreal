@@ -636,7 +636,7 @@ export default function Account() {
             onClick={handleDeleteAccount}
             disabled={deleting}
           >
-            {deleting ? 'Deleting...' : 'Delete Account'}
+            {deleting ? 'Deleting…' : 'Delete Account'}
           </Button>
         </Card>
 

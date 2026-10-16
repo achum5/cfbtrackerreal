@@ -145,7 +145,7 @@ export default function RecruitingClassRankModal({
             className="px-5 py-2 rounded-lg font-semibold hover:opacity-90 disabled:opacity-50"
             style={{ backgroundColor: modalColors.text, color: modalColors.background }}
           >
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>
