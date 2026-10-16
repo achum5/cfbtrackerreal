@@ -5679,7 +5679,8 @@ export default function TeamYear() {
                           </span>
                         )}
                         <span className="text-sm font-semibold truncate" style={{ color: rowText }}>
-                          {oppMascot || displayOpponent}
+                          <span className="sm:hidden">{getSchoolName(oppMascot) || oppMascot || displayOpponent}</span>
+                          <span className="hidden sm:inline">{oppMascot || displayOpponent}</span>
                         </span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">

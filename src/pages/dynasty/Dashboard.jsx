@@ -13,7 +13,7 @@ import { StatRings } from '../../components/CfbUI'
 import { getPlayerStatsForTid, getTeamStatsForTid, hasAnyPlayerStats, hasAnyTeamStats } from '../../utils/boxScoreHelpers'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { TEAMS, getFBSTeamTids, resolveTid, getTeamByAbbr, getTidFromAbbr, getTidFromTeamName, setTeamYearField, getCurrentTeamTid, getCurrentTeamAbbr, getOriginalTeamAbbr, getGameTeamInfo, getGameOpponentInfo, getAbbrFromTeamName, getNameByAbbr, setPendingUserTeam, clearPendingUserTeam, getPendingUserTeamTid, getUserTeamTid } from '../../data/teamRegistry'
-import { getTeamLogo, getTeamLogoByTid } from '../../data/teams'
+import { getTeamLogo, getTeamLogoByTid, stripMascotFromName } from '../../data/teams'
 import PlayerAvatar from '../../components/PlayerAvatar'
 import { getTeamColors } from '../../data/teamColors'
 import { getTeamConference } from '../../data/conferenceTeams'
@@ -8387,8 +8387,11 @@ export default function Dashboard() {
                                   #{opponentRank}
                                 </span>
                               )}
+                              {/* School only on phones (the full 'Appalachian State
+                                  Mountaineers' was cut off); full name from sm up. */}
                               <span className="text-sm font-semibold text-white truncate">
-                                {opponentName}
+                                <span className="sm:hidden">{stripMascotFromName(opponentName) || opponentName}</span>
+                                <span className="hidden sm:inline">{opponentName}</span>
                               </span>
                             </div>
                             <span className="text-[10px] text-white/70">
@@ -8496,7 +8499,7 @@ export default function Dashboard() {
                             {ccOppLogo ? <img src={ccOppLogo} alt={ccOppName} className="w-full h-full object-contain" /> : <span className="text-xs font-bold" style={{ color: ccOppColors.backgroundColor }}>{String(ccOppTid)?.slice(0, 3)}</span>}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <span className="text-sm font-semibold text-white truncate block">{ccOppName}</span>
+                            <span className="text-sm font-semibold text-white truncate block"><span className="sm:hidden">{stripMascotFromName(ccOppName) || ccOppName}</span><span className="hidden sm:inline">{ccOppName}</span></span>
                             <span className="text-[10px] text-white/70">Conf Championship</span>
                           </div>
                           <div className="flex items-center gap-2">
@@ -8544,7 +8547,7 @@ export default function Dashboard() {
                             {bowlOppLogo ? <img src={bowlOppLogo} alt={bowlOppName} className="w-full h-full object-contain" /> : <span className="text-xs font-bold" style={{ color: bowlOppColors.backgroundColor }}>{String(bowlOppTid)?.slice(0, 3)}</span>}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <span className="text-sm font-semibold text-white truncate block">{bowlOppName}</span>
+                            <span className="text-sm font-semibold text-white truncate block"><span className="sm:hidden">{stripMascotFromName(bowlOppName) || bowlOppName}</span><span className="hidden sm:inline">{bowlOppName}</span></span>
                             <span className="text-[10px] text-white/70">{bowlGame.bowlName || 'Bowl Game'}</span>
                           </div>
                           <div className="flex items-center gap-2">

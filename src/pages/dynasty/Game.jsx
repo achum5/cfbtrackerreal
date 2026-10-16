@@ -2902,7 +2902,8 @@ export default function Game() {
                               </div>
                               <div className="flex-1 min-w-0 flex items-center gap-4">
                                 <div className="flex-1 min-w-0 text-[13px] font-semibold truncate group-hover:underline" style={{ color: txt }}>
-                                  {team.name}
+                                  <span className="sm:hidden">{stripMascotFromName(team.name) || team.name}</span>
+                                  <span className="hidden sm:inline">{team.name}</span>
                                 </div>
                                 <div className="flex items-center gap-3 flex-shrink-0">
                                   {cell('OVR', ratings.ovr, 'ovr')}

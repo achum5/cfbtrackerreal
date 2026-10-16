@@ -350,7 +350,9 @@ export default function BowlHistory() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="font-display font-bold text-txt-primary truncate text-base leading-tight">
+                    {/* Two lines before an ellipsis: long names ('Famous Idaho
+                        Potato Bowl') were cut off on phones. */}
+                    <div className="font-display font-bold text-txt-primary line-clamp-2 text-base leading-tight">
                       {bowlName}
                     </div>
                   </div>
