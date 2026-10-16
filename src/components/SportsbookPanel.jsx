@@ -1214,7 +1214,9 @@ function FutureRow({ row, dynasty, year, pathPrefix, rank, record, oddsFor, top 
           ? <img src={logo} alt="" className="w-full h-full object-contain" />
           : <span className="font-display font-black text-xs" style={{ color: primary }}>{(getTeamAbbr(dynasty, tid) || '?').charAt(0)}</span>}
       </div>
-      <span className="flex-1 min-w-0 truncate font-display font-bold uppercase tracking-tight leading-none"
+      {/* Two lines before an ellipsis ('Southern Miss', 'Middle Tennessee'
+          were cut off on phones); fits inside the 34px logo's row height. */}
+      <span className="flex-1 min-w-0 line-clamp-2 font-display font-bold uppercase tracking-tight leading-[1.05]"
         style={{ color: txt, fontSize: '0.95rem', letterSpacing: '0.01em', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{school}</span>
       {record && (
         <span className="tabular-nums flex-shrink-0 font-display font-semibold"
