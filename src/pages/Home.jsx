@@ -762,7 +762,9 @@ export default function Home() {
               <div
                 className="mb-4 rounded-lg border p-4 flex items-start justify-between gap-4"
                 style={{
-                  backgroundColor: storagePersisted === false ? 'rgba(245,158,11,0.10)' : 'var(--surface-2)',
+                  // Opaque (tint mixed into surface-2) so the logo wall behind the page
+                  // doesn't show through the warning text.
+                  backgroundColor: storagePersisted === false ? 'color-mix(in srgb, var(--accent-warning) 10%, var(--surface-2))' : 'var(--surface-2)',
                   borderColor: storagePersisted === false ? 'rgba(245,158,11,0.35)' : 'var(--surface-4)',
                 }}
               >

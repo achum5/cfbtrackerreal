@@ -26,8 +26,14 @@ const STAR_COLS = [
 // screen); the class score reuses calculateRecruitingClassScore
 // (src/utils/recruitingScore.js), the SAME formula the app already uses
 // for the user's own class — not a new one.
-export function TopClassesBody({ dynasty, year, pathPrefix }) {
-  const [scope, setScope] = useState('national')
+// `scope` / `onScopeChange` are optional: the standalone page drives them
+// from its header tab strip; embedded (Recruiting) it keeps its own toggle.
+export const TOP_CLASSES_SCOPES = [{ key: 'national', label: 'National' }, { key: 'conference', label: 'Conference' }]
+export function TopClassesBody({ dynasty, year, pathPrefix, scope: scopeProp, onScopeChange }) {
+  const [scopeState, setScopeState] = useState('national')
+  const controlled = scopeProp != null
+  const scope = controlled ? scopeProp : scopeState
+  const setScope = controlled ? (onScopeChange || (() => {})) : setScopeState
   const teamsSource = dynasty?.teams || {}
   const customConferences = getCustomConferencesForYear(dynasty, year)
 
@@ -110,9 +116,9 @@ export function TopClassesBody({ dynasty, year, pathPrefix }) {
   )
 
   const hasData = rows.length > 0
-  const tabs = (
+  const tabs = controlled ? null : (
     <div className="flex gap-1 mb-3">
-      {[{ key: 'national', label: 'National' }, { key: 'conference', label: 'Conference' }].map((t) => (
+      {TOP_CLASSES_SCOPES.map((t) => (
         <button
           key={t.key}
           type="button"
@@ -191,6 +197,7 @@ export default function TopClasses() {
   const navigate = useNavigate()
   const { currentDynasty } = useDynasty()
   const pathPrefix = usePathPrefix()
+  const [scope, setScope] = useState('national')
 
   if (!currentDynasty) return null
 
@@ -204,8 +211,11 @@ export default function TopClasses() {
     <div className="space-y-6">
       <PageHero
         title={<TitleWithYear year={displayYear} years={availableYears} onChange={handleYearChange} label="Top Classes" />}
+        tabs={TOP_CLASSES_SCOPES}
+        activeTab={scope}
+        onTabChange={setScope}
       />
-      <TopClassesBody dynasty={currentDynasty} year={displayYear} pathPrefix={pathPrefix} />
+      <TopClassesBody dynasty={currentDynasty} year={displayYear} pathPrefix={pathPrefix} scope={scope} onScopeChange={setScope} />
     </div>
   )
 }
