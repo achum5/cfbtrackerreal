@@ -2510,9 +2510,11 @@ export default function GameEdit() {
                   value={formData.location}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                 >
-                  <option value="home">{team1Name} Home</option>
-                  <option value="away">{team2Name} Home</option>
-                  <option value="neutral">Neutral Site</option>
+                  {/* "At Kentucky" rather than "Kentucky Wildcats Home", which
+                      was cut off in the half-width field on phones. */}
+                  <option value="home">At {stripMascotFromName(team1Name) || team1Name}</option>
+                  <option value="away">At {stripMascotFromName(team2Name) || team2Name}</option>
+                  <option value="neutral">Neutral site</option>
                 </Select>
               </div>
               <div>
