@@ -67,8 +67,12 @@ const Button = forwardRef(function Button(
       // Destructive but not the main action on the screen (e.g. Delete next
       // to Save) — red text + red-tinted border instead of a solid red fill
       // competing with the primary button.
-      variantClass = 'bg-transparent border text-danger hover:bg-surface-3 focus-visible:ring-danger'
-      style = { borderColor: 'color-mix(in srgb, var(--accent-error) 45%, var(--surface-4))' }
+      variantClass = 'bg-transparent border hover:bg-surface-3 focus-visible:ring-danger'
+      style = {
+        borderColor: 'color-mix(in srgb, var(--accent-error) 45%, var(--surface-4))',
+        // Lifted toward white: raw accent-error is ~4:1 on cards at 14px.
+        color: 'color-mix(in srgb, var(--accent-error) 78%, #ffffff)',
+      }
       break
     case 'outline':
       variantClass = 'bg-transparent border border-surface-5 text-txt-primary hover:bg-surface-3 focus-visible:ring-surface-5'

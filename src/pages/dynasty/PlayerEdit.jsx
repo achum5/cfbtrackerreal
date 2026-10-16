@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useId, isValidElement, cloneElement } from 'react'
 import { STATE_CODES, normalizeStateCode } from '../../data/usStates'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { resolvePortraitUrl } from '../../utils/imageProxy'
@@ -77,10 +77,20 @@ const FIELD = 'w-full px-3 py-2.5 text-sm rounded-md border border-surface-4 bg-
 const FIELD_SM = 'w-full px-2.5 py-2 text-sm rounded-md border border-surface-4 bg-surface-2 focus:border-surface-5 focus:outline-none transition-colors text-txt-primary'
 
 function Field({ label, hint, className = '', children }) {
+  // Tie the label to its control so clicking the label focuses it and
+  // screen readers announce the field's name. Only a single native
+  // input/select/textarea child without its own id gets one; anything else
+  // renders unchanged.
+  const autoId = useId()
+  const linkable = isValidElement(children)
+    && ['input', 'select', 'textarea'].includes(children.type)
+    && !children.props.id
+  const control = linkable ? cloneElement(children, { id: autoId }) : children
+  const controlId = linkable ? autoId : children?.props?.id
   return (
     <div className={className}>
-      <label className="block label-xs mb-1.5">{label}</label>
-      {children}
+      <label className="block label-xs mb-1.5" htmlFor={controlId}>{label}</label>
+      {control}
       {hint && <p className="text-[11px] text-txt-tertiary mt-1 mb-0">{hint}</p>}
     </div>
   )

@@ -358,7 +358,7 @@ function PlayerInner() {
       <th
         key={column}
         className={`px-1.5 py-2.5 text-xs font-semibold uppercase cursor-pointer select-none transition-opacity hover:opacity-70 ${widthClass} text-${align}`}
-        style={{ color: 'var(--text-tertiary)', opacity: isActive ? 1 : 0.7 }}
+        style={{ color: 'var(--text-tertiary)' }}
         onClick={() => handleStatSort(category, column)}
         title={`Sort by ${label}`}
       >
@@ -1578,7 +1578,7 @@ function PlayerInner() {
               onClick={() => navigate(`${pathPrefix}/game/${game.gameId}`)}
             >
               {/* Year column -> week */}
-              <td className="px-1.5 py-1.5 text-[11px] tabular-nums" style={{ color: secondaryText, opacity: 0.8 }}>
+              <td className="px-1.5 py-1.5 text-[11px] tabular-nums" style={{ color: secondaryText }}>
                 {game.week || '-'}
               </td>
               {/* Class column -> result + score, the natural "what happened" slot */}
@@ -1702,7 +1702,7 @@ function PlayerInner() {
           <span
             className="text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded"
             style={{
-              backgroundColor: recruitmentInfo.gemBust.toLowerCase() === 'gem' ? '#10B981' : '#EF4444',
+              backgroundColor: recruitmentInfo.gemBust.toLowerCase() === 'gem' ? '#047857' : '#B91C1C',
               color: 'white',
               letterSpacing: '1.5px'
             }}
@@ -3778,7 +3778,7 @@ function PlayerInner() {
                   <span
                     className="text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded"
                     style={{
-                      backgroundColor: rn.gemBust.toLowerCase() === 'gem' ? '#10B981' : '#EF4444',
+                      backgroundColor: rn.gemBust.toLowerCase() === 'gem' ? '#047857' : '#B91C1C',
                       color: 'white',
                       letterSpacing: '1.5px'
                     }}
@@ -4173,7 +4173,7 @@ function PlayerInner() {
                         <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
                           {renderSortableHeader('passing', 'year', 'Year', 'left', colWidths.year)}
                           {renderSortableHeader('passing', 'class', 'Class', 'left', colWidths.class)}
-                          <th className={`px-1.5 py-2.5 text-xs font-semibold uppercase text-center ${colWidths.team}`} style={{ color: secondaryText, opacity: 0.8 }}>Team</th>
+                          <th className={`px-1.5 py-2.5 text-xs font-semibold uppercase text-center ${colWidths.team}`} style={{ color: secondaryText }}>Team</th>
                           {primaryStat === 'passing' && renderSortableHeader('passing', 'gamesPlayed', 'G', 'right', colWidths.statNarrow)}
                           {renderSortableHeader('passing', 'av', 'AV', 'right', colWidths.statNarrow)}
                           {renderSortableHeader('passing', 'att', 'Cmp/Att', 'right', 'w-[88px]')}
@@ -4287,7 +4287,7 @@ function PlayerInner() {
                         <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
                           {renderSortableHeader('rushing', 'year', 'Year', 'left', colWidths.year)}
                           {renderSortableHeader('rushing', 'class', 'Class', 'left', colWidths.class)}
-                          <th className={`px-1.5 py-2.5 text-xs font-semibold uppercase text-center ${colWidths.team}`} style={{ color: secondaryText, opacity: 0.8 }}>Team</th>
+                          <th className={`px-1.5 py-2.5 text-xs font-semibold uppercase text-center ${colWidths.team}`} style={{ color: secondaryText }}>Team</th>
                           {primaryStat === 'rushing' && renderSortableHeader('rushing', 'gamesPlayed', 'G', 'right', colWidths.statNarrow)}
                           {renderSortableHeader('rushing', 'av', 'AV', 'right', colWidths.statNarrow)}
                           {renderSortableHeader('rushing', 'car', 'Car', 'right', colWidths.statMedium)}
@@ -4399,7 +4399,7 @@ function PlayerInner() {
                         <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
                           {renderSortableHeader('receiving', 'year', 'Year', 'left', colWidths.year)}
                           {renderSortableHeader('receiving', 'class', 'Class', 'left', colWidths.class)}
-                          <th className={`px-1.5 py-2.5 text-xs font-semibold uppercase text-center ${colWidths.team}`} style={{ color: secondaryText, opacity: 0.8 }}>Team</th>
+                          <th className={`px-1.5 py-2.5 text-xs font-semibold uppercase text-center ${colWidths.team}`} style={{ color: secondaryText }}>Team</th>
                           {primaryStat === 'receiving' && renderSortableHeader('receiving', 'gamesPlayed', 'G', 'right', colWidths.statNarrow)}
                           {renderSortableHeader('receiving', 'av', 'AV', 'right', colWidths.statNarrow)}
                           {renderSortableHeader('receiving', 'rec', 'Rec', 'right', colWidths.statMedium)}
@@ -4502,7 +4502,7 @@ function PlayerInner() {
                         <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
                           {renderSortableHeader('blocking', 'year', 'Year', 'left', 'w-14')}
                           {renderSortableHeader('blocking', 'class', 'Class', 'left', 'w-16')}
-                          <th className="px-2 py-2.5 text-xs font-semibold uppercase text-center w-12" style={{ color: secondaryText, opacity: 0.8 }}>Team</th>
+                          <th className="px-2 py-2.5 text-xs font-semibold uppercase text-center w-12" style={{ color: secondaryText }}>Team</th>
                           {primaryStat === 'blocking' && renderSortableHeader('blocking', 'gamesPlayed', 'G', 'right')}
                           {renderSortableHeader('blocking', 'av', 'AV', 'right')}
                           {renderSortableHeader('blocking', 'sacksAllowed', 'Sacks Allowed', 'right')}
@@ -4528,7 +4528,7 @@ function PlayerInner() {
                                   {y.year}
                                   {isGameLogExpanded(y.year, 'blocking') && <span className="ml-1 text-xs">▼</span>}
                                 </td>
-                                <td className="px-2 py-2.5 w-16" style={{ color: secondaryText, opacity: 0.8 }}>{y.class}</td>
+                                <td className="px-2 py-2.5 w-16" style={{ color: secondaryText }}>{y.class}</td>
                                 <td className="px-2 py-2 text-center w-12">
                                   <Link to={`${pathPrefix}/team/${rowTid}/${y.year}`} className="hover:opacity-70 transition-opacity">
                                     {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
@@ -4586,7 +4586,7 @@ function PlayerInner() {
                         <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
                           {renderSortableHeader('defense', 'year', 'Year', 'left', 'w-14')}
                           {renderSortableHeader('defense', 'class', 'Class', 'left', 'w-16')}
-                          <th className="px-2 py-2.5 text-xs font-semibold uppercase text-center w-12" style={{ color: secondaryText, opacity: 0.8 }}>Team</th>
+                          <th className="px-2 py-2.5 text-xs font-semibold uppercase text-center w-12" style={{ color: secondaryText }}>Team</th>
                           {primaryStat === 'defense' && renderSortableHeader('defense', 'gamesPlayed', 'G', 'right')}
                           {renderSortableHeader('defense', 'av', 'AV', 'right')}
                           {renderSortableHeader('defense', 'solo', 'Solo', 'right')}
@@ -4622,7 +4622,7 @@ function PlayerInner() {
                                   {y.year}
                                   {isGameLogExpanded(y.year, 'defense') && <span className="ml-1 text-xs">▼</span>}
                                 </td>
-                                <td className="px-2 py-2.5 w-16" style={{ color: secondaryText, opacity: 0.8 }}>{y.class}</td>
+                                <td className="px-2 py-2.5 w-16" style={{ color: secondaryText }}>{y.class}</td>
                                 <td className="px-2 py-2 text-center w-12">
                                   <Link to={`${pathPrefix}/team/${rowTid}/${y.year}`} className="hover:opacity-70 transition-opacity">
                                     {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
@@ -4701,7 +4701,7 @@ function PlayerInner() {
                         <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
                           {renderSortableHeader('kicking', 'year', 'Year', 'left', 'w-14')}
                           {renderSortableHeader('kicking', 'class', 'Class', 'left', 'w-16')}
-                          <th className="px-2 py-2.5 text-xs font-semibold uppercase text-center w-12" style={{ color: secondaryText, opacity: 0.8 }}>Team</th>
+                          <th className="px-2 py-2.5 text-xs font-semibold uppercase text-center w-12" style={{ color: secondaryText }}>Team</th>
                           {primaryStat === 'kicking' && renderSortableHeader('kicking', 'gamesPlayed', 'G', 'right')}
                           {renderSortableHeader('kicking', 'av', 'AV', 'right')}
                           {renderSortableHeader('kicking', 'fgm', 'FGM', 'right')}
@@ -4733,7 +4733,7 @@ function PlayerInner() {
                                   {y.year}
                                   {isGameLogExpanded(y.year, 'kicking') && <span className="ml-1 text-xs">▼</span>}
                                 </td>
-                                <td className="px-2 py-2.5 w-16" style={{ color: secondaryText, opacity: 0.8 }}>{y.class}</td>
+                                <td className="px-2 py-2.5 w-16" style={{ color: secondaryText }}>{y.class}</td>
                                 <td className="px-2 py-2 text-center w-12">
                                   <Link to={`${pathPrefix}/team/${rowTid}/${y.year}`} className="hover:opacity-70 transition-opacity">
                                     {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
@@ -4803,7 +4803,7 @@ function PlayerInner() {
                         <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
                           {renderSortableHeader('punting', 'year', 'Year', 'left', 'w-14')}
                           {renderSortableHeader('punting', 'class', 'Class', 'left', 'w-16')}
-                          <th className="px-2 py-2.5 text-xs font-semibold uppercase text-center w-12" style={{ color: secondaryText, opacity: 0.8 }}>Team</th>
+                          <th className="px-2 py-2.5 text-xs font-semibold uppercase text-center w-12" style={{ color: secondaryText }}>Team</th>
                           {primaryStat === 'punting' && renderSortableHeader('punting', 'gamesPlayed', 'G', 'right')}
                           {renderSortableHeader('punting', 'av', 'AV', 'right')}
                           {renderSortableHeader('punting', 'punts', 'Punts', 'right')}
@@ -4834,7 +4834,7 @@ function PlayerInner() {
                                   {y.year}
                                   {isGameLogExpanded(y.year, 'punting') && <span className="ml-1 text-xs">▼</span>}
                                 </td>
-                                <td className="px-2 py-2.5 w-16" style={{ color: secondaryText, opacity: 0.8 }}>{y.class}</td>
+                                <td className="px-2 py-2.5 w-16" style={{ color: secondaryText }}>{y.class}</td>
                                 <td className="px-2 py-2 text-center w-12">
                                   <Link to={`${pathPrefix}/team/${rowTid}/${y.year}`} className="hover:opacity-70 transition-opacity">
                                     {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
@@ -4900,7 +4900,7 @@ function PlayerInner() {
                     <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
                       {renderSortableHeader('kickReturn', 'year', 'Year', 'left', 'w-14')}
                       {renderSortableHeader('kickReturn', 'class', 'Class', 'left', 'w-16')}
-                      <th className="px-2 py-2.5 text-xs font-semibold uppercase text-center w-12" style={{ color: secondaryText, opacity: 0.8 }}>Team</th>
+                      <th className="px-2 py-2.5 text-xs font-semibold uppercase text-center w-12" style={{ color: secondaryText }}>Team</th>
                       {renderSortableHeader('kickReturn', 'av', 'AV', 'right')}
                       {renderSortableHeader('kickReturn', 'ret', 'Ret', 'right')}
                       {renderSortableHeader('kickReturn', 'yds', 'Yds', 'right')}
@@ -4928,7 +4928,7 @@ function PlayerInner() {
                               {y.year}
                               {isGameLogExpanded(y.year, 'kickReturn') && <span className="ml-1 text-xs">▼</span>}
                             </td>
-                            <td className="px-2 py-2.5 w-16" style={{ color: secondaryText, opacity: 0.8 }}>{y.class}</td>
+                            <td className="px-2 py-2.5 w-16" style={{ color: secondaryText }}>{y.class}</td>
                             <td className="px-2 py-2 text-center w-12">
                                   <Link to={`${pathPrefix}/team/${rowTid}/${y.year}`} className="hover:opacity-70 transition-opacity">
                                     {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
@@ -4988,7 +4988,7 @@ function PlayerInner() {
                     <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
                       {renderSortableHeader('puntReturn', 'year', 'Year', 'left', 'w-14')}
                       {renderSortableHeader('puntReturn', 'class', 'Class', 'left', 'w-16')}
-                      <th className="px-2 py-2.5 text-xs font-semibold uppercase text-center w-12" style={{ color: secondaryText, opacity: 0.8 }}>Team</th>
+                      <th className="px-2 py-2.5 text-xs font-semibold uppercase text-center w-12" style={{ color: secondaryText }}>Team</th>
                       {renderSortableHeader('puntReturn', 'av', 'AV', 'right')}
                       {renderSortableHeader('puntReturn', 'ret', 'Ret', 'right')}
                       {renderSortableHeader('puntReturn', 'yds', 'Yds', 'right')}
@@ -5016,7 +5016,7 @@ function PlayerInner() {
                               {y.year}
                               {isGameLogExpanded(y.year, 'puntReturn') && <span className="ml-1 text-xs">▼</span>}
                             </td>
-                            <td className="px-2 py-2.5 w-16" style={{ color: secondaryText, opacity: 0.8 }}>{y.class}</td>
+                            <td className="px-2 py-2.5 w-16" style={{ color: secondaryText }}>{y.class}</td>
                             <td className="px-2 py-2 text-center w-12">
                                   <Link to={`${pathPrefix}/team/${rowTid}/${y.year}`} className="hover:opacity-70 transition-opacity">
                                     {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
@@ -5798,12 +5798,12 @@ function PlayerInner() {
                   <table className="w-full sm:min-w-[640px] table-fixed text-sm">
                     <thead>
                       <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
-                        <th className="w-14 sm:w-24 px-2 py-2.5 text-xs font-semibold uppercase text-left" style={{ color: secondaryText, opacity: 0.8 }}>Week</th>
-                        <th className="w-24 sm:w-[22%] px-2 py-2.5 text-xs font-semibold uppercase text-left" style={{ color: secondaryText, opacity: 0.8 }}><span className="sm:hidden">Opp</span><span className="hidden sm:inline">Opponent</span></th>
-                        <th className="hidden sm:table-cell w-20 px-2 py-2.5 text-xs font-semibold uppercase text-center" style={{ color: secondaryText, opacity: 0.8 }}>Result</th>
-                        <th className="w-[5.5rem] sm:w-24 px-2 py-2.5 text-xs font-semibold uppercase text-center" style={{ color: secondaryText, opacity: 0.8 }}>Score</th>
-                        <th className="px-2 py-2.5 text-xs font-semibold uppercase text-left" style={{ color: secondaryText, opacity: 0.8 }}>Stats</th>
-                        <th className="hidden sm:table-cell w-32 px-2 py-2.5 text-xs font-semibold uppercase text-center" style={{ color: secondaryText, opacity: 0.8 }}>Scoring Plays</th>
+                        <th className="w-14 sm:w-24 px-2 py-2.5 text-xs font-semibold uppercase text-left" style={{ color: secondaryText }}>Week</th>
+                        <th className="w-24 sm:w-[22%] px-2 py-2.5 text-xs font-semibold uppercase text-left" style={{ color: secondaryText }}><span className="sm:hidden">Opp</span><span className="hidden sm:inline">Opponent</span></th>
+                        <th className="hidden sm:table-cell w-20 px-2 py-2.5 text-xs font-semibold uppercase text-center" style={{ color: secondaryText }}>Result</th>
+                        <th className="w-[5.5rem] sm:w-24 px-2 py-2.5 text-xs font-semibold uppercase text-center" style={{ color: secondaryText }}>Score</th>
+                        <th className="px-2 py-2.5 text-xs font-semibold uppercase text-left" style={{ color: secondaryText }}>Stats</th>
+                        <th className="hidden sm:table-cell w-32 px-2 py-2.5 text-xs font-semibold uppercase text-center" style={{ color: secondaryText }}>Scoring Plays</th>
                       </tr>
                     </thead>
                     <tbody>
