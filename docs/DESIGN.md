@@ -164,16 +164,27 @@ Rule:
 
 When both render on the same page, they're differentiated by position (chrome = top/left, hero = content area). Never nest stripes.
 
-## Teambuilder custom teams
+## Text on team colors
 
-Users can upload teams with arbitrary colors. Some will be ugly (neon pink, low-contrast grays).
+Team colors are arbitrary (real schools plus TeamBuilder uploads), and plenty of
+UI puts text on them: mastheads, schedule rows, score cards, award pills. Never
+hardcode white text on a team fill.
 
-Our design tolerates this because:
-- Accent stripes are narrow — an ugly color in 6px is fine
-- Team color never fills a large area
-- Text is always on neutral surfaces, not on team-color backgrounds
+- Fills: `getContrastTextColor(bg)` (black or white, cutoff at luminance 0.42).
+- A team's own secondary as text (two-tone look): `readableTextOn(bg, secondary)`
+  keeps the secondary when it clears 3:1 and falls back otherwise.
+- Small text (12px and under: chips, pills, ranks): `readableTextOn(bg, preferred, 4.5)`.
+  At 4.5 the fallback is whichever of black or white contrasts more, since the
+  luminance cutoff deliberately keeps white on mid-tone brand colors (fine for
+  big text, ~3:1 for a 10px label).
+- Markup written for white text that sometimes lands on a light team color: wrap
+  it in `.hero-on-light` when `getContrastTextColor(bg) === '#000000'`; it flips
+  `text-white` and its opacity variants to dark.
+- Text that straddles two team colors (the "at" / "vs" on a split card) gets its
+  own dark pill instead of guessing.
 
-If a custom color has near-white primary (Texas #BF5700 ish is fine; pure white is not), fall back to the team's secondary for stripes. Implement this check in the primitive.
+Test light colors with a gold or yellow team (Michigan, Iowa, App State) as well
+as the user's own.
 
 ## Don'ts gallery
 
@@ -203,6 +214,35 @@ mastheads — the contrast between the two is how a user tells "about my team" f
   History", the poll week over "Top 25"). Never one that repeats the title
   ("Roster" over "2036 Roster") or a category ("Admin" over "Danger Zone").
 - Header actions (Edit, Edit Rankings, …) are `<Button variant="outline" size="sm">`.
+- `subtitle` adds a one-line intro under the title when a page needs explaining.
+- Titles use the `--text-display-lg` token (40px desktop, 30px phones) so every
+  league page's title is the same size in the same place.
+
+## Empty states and dialogs
+
+- `<EmptyState title message action>`: sentence-case title ("No draft results
+  yet"), proper names keep their capitals. The explanation goes in `message`;
+  there is no `subtitle` prop.
+- Dialogs use `<Modal>` (header with an X icon button, body, footer with Cancel
+  then the primary action). Destructive secondary actions sit at the left of the
+  footer as `btn-refined--danger`, not as a solid red slab.
+
+## Accessibility conventions
+
+Checked with axe-core at 1440px and 390px.
+
+- Every icon-only button has an `aria-label`; every input and select has a label
+  (a `<label htmlFor>` or `aria-label`).
+- Don't put `role="button"` on a container that holds links or buttons. Use a
+  real `<Link>` stretched over the card (`absolute inset-0`) with the inner links
+  above it (`z-index: 2`), or make one inner control the real toggle.
+- The focus outline is drawn 2px outside the element. For links that fill a
+  clipped card (`overflow:hidden` tiles, stretched links) add `focus-inset` so
+  the outline is drawn inside instead of being clipped away.
+- Section titles under a page's h1 are h2s; don't skip levels for styling.
+- Long names in narrow rows: show the school name (`stripMascotFromName`) and
+  keep the full name in `title`, rather than "Appalachian St…".
+
 
 ## Generated-UI tells we avoid
 
