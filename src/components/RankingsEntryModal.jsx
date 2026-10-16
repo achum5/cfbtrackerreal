@@ -78,7 +78,7 @@ export default function RankingsEntryModal({ isOpen, onClose, onSave, currentYea
                     options={teams}
                     value={ranking.team}
                     onChange={(value) => updateRanking(index, value)}
-                    placeholder="Select team..."
+                    placeholder="Select team…"
                   />
                 </div>
               </div>

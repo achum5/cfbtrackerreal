@@ -350,7 +350,7 @@ export default function ConferenceStandings() {
         type="text"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
-        placeholder="Search conferences..."
+        placeholder="Search conferences…"
         size="sm"
       />
     </div>

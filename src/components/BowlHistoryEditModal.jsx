@@ -263,7 +263,7 @@ export default function BowlHistoryEditModal({ isOpen, onClose, teamColors }) {
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 flex items-center justify-between" style={{ backgroundColor: modalColors.headerBg }}>
+        <div className="p-4 flex flex-shrink-0 items-center justify-between" style={{ backgroundColor: modalColors.headerBg }}>
           <h2 className="text-xl font-bold" style={{ color: modalColors.text }}>
             Edit Bowl History
           </h2>
@@ -279,7 +279,10 @@ export default function BowlHistoryEditModal({ isOpen, onClose, teamColors }) {
         </div>
 
         {/* Year Tabs */}
-        <div className="flex overflow-x-auto border-b" style={{ borderColor: modalColors.border, backgroundColor: modalColors.headerBg }}>
+        {/* flex-shrink-0: in the height-capped column the list below took all
+            the space and squeezed this row to a few pixels — the years were
+            unreadable and only their green dots showed. */}
+        <div className="flex flex-shrink-0 overflow-x-auto border-b" style={{ borderColor: modalColors.border, backgroundColor: modalColors.headerBg }}>
           {allYears.map(year => {
             const yearHasGames = Object.keys(bowlGames[year] || {}).some(name => {
               const game = bowlGames[year][name]

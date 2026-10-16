@@ -343,7 +343,7 @@ function PlayerPicker({ players, teams, value, onChange, placeholder = 'Select a
               value={search}
               onChange={e => setSearch(e.target.value)}
               onKeyDown={onKey}
-              placeholder="Search players..."
+              placeholder="Search players…"
               className="w-full px-3 py-1.5 rounded text-sm focus:outline-none focus:ring-1 focus:ring-white/30"
               style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--surface-4)', color: 'var(--text-primary)' }}
               autoComplete="off"

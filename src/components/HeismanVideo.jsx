@@ -191,7 +191,7 @@ export function HeismanVideoModal({ isOpen, onClose, url, year, onSave }) {
               value={value}
               onChange={(e) => setValue(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && playable && trimmed) submit(trimmed) }}
-              placeholder="https://youtu.be/..."
+              placeholder="https://youtu.be/…"
               autoFocus
               className="w-full rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-surface-5"
             />

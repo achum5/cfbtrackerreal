@@ -1276,7 +1276,7 @@ export default function PlayerEdit() {
                       value={formData.pictureUrl || ''}
                       onChange={(e) => setFormData(prev => ({ ...prev, pictureUrl: e.target.value }))}
                       onPaste={handlePaste}
-                      placeholder="Paste image URL or Ctrl+V to paste image..."
+                      placeholder="Paste image URL or Ctrl+V to paste image…"
                       className="w-full px-3 py-2 text-sm border border-surface-4 rounded-lg focus:outline-none focus:border-surface-5 mb-3"
                     />
 
@@ -1651,7 +1651,7 @@ export default function PlayerEdit() {
                 onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                 rows={4}
                 className={`${FIELD} resize-y`}
-                placeholder="Add notes about this player..."
+                placeholder="Add notes about this player…"
               />
             </SectionCard>
 
@@ -1692,7 +1692,7 @@ export default function PlayerEdit() {
               <ImageUpload
                 value=""
                 onChange={(url) => { if (url) setFormData(prev => ({ ...prev, photos: [...(prev.photos || []), url] })) }}
-                placeholder="Paste image (Ctrl+V), drop a file, or enter a URL..."
+                placeholder="Paste image (Ctrl+V), drop a file, or enter a URL…"
                 showPreview={false}
                 hideDropzone={false}
               />

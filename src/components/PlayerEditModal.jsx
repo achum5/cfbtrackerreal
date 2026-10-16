@@ -521,7 +521,7 @@ export default function PlayerEditModalNew({
         <textarea
           value={formData.notes || ''}
           onChange={(e) => handleFieldChange('notes', e.target.value)}
-          placeholder="Add any notes about this player..."
+          placeholder="Add any notes about this player…"
           rows={3}
           className="w-full px-4 py-3 bg-white text-txt-primary rounded-xl border-2 border-surface-4 focus:border-surface-5 focus:outline-none transition-colors text-sm resize-none"
         />
@@ -1182,7 +1182,7 @@ export default function PlayerEditModalNew({
                   value={formData.pictureUrl || ''}
                   onChange={(e) => handleFieldChange('pictureUrl', e.target.value)}
                   onPaste={handlePaste}
-                  placeholder="Paste image URL or Ctrl+V to paste image..."
+                  placeholder="Paste image URL or Ctrl+V to paste image…"
                   className="w-full px-3 py-2 bg-surface-2 text-txt-primary rounded-lg border border-surface-4 text-sm mb-2"
                 />
                 <div className="flex gap-2">

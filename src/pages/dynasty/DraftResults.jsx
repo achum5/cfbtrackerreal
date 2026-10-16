@@ -209,7 +209,7 @@ export default function DraftResults() {
                 </Select>
                 <Input
                   type="text"
-                  placeholder="Search for a player..."
+                  placeholder="Search for a player…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="max-w-xs"

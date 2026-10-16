@@ -519,7 +519,7 @@ export default function ConferenceChampionshipHistory() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search conferences..."
+            placeholder="Search conferences…"
           />
           {searchQuery && (
             <div

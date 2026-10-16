@@ -537,7 +537,7 @@ const ImageUpload = forwardRef(function ImageUpload({
           value={value || ''}
           onChange={(e) => onChange(e.target.value)}
           onPaste={handlePaste}
-          placeholder="Or enter image URL directly..."
+          placeholder="Or enter image URL directly…"
           disabled={disabled}
           className="flex-1 px-3 py-2 rounded border focus:outline-none focus:ring-2 text-sm"
           style={{

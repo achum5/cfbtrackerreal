@@ -139,7 +139,7 @@ export default function TeambuilderTeamFields({
           options={fbsOptions}
           value={team.replacesTeam}
           onChange={v => onChange('replacesTeam', v)}
-          placeholder="Select team to replace..."
+          placeholder="Select team to replace…"
           required
           teamColors={neutralColors}
         />

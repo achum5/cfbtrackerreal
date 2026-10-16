@@ -685,7 +685,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
                     autoFocus
                     className="w-full bg-bg-input border border-border-subtle rounded px-3 py-2 text-xs text-txt-primary font-mono resize-none"
                     rows={6}
-                    placeholder="Click here, then Ctrl+V / Cmd+V to paste the AI's reply, then Fill Fields..."
+                    placeholder="Click here, then Ctrl+V / Cmd+V to paste the AI's reply, then Fill Fields…"
                     value={pasteText}
                     onChange={e => { setPasteText(e.target.value); setPasteFailed(false) }}
                   />
@@ -766,7 +766,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
                 <label className="label-xs text-txt-tertiary block mb-1">Description</label>
                 <textarea
                   className="w-full bg-bg-input border border-border-subtle rounded px-3 py-2 text-sm text-txt-primary placeholder-txt-muted resize-none"
-                  placeholder="Paste the rivalry description from AI here, or write your own..."
+                  placeholder="Paste the rivalry description from AI here, or write your own…"
                   value={description}
                   onChange={e => setDescription(e.target.value)}
                   rows={3}
@@ -844,7 +844,7 @@ function EditRivalryModal({ rivalry, dynasty, myTid, currentYear, onSave, onDele
                     <ImageUpload
                       value={trophyImageUrl}
                       onChange={setTrophyImageUrl}
-                      placeholder="Click here, then Ctrl+V/Cmd+V to paste image, or enter URL..."
+                      placeholder="Click here, then Ctrl+V/Cmd+V to paste image, or enter URL…"
                       teamColors={{ primary: bg, secondary: bg }}
                       showPreview={false}
                       hidePasteButton={true}
@@ -1059,7 +1059,7 @@ function AddRivalryModal({ dynasty, myTid, existingRivalTids, onAdd, onClose }) 
             type="text"
             autoFocus
             className="w-full bg-bg-input border border-border-subtle rounded px-3 py-2 text-sm text-txt-primary placeholder-txt-muted"
-            placeholder="Search teams..."
+            placeholder="Search teams…"
             value={search}
             onChange={e => { setSearch(e.target.value); setSelectedTid(null) }}
           />

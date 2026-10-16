@@ -136,42 +136,22 @@ export function mixColors(color1, color2, ratio) {
  * @returns {Object} Modal colors { background, text, accent, border, headerBg }
  */
 export function getModalColors(teamColors) {
-  const secondary = teamColors?.secondary || '#ffffff'
+  // Modal chrome is neutral — the same surface/border/text values as the
+  // design tokens in index.css (as hex, because callers append alpha suffixes
+  // like `${accent}20`). It used to tint every modal's background, border and
+  // inputs with the team's colors, so each modal looked slightly different
+  // from the shared Modal/sheet modals and from team to team. Team color now
+  // only shows up where it carries meaning: `accent` (primary actions and
+  // selected states).
   const primary = teamColors?.primary || '#374151'
-
-  const isSecondaryLight = isLightColor(secondary)
-  const darkBase = '#1a1a2e' // Deep navy-gray
-
-  let background, headerBg
-
-  if (isSecondaryLight) {
-    // Secondary is light (like white) - create a dark tinted background
-    // Mix the primary color with dark base to create a subtle team-tinted dark background
-    background = mixColors(darkBase, primary, 0.15)
-    headerBg = mixColors(darkBase, primary, 0.25)
-  } else {
-    // Secondary is already dark - use it but ensure it's dark enough
-    const { r, g, b } = hexToRgb(secondary)
-    const luminance = getLuminance(r, g, b)
-
-    if (luminance > 0.2) {
-      // Slightly too light, darken it
-      background = mixColors(secondary, darkBase, 0.5)
-      headerBg = mixColors(secondary, darkBase, 0.3)
-    } else {
-      background = secondary
-      headerBg = mixColors(secondary, primary, 0.2)
-    }
-  }
-
   return {
-    background,
-    headerBg,
-    text: '#ffffff',
-    textMuted: '#9ca3af', // gray-400
+    background: '#242730',  // --surface-2
+    headerBg: '#2f323c',    // --surface-3
+    text: '#f5f5f7',        // --text-primary
+    textMuted: '#a4a5af',   // --text-tertiary
     accent: primary,
-    border: mixColors(primary, '#ffffff', 0.3),
-    inputBg: mixColors(background, '#000000', 0.3),
-    inputBorder: mixColors(primary, '#ffffff', 0.2)
+    border: '#3b3e49',      // --surface-4
+    inputBg: '#191b22',     // --surface-1
+    inputBorder: '#3b3e49', // --surface-4
   }
 }

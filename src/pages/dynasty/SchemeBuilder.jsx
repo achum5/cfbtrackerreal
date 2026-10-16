@@ -887,7 +887,7 @@ function BuildMode({
         <Input
           value={playbookSearch}
           onChange={(e) => onPlaybookSearchChange(e.target.value)}
-          placeholder="Search playbooks (e.g. Alabama, Air Raid)..."
+          placeholder="Search playbooks (e.g. Alabama, Air Raid)…"
           className="max-w-sm mb-2"
         />
         {playbookSearch.trim() && (
@@ -991,7 +991,7 @@ function BuildMode({
               <Input
                 value={query}
                 onChange={(e) => onQueryChange(e.target.value)}
-                placeholder="Search this playbook..."
+                placeholder="Search this playbook…"
                 className="max-w-xs"
               />
               <Button variant="outline" size="sm" disabled={isViewOnly} onClick={onDeselectPlaybook}>
@@ -1927,7 +1927,7 @@ function SituationalCategorySection({
         {!isViewOnly && searchVisible && (
           <div className="p-3 border-b border-surface-4">
             <Input
-              placeholder="Search formations or plays to add..."
+              placeholder="Search formations or plays to add…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />

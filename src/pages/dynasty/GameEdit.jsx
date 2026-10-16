@@ -3155,7 +3155,7 @@ export default function GameEdit() {
                       return { ...prev, scoreGraphics: next, scoreGraphicShown: shown }
                     })}
                     teamColors={{ primary: 'var(--text-primary)', secondary: 'var(--surface-1)' }}
-                    placeholder="Paste image or URL..."
+                    placeholder="Paste image or URL…"
                     showPreview={false}
                     hideDropzone={false}
                   />
@@ -3274,7 +3274,7 @@ export default function GameEdit() {
           value={formData.aiRecap}
           onChange={(e) => setFormData({ ...formData, aiRecap: e.target.value })}
           rows={18}
-          placeholder="Paste the AI-generated recap here (or write your own)..."
+          placeholder="Paste the AI-generated recap here (or write your own)…"
           autoFocus
         />
         <div className="flex items-center justify-between mt-3 text-xs text-txt-tertiary">

@@ -1101,7 +1101,7 @@ export default function Home() {
           type="text"
           value={confirmText}
           onChange={(e) => setConfirmText(e.target.value)}
-          placeholder="Type dynasty name here..."
+          placeholder="Type dynasty name here…"
           autoFocus
         />
         <div className="flex gap-3 mt-4">
@@ -1162,7 +1162,7 @@ export default function Home() {
           type="text"
           value={deleteAllConfirmText}
           onChange={(e) => setDeleteAllConfirmText(e.target.value)}
-          placeholder="Type DELETE ALL here..."
+          placeholder="Type DELETE ALL here…"
           className="font-mono"
           autoFocus
         />
@@ -1283,7 +1283,7 @@ export default function Home() {
           type="url"
           value={importUrl}
           onChange={(e) => setImportUrl(e.target.value)}
-          placeholder="https://dl.dropboxusercontent.com/..."
+          placeholder="https://dl.dropboxusercontent.com/…"
           autoFocus
           onKeyDown={(e) => {
             if (e.key === 'Enter' && importUrl.trim()) {

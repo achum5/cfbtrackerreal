@@ -149,10 +149,10 @@ export default function SocialCharacterEditModal({ isOpen, onClose, character, o
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           {/* Images — same uploader used everywhere else in the app */}
           <Field label="Avatar">
-            <ImageUpload value={f.avatar || ''} onChange={(url) => set('avatar', url || null)} placeholder="Paste image (Ctrl+V), drop a file, or enter a URL..." />
+            <ImageUpload value={f.avatar || ''} onChange={(url) => set('avatar', url || null)} placeholder="Paste image (Ctrl+V), drop a file, or enter a URL…" />
           </Field>
           <Field label="Banner">
-            <ImageUpload value={f.bannerImage || ''} onChange={(url) => set('bannerImage', url || null)} placeholder="Paste image (Ctrl+V), drop a file, or enter a URL..." />
+            <ImageUpload value={f.bannerImage || ''} onChange={(url) => set('bannerImage', url || null)} placeholder="Paste image (Ctrl+V), drop a file, or enter a URL…" />
           </Field>
 
           <div className="grid grid-cols-2 gap-3">

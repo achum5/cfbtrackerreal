@@ -209,7 +209,7 @@ export default function NewJobEditModal({ isOpen, onClose, onSave, teamColors, c
                   borderColor: 'var(--text-primary)',
                   backgroundColor: '#ffffff'
                 }}
-                placeholder="Search for a team..."
+                placeholder="Search for a team…"
               />
               {showTeamDropdown && (
                 <div

@@ -126,7 +126,7 @@ export default function ConferenceSelect({
           onChange={handleInputChange}
           onFocus={handleInputFocus}
           onKeyDown={handleKeyDown}
-          placeholder="Search conferences..."
+          placeholder="Search conferences…"
           className="w-full py-2 border rounded-lg focus:ring-2 focus:outline-none transition-colors placeholder-gray-500"
           style={{
             borderColor: '#374151',

@@ -300,7 +300,7 @@ export default function BowlHistory() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search bowl games..."
+            placeholder="Search bowl games…"
           />
           {searchQuery && (
             <div

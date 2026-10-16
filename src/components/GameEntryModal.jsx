@@ -2348,7 +2348,7 @@ export default function GameEntryModal({
                         borderColor: 'var(--text-primary)',
                         paddingRight: '2.75rem'
                       }}
-                      placeholder="Search or select..."
+                      placeholder="Search or select…"
                       autoComplete="off"
                     />
                     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -2446,7 +2446,7 @@ export default function GameEntryModal({
                         borderColor: 'var(--text-primary)',
                         paddingRight: '2.75rem'
                       }}
-                      placeholder="Search or select..."
+                      placeholder="Search or select…"
                       autoComplete="off"
                     />
                     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -2552,7 +2552,7 @@ export default function GameEntryModal({
                         borderColor: 'var(--text-primary)',
                         paddingRight: '2.75rem'
                       }}
-                      placeholder="Search or select..."
+                      placeholder="Search or select…"
                       autoComplete="off"
                     />
                     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -2650,7 +2650,7 @@ export default function GameEntryModal({
                         borderColor: 'var(--text-primary)',
                         paddingRight: '2.75rem'
                       }}
-                      placeholder="Search or select..."
+                      placeholder="Search or select…"
                       autoComplete="off"
                     />
                     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -3088,7 +3088,7 @@ export default function GameEntryModal({
                 className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border-2 rounded-xl text-sm focus:ring-2 focus:outline-none transition-all"
                 style={{ backgroundColor: 'var(--surface-3)', color: 'var(--text-primary)', borderColor: 'var(--surface-4)' }}
                 rows="10"
-                placeholder="Paste the AI-generated recap here (or write your own)..."
+                placeholder="Paste the AI-generated recap here (or write your own)…"
               />
               <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
                 Paste the output from your AI, or write your own.

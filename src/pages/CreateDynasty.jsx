@@ -620,7 +620,7 @@ export default function CreateDynasty() {
                 options={teamNameOptions}
                 value={formData.teamName}
                 onChange={(value) => setFormData({ ...formData, teamName: value })}
-                placeholder="Search for your team..."
+                placeholder="Search for your team…"
                 required
                 teamColors={neutralColors}
               />
@@ -736,7 +736,7 @@ export default function CreateDynasty() {
               ]}
               value={formData.coachPosition}
               onChange={(value) => setFormData({ ...formData, coachPosition: value })}
-              placeholder="Search positions..."
+              placeholder="Search positions…"
               required
               teamColors={neutralColors}
             />

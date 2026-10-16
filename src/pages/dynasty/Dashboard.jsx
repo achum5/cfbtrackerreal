@@ -3985,7 +3985,7 @@ export default function Dashboard() {
                           const oppTid = getTidFromTeamName(teamName, currentDynasty?.teams)
                           if (oppTid) handleCCOpponentSelect(oppTid)
                         }}
-                        placeholder="Select opponent..."
+                        placeholder="Select opponent…"
                         teamColors={teamColors}
                         dynastyTeams={currentDynasty?.teams}
                       />
@@ -4945,7 +4945,7 @@ export default function Dashboard() {
                               bowlEligibilityDataByYear: { ...existingByYear, [bowlYear]: { ...currentBowlData, eligible: true, bowlGame: bowl } },
                             })
                           }}
-                          placeholder="Search bowls..."
+                          placeholder="Search bowls…"
                           teamColors={teamColors}
                         />
                       </div>
@@ -5004,7 +5004,7 @@ export default function Dashboard() {
                               localGamesArray: updatedGames,
                             })
                           }}
-                          placeholder="Search for opponent..."
+                          placeholder="Search for opponent…"
                           teamColors={teamColors}
                           dynastyTeams={currentDynasty?.teams}
                         />
@@ -5197,7 +5197,7 @@ export default function Dashboard() {
                               ...buildNewJobUpdate({ ...myNewJobData, takingNewJob: true, team: value, teamTid: getTidFromTeamName(value, currentDynasty?.teams) ?? null }),
                             })
                           }}
-                          placeholder="Search for team..."
+                          placeholder="Search for team…"
                           teamColors={teamColors}
                           dynastyTeams={currentDynasty?.teams}
                         />
@@ -5604,7 +5604,7 @@ export default function Dashboard() {
                               ...buildNewJobUpdate({ ...myNewJobData, takingNewJob: true, team: value, teamTid: getTidFromTeamName(value, currentDynasty?.teams) ?? null }),
                             })
                           }}
-                          placeholder="Search for team..."
+                          placeholder="Search for team…"
                           teamColors={teamColors}
                           dynastyTeams={currentDynasty?.teams}
                         />
@@ -5656,7 +5656,7 @@ export default function Dashboard() {
                           id="new-oc-name"
                           className="flex-1 px-3 py-2 border-2 rounded-lg focus:outline-none"
                           style={{ borderColor: 'var(--text-primary)' }}
-                          placeholder="New OC name..."
+                          placeholder="New OC name…"
                           onKeyDown={async (e) => {
                             if (e.key === 'Enter' && e.target.value.trim()) {
                               const name = e.target.value.trim()
@@ -5702,7 +5702,7 @@ export default function Dashboard() {
                           id="new-dc-name"
                           className="flex-1 px-3 py-2 border-2 rounded-lg focus:outline-none"
                           style={{ borderColor: 'var(--text-primary)' }}
-                          placeholder="New DC name..."
+                          placeholder="New DC name…"
                           onKeyDown={async (e) => {
                             if (e.key === 'Enter' && e.target.value.trim()) {
                               const name = e.target.value.trim()
@@ -6529,7 +6529,7 @@ export default function Dashboard() {
                             ...buildNewJobUpdate({ ...myNewJobData, takingNewJob: true, team: value, teamTid: getTidFromTeamName(value, currentDynasty?.teams) ?? null }),
                           })
                         }}
-                        placeholder="Search for team..."
+                        placeholder="Search for team…"
                         teamColors={teamColors}
                         dynastyTeams={currentDynasty?.teams}
                       />
@@ -6581,7 +6581,7 @@ export default function Dashboard() {
                         id="new-oc-name-week34"
                         className="flex-1 px-3 py-2 border-2 rounded-lg focus:outline-none"
                         style={{ borderColor: 'var(--text-primary)' }}
-                        placeholder="New OC name..."
+                        placeholder="New OC name…"
                         onKeyDown={async (e) => {
                           if (e.key === 'Enter' && e.target.value.trim()) {
                             const name = e.target.value.trim()
@@ -6627,7 +6627,7 @@ export default function Dashboard() {
                         id="new-dc-name-week34"
                         className="flex-1 px-3 py-2 border-2 rounded-lg focus:outline-none"
                         style={{ borderColor: 'var(--text-primary)' }}
-                        placeholder="New DC name..."
+                        placeholder="New DC name…"
                         onKeyDown={async (e) => {
                           if (e.key === 'Enter' && e.target.value.trim()) {
                             const name = e.target.value.trim()

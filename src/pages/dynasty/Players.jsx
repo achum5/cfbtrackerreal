@@ -228,7 +228,8 @@ export default function Players() {
           <div className="flex items-center gap-2">
             <Input
               type="text"
-              placeholder="Search players..."
+              placeholder="Search players…"
+              aria-label="Search players"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="sm:w-56"
@@ -236,6 +237,7 @@ export default function Players() {
             <Select
               value={positionFilter}
               onChange={(e) => setPositionFilter(e.target.value)}
+              aria-label="Filter by position"
             >
               {Object.keys(POSITION_GROUPS).map((group) => (
                 <option key={group} value={group}>{group}</option>

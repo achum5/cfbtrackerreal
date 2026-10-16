@@ -71,8 +71,10 @@ export default function Modal({
         aria-label={typeof title === 'string' ? title : undefined}
       >
         {title && (
-          <header className="px-6 py-4 border-b border-surface-4 flex items-center justify-between flex-shrink-0">
-            <h2 className="text-display-md text-txt-primary m-0">{title}</h2>
+          <header className="px-4 sm:px-6 py-4 border-b border-surface-4 flex items-center justify-between gap-3 flex-shrink-0">
+            {/* Same title scale as SheetModalHeader, so every modal's header
+                reads the same size. */}
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight leading-tight text-txt-primary m-0 min-w-0">{title}</h2>
             {!hideClose && (
               <button
                 onClick={onClose}
@@ -87,12 +89,12 @@ export default function Modal({
           </header>
         )}
 
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5">
           {children}
         </div>
 
         {footer && (
-          <footer className="px-6 py-4 border-t border-surface-4 flex items-center justify-end gap-3 flex-shrink-0 bg-surface-2">
+          <footer className="px-4 sm:px-6 py-4 border-t border-surface-4 flex items-center justify-end gap-3 flex-shrink-0 bg-surface-2">
             {footer}
           </footer>
         )}

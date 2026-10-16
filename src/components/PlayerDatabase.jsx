@@ -1878,7 +1878,7 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
       <div className="rounded-xl p-3.5 space-y-2.5 bg-surface-2 border border-surface-4">
         <input
           type="text"
-          placeholder="Search prospect name or archetype..."
+          placeholder="Search prospect name or archetype…"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           className="w-full rounded-lg text-xs p-2.5 text-txt-primary placeholder-txt-tertiary bg-surface-3 border border-surface-4 focus:outline-none focus:border-surface-5 transition"
