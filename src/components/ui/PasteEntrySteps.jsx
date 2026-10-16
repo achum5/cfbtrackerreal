@@ -24,14 +24,14 @@ const InfoIcon = ({ className }) => (
   </svg>
 )
 
-// "Copy Prompt" reads "Copy" on the narrowest phones so all three steps fit
-// on one row; custom labels pass through untouched.
+// "Copy Prompt" / "Copy AI Prompt" read "Copy" on the narrowest phones so all
+// three steps fit on one row; labels that don't start with "Copy" pass through.
 function CopyLabel({ text }) {
-  if (text !== 'Copy Prompt') return text
+  if (typeof text !== 'string' || !/^Copy\s/.test(text)) return text
   return (
     <>
       <span className="min-[400px]:hidden">Copy</span>
-      <span className="hidden min-[400px]:inline">Copy Prompt</span>
+      <span className="hidden min-[400px]:inline">{text}</span>
     </>
   )
 }

@@ -1208,6 +1208,13 @@ select:focus-visible,
 /* For links that fill a clipped card (overflow:hidden tiles, stretched
    links): the default outline sits 2px OUTSIDE the element, where the card
    clips it away entirely. Draw it inside instead. */
+/* Number inputs in tight grids (ratings, ranks): drop the spin arrows,
+   which Chromium reserves ~15px for and which clipped two-digit values
+   ('9!' for 99) in the game editor's 40px cells on phones. */
+.no-spin { -moz-appearance: textfield; appearance: textfield; }
+.no-spin::-webkit-inner-spin-button,
+.no-spin::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
 .focus-inset:focus-visible {
   outline-offset: -3px !important;
   outline-color: color-mix(in srgb, var(--text-primary) 85%, transparent) !important;

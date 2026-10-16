@@ -2615,25 +2615,25 @@ export default function GameEdit() {
                 {/* Rank */}
                 <Input type="number" value={formData[`${prefix}Rank`]}
                   onChange={(e) => setFormData({ ...formData, [`${prefix}Rank`]: e.target.value })}
-                  size="sm" className="w-full text-center tabular" min="1" max="133" placeholder="—" />
+                  size="sm" className="no-spin w-full text-center tabular !px-1" min="1" max="133" placeholder="—" />
 
                 {/* OVR / OFF / DEF */}
                 {['Overall', 'Offense', 'Defense'].map(field => (
                   <Input key={field} type="number" value={formData[`${prefix}${field}`]}
                     onChange={(e) => setFormData({ ...formData, [`${prefix}${field}`]: e.target.value })}
-                    size="sm" className="w-full text-center tabular" min="0" max="99" />
+                    size="sm" className="no-spin w-full text-center tabular !px-1" min="0" max="99" />
                 ))}
 
                 {/* Record */}
                 <Input type="text" value={recordValue}
                   onChange={(e) => setFormData({ ...formData, [`${prefix}Record`]: e.target.value })}
-                  size="sm" className="w-full text-center tabular" placeholder="0-0"
+                  size="sm" className="w-full text-center tabular !px-1" placeholder="0-0"
                   readOnly={autoFillRecords} disabled={autoFillRecords} />
 
                 {/* Conf */}
                 <Input type="text" value={confValue}
                   onChange={(e) => setFormData({ ...formData, [`${prefix}ConfRecord`]: e.target.value })}
-                  size="sm" className="w-full text-center tabular" placeholder="0-0"
+                  size="sm" className="w-full text-center tabular !px-1" placeholder="0-0"
                   readOnly={autoFillRecords} disabled={autoFillRecords} />
               </React.Fragment>
             )
