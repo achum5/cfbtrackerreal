@@ -3046,8 +3046,10 @@ export default function Dashboard() {
                         #{currentRank}
                       </span>
                     )}
+                    {/* Wraps to two lines on narrow screens instead of truncating
+                        ('WESTERN KENTUCKY HILL…'); one line from sm up. */}
                     <h1
-                      className="font-display font-extrabold uppercase tracking-tight leading-none truncate"
+                      className="font-display font-extrabold uppercase tracking-tight leading-[0.95] line-clamp-2 sm:line-clamp-none sm:truncate sm:leading-none min-w-0"
                       style={{ color: heroText, fontSize: 'clamp(1.375rem, 2.6vw, 2.125rem)' }}
                     >
                       {userTeamName}
