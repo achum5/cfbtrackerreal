@@ -87,7 +87,7 @@ const COLUMNS = [
 // Saturday is pure review before kickoff. All of it is editable any week,
 // any time — the schedule is just a suggested rhythm, not a gate.
 const DAY_META = {
-  tue: { title: 'Tuesday Install', subtitle: 'Identity - your 5 base formations this week' },
+  tue: { title: 'Tuesday Install', subtitle: 'Identity — your 5 base formations this week' },
   wed: { title: 'Wednesday Install', subtitle: 'Situational — script, short yardage, 2nd & long, 3rd down' },
   thu: { title: 'Thursday Install', subtitle: 'Situational — play-action, screens/RPOs, 2-minute, red zone, goal line' },
   fri: { title: 'Friday Install', subtitle: 'Answers — coverage beaters, blitz answers' },
@@ -603,6 +603,7 @@ export default function WeeklyInstall() {
       type="button"
       onClick={() => handleToggle(key)}
       disabled={isViewOnly}
+      aria-pressed={!!gameFields[key]}
       className={`btn-refined ${gameFields[key] ? 'btn-refined--solid' : ''}`}
     >
       {label}{gameFields[key] ? ' — Done' : ''}
@@ -643,27 +644,18 @@ export default function WeeklyInstall() {
         pathPrefix={pathPrefix}
       />
 
-      <div className="flex flex-col sm:flex-row sm:justify-between gap-4">
-        <div>
-          <SectionHeader
-            title="Call Sheet"
-            subtitle="Builds itself from the daily installs — view below"
-            size="sm"
-          />
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+        <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => { flushPlaybookSave(); setShowCallSheet(true) }} className="btn-refined btn-refined--solid">
             View Call Sheet
           </button>
-        </div>
-        <div className="sm:text-right">
-          <SectionHeader
-            title="Scouting Report"
-            subtitle="View Scouting Report"
-            size="sm"
-          />
-          <Link to={`${pathPrefix}/scouting/${game.id}`} className="btn-refined btn-refined--solid">
-            View Scouting Report
+          <Link to={`${pathPrefix}/scouting/${game.id}`} className="btn-refined">
+            Scouting Report
           </Link>
         </div>
+        <p className="text-sm text-txt-tertiary m-0">
+          The call sheet builds itself from the daily installs below.
+        </p>
       </div>
 
       {showCallSheet && createPortal(
@@ -754,7 +746,7 @@ export default function WeeklyInstall() {
         <SectionHeader title={DAY_META.fri.title} subtitle={DAY_META.fri.subtitle} size="sm" />
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
-            {toggleButton('reviewedInstall', 'Reviewed Tuesday-Thursday Installs')}
+            {toggleButton('reviewedInstall', 'Reviewed Tuesday–Thursday Installs')}
           </div>
           <DayColumn title="Answers" barStyle={HEADER_STYLE.red}>
             {renderColumnBoxes('answers', false)}

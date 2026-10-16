@@ -154,7 +154,7 @@ export default function NewsTicker({ dynasty }) {
           .ticker-wrapper { padding-bottom: env(safe-area-inset-bottom); }
         }
         @media (max-width: 639px) {
-          .ticker-header { max-width: 104px; min-width: 80px; }
+          .ticker-header { max-width: 124px; min-width: 80px; }
           .ticker-content-area { min-width: 0; flex: 1 1 0%; }
         }
         .ticker-divider {
@@ -220,11 +220,8 @@ export default function NewsTicker({ dynasty }) {
                 </>
               ) : (
                 <span
-                  className="text-[10px] sm:text-[11px] truncate uppercase text-txt-secondary"
-                  style={{
-                    fontWeight: 600,
-                    letterSpacing: '0.14em'
-                  }}
+                  className="text-[10px] sm:text-[11px] leading-[1.15] tracking-[0.1em] sm:tracking-[0.14em] line-clamp-2 sm:line-clamp-none sm:whitespace-nowrap uppercase text-txt-secondary"
+                  style={{ fontWeight: 600 }}
                 >
                   {currentSection.label}
                 </span>

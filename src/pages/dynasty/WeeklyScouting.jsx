@@ -36,6 +36,11 @@ function buildAnalyticsRows(dynasty, year, teamsSource) {
     const dgp = t.defGames || 0
     out.push({
       tid,
+      // Yardage, 3rd-down and possession figures only exist for games with a
+      // box score. A team with none would otherwise show "0.0" and a fake
+      // rank, so those rows read "—" and rank only among teams with data.
+      hasOff: (t.totalOffense || t.passYards || t.rushYards || t.thirdDownAtt || t.possMinutes) > 0,
+      hasDef: dgp > 0,
       wins: t.wins || 0,
       losses: t.losses || 0,
       ppg: gp > 0 ? t.pointsFor / gp : 0,
@@ -60,6 +65,12 @@ function rankOf(rows, tid, key, higherIsBetter) {
   return idx === -1 ? null : idx + 1
 }
 
+// Rank + field size for a box-score stat, counting only teams that have one.
+function boxRank(rows, tid, key, higherIsBetter, flag) {
+  const pool = rows.filter((r) => r[flag])
+  return { rank: rankOf(pool, tid, key, higherIsBetter), total: pool.length }
+}
+
 function topByStat(players, year, category, statKey, n = 2) {
   return players
     .map((p) => ({ p, val: p.statsByYear?.[year]?.[category]?.[statKey] || 0 }))
@@ -68,7 +79,8 @@ function topByStat(players, year, category, statKey, n = 2) {
     .slice(0, n)
 }
 
-function AnalyticsRow({ label, value, rank, total }) {
+function AnalyticsRow({ label, value, rank, total, available = true }) {
+  if (!available) { value = '—'; rank = null }
   return (
     <div className="flex items-center justify-between px-4 py-2.5 border-b border-surface-4 last:border-0">
       <span className="text-sm text-txt-secondary">{label}</span>
@@ -215,19 +227,19 @@ export default function WeeklyScouting() {
             <Card padding="none" className="overflow-hidden">
               <div className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-txt-tertiary border-b border-surface-4">Offense</div>
               <AnalyticsRow label="Scoring Offense" value={fmt1(oppRow.ppg)} rank={rankOf(analyticsRows, opponentTid, 'ppg', true)} total={total} />
-              <AnalyticsRow label="Total Offense (Yds/G)" value={fmt1(oppRow.ydsPerG)} rank={rankOf(analyticsRows, opponentTid, 'ydsPerG', true)} total={total} />
-              <AnalyticsRow label="Passing Offense (Yds/G)" value={fmt1(oppRow.passYdsPerG)} rank={rankOf(analyticsRows, opponentTid, 'passYdsPerG', true)} total={total} />
-              <AnalyticsRow label="Rushing Offense (Yds/G)" value={fmt1(oppRow.rushYdsPerG)} rank={rankOf(analyticsRows, opponentTid, 'rushYdsPerG', true)} total={total} />
-              <AnalyticsRow label="3rd Down %" value={fmtPct(oppRow.thirdPct)} rank={rankOf(analyticsRows, opponentTid, 'thirdPct', true)} total={total} />
-              <AnalyticsRow label="Time of Possession" value={fmtPoss(oppRow.possAvgSec)} rank={rankOf(analyticsRows, opponentTid, 'possAvgSec', true)} total={total} />
+              <AnalyticsRow label="Total Offense (Yds/G)" value={fmt1(oppRow.ydsPerG)} {...boxRank(analyticsRows, opponentTid, 'ydsPerG', true, 'hasOff')} available={oppRow.hasOff} />
+              <AnalyticsRow label="Passing Offense (Yds/G)" value={fmt1(oppRow.passYdsPerG)} {...boxRank(analyticsRows, opponentTid, 'passYdsPerG', true, 'hasOff')} available={oppRow.hasOff} />
+              <AnalyticsRow label="Rushing Offense (Yds/G)" value={fmt1(oppRow.rushYdsPerG)} {...boxRank(analyticsRows, opponentTid, 'rushYdsPerG', true, 'hasOff')} available={oppRow.hasOff} />
+              <AnalyticsRow label="3rd Down %" value={fmtPct(oppRow.thirdPct)} {...boxRank(analyticsRows, opponentTid, 'thirdPct', true, 'hasOff')} available={oppRow.hasOff} />
+              <AnalyticsRow label="Time of Possession" value={fmtPoss(oppRow.possAvgSec)} {...boxRank(analyticsRows, opponentTid, 'possAvgSec', true, 'hasOff')} available={oppRow.hasOff} />
             </Card>
             <Card padding="none" className="overflow-hidden">
               <div className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-txt-tertiary border-b border-surface-4">Defense</div>
               <AnalyticsRow label="Scoring Defense" value={fmt1(oppRow.ppgAllowed)} rank={rankOf(analyticsRows, opponentTid, 'ppgAllowed', false)} total={total} />
-              <AnalyticsRow label="Total Defense (Yds/G)" value={fmt1(oppRow.ydsAllowedPerG)} rank={rankOf(analyticsRows, opponentTid, 'ydsAllowedPerG', false)} total={total} />
-              <AnalyticsRow label="Pass Defense (Yds/G)" value={fmt1(oppRow.passYdsAllowedPerG)} rank={rankOf(analyticsRows, opponentTid, 'passYdsAllowedPerG', false)} total={total} />
-              <AnalyticsRow label="Rush Defense (Yds/G)" value={fmt1(oppRow.rushYdsAllowedPerG)} rank={rankOf(analyticsRows, opponentTid, 'rushYdsAllowedPerG', false)} total={total} />
-              <AnalyticsRow label="Turnover Margin" value={oppRow.toMargin > 0 ? `+${oppRow.toMargin}` : oppRow.toMargin} rank={rankOf(analyticsRows, opponentTid, 'toMargin', true)} total={total} />
+              <AnalyticsRow label="Total Defense (Yds/G)" value={fmt1(oppRow.ydsAllowedPerG)} {...boxRank(analyticsRows, opponentTid, 'ydsAllowedPerG', false, 'hasDef')} available={oppRow.hasDef} />
+              <AnalyticsRow label="Pass Defense (Yds/G)" value={fmt1(oppRow.passYdsAllowedPerG)} {...boxRank(analyticsRows, opponentTid, 'passYdsAllowedPerG', false, 'hasDef')} available={oppRow.hasDef} />
+              <AnalyticsRow label="Rush Defense (Yds/G)" value={fmt1(oppRow.rushYdsAllowedPerG)} {...boxRank(analyticsRows, opponentTid, 'rushYdsAllowedPerG', false, 'hasDef')} available={oppRow.hasDef} />
+              <AnalyticsRow label="Turnover Margin" value={oppRow.toMargin > 0 ? `+${oppRow.toMargin}` : oppRow.toMargin} {...boxRank(analyticsRows, opponentTid, 'toMargin', true, 'hasDef')} available={oppRow.hasDef} />
             </Card>
           </div>
         )}
@@ -274,7 +286,7 @@ export default function WeeklyScouting() {
           <SectionHeader title="Key Playmakers" size="sm" />
           <Card padding="none" className="overflow-hidden">
             {playmakers.length === 0 ? (
-              <EmptyState variant="compact" title="No Stats Yet" message="This opponent has no recorded stats for this season." />
+              <EmptyState variant="compact" className="px-4" title="No Stats Yet" message="This opponent has no recorded stats for this season." />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -312,7 +324,7 @@ export default function WeeklyScouting() {
           <SectionHeader title="Injuries" size="sm" />
           <Card padding="none" className="overflow-hidden">
             {injuredPlayers.length === 0 ? (
-              <EmptyState variant="compact" title="No Injuries" message="This opponent has no injured players on record." />
+              <EmptyState variant="compact" className="px-4" title="No Injuries" message="This opponent has no injured players on record." />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
