@@ -138,6 +138,14 @@ const DEV_TRAITS = ['Elite', 'Star', 'Impact', 'Normal']
 // canonical order.
 const TRANSFER_REASONS = ['Playing Time', ...PORTAL_REASONS.filter(r => r !== 'Playing Time')]
 
+// The reason value that marks a canonical transfer_out as an encouraged
+// transfer (shared with Player.jsx, seasonRollover and rosterModel).
+const ENCOURAGED_REASON = 'Encouraged Transfer'
+const isEncouragedMove = (m) => !!m && (
+  m.type === 'encouraged_to_transfer'
+  || (m.type === 'departure' && m.departure === 'transfer_out' && m.reason === ENCOURAGED_REASON)
+)
+
 // States
 const STATES = STATE_CODES
 
@@ -1960,14 +1968,24 @@ export default function PlayerEdit() {
                       type: 'departure',
                       departure: 'transfer_out',
                       toTid: toTid != null ? Number(toTid) : null,
-                      reason: m.reason || 'Entered Transfer Portal',
+                      // Switching here from an encouraged transfer: its
+                      // marker reason isn't a portal reason.
+                      reason: (m.reason && m.reason !== ENCOURAGED_REASON ? m.reason : m.portalReason) || 'Entered Transfer Portal',
                     }
                   case 'encouraged_to_transfer':
+                    // `reason` must stay the 'Encouraged Transfer' marker —
+                    // it's how every reader (player page, season rollover,
+                    // this dropdown) tells an encouraged transfer from a
+                    // plain portal entry. The in-game portal reason, if the
+                    // user picks one, lives in `portalReason`.
                     return {
                       type: 'departure',
                       departure: 'transfer_out',
                       toTid: toTid != null ? Number(toTid) : null,
-                      reason: m.reason || 'Encouraged Transfer',
+                      reason: ENCOURAGED_REASON,
+                      ...((m.portalReason || (m.reason && m.reason !== ENCOURAGED_REASON && m.reason !== 'Entered Transfer Portal' ? m.reason : null))
+                        ? { portalReason: m.portalReason || m.reason }
+                        : {}),
                     }
                   case 'transferred_out':
                     return {
@@ -2008,7 +2026,7 @@ export default function PlayerEdit() {
                   next.movementByYear = movements
                   // Auto-populate next season's team if forced out to a specific school
                   const destTid = merged.toTid ?? merged.toTeamTid
-                  if (merged.type === 'encouraged_to_transfer' && destTid) {
+                  if (isEncouragedMove(movements[year]) && destTid) {
                     const yearIdx = activeYears.indexOf(year)
                     if (yearIdx >= 0 && yearIdx < activeYears.length - 1) {
                       const nextYear = activeYears[yearIdx + 1]
@@ -2047,7 +2065,12 @@ export default function PlayerEdit() {
                 if (t === 'departure' && m) {
                   if (m.departure === 'graduated') return 'graduated'
                   if (m.departure === 'pro_draft') return 'declared_for_draft'
-                  if (m.departure === 'transfer_out') return 'entered_portal'
+                  // Picking "Encouraged to Transfer" stores a canonical
+                  // transfer_out with the 'Encouraged Transfer' reason. This
+                  // used to map every transfer_out back to "Entered Portal",
+                  // so the choice snapped back and the destination picker
+                  // never appeared.
+                  if (isEncouragedMove(m)) return 'encouraged_to_transfer'
                   return 'entered_portal'
                 }
                 if (t === 'recommit' || t === 'recommitted') return 'recommit'
@@ -2186,7 +2209,14 @@ export default function PlayerEdit() {
                         // .toTeamTid. Read both so the dropdown shows the
                         // destination regardless of which shape is stored.
                         const toTeamTid = movement.toTeamTid ?? movement.toTid ?? ''
-                        const reason = movement.reason || ''
+                        // An encouraged transfer's `reason` is the marker; its
+                        // in-game portal reason is `portalReason` (legacy
+                        // encouraged_to_transfer entries kept it in `reason`).
+                        const isEncouraged = movementType === 'encouraged_to_transfer'
+                        const reasonField = isEncouraged && movement.type === 'departure' ? 'portalReason' : 'reason'
+                        const reason = (isEncouraged
+                          ? (movement.portalReason || (movement.reason !== ENCOURAGED_REASON ? movement.reason : ''))
+                          : movement.reason) || ''
                         const needsTeam = movementType === 'encouraged_to_transfer'
                         const showsPortalReason = ['entered_portal', 'recommit', 'encouraged_to_transfer'].includes(movementType)
                         const recruitProfile = formData.portalRecruitByYear?.[year] || {}
@@ -2312,7 +2342,7 @@ export default function PlayerEdit() {
                                 {showsPortalReason && (
                                   <select
                                     value={reason}
-                                    onChange={(e) => updateMovement(year, { reason: e.target.value })}
+                                    onChange={(e) => updateMovement(year, { [reasonField]: e.target.value })}
                                     className={MOVE_SELECT}
                                     aria-label="Portal reason"
                                   >

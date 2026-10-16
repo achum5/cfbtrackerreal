@@ -2359,6 +2359,86 @@ export function isUserGame(dynasty, game) {
 }
 
 /**
+ * A week "has a poll" once at least FULL_POLL_MIN teams carry a rank in it —
+ * the same threshold the Top 25 page uses to pick its default week. Below it,
+ * a week's entries are the one or two ranks a single game save writes, not a
+ * poll, and must not decide who is unranked.
+ */
+export const FULL_POLL_MIN = 10
+
+// Per (dynasty.teams object, year) index of the media rankByWeek store:
+//   weeks:  Map<week, Map<rank, tid[]>>   (valid ranks only)
+//   full:   Set<week>                     (weeks with >= FULL_POLL_MIN teams)
+// dynasty.teams is replaced on every update, so a WeakMap keyed on it never
+// serves a stale index.
+const rankPollIndexCache = new WeakMap()
+export function getRankPollIndex(dynasty, year) {
+  const teams = dynasty?.teams
+  if (!teams || typeof teams !== 'object') return { weeks: new Map(), full: new Set() }
+  let byYear = rankPollIndexCache.get(teams)
+  if (!byYear) { byYear = new Map(); rankPollIndexCache.set(teams, byYear) }
+  const key = String(year)
+  const cached = byYear.get(key)
+  if (cached) return cached
+  const weeks = new Map()
+  for (const [tidKey, team] of Object.entries(teams)) {
+    const rbw = team?.byYear?.[key]?.rankByWeek ?? team?.byYear?.[Number(key)]?.rankByWeek
+    if (!rbw || typeof rbw !== 'object') continue
+    for (const [k, v] of Object.entries(rbw)) {
+      const wk = Number(k)
+      if (!Number.isFinite(wk)) continue
+      if (typeof v !== 'number' || v < 1 || v > 25) continue
+      let ranks = weeks.get(wk)
+      if (!ranks) { ranks = new Map(); weeks.set(wk, ranks) }
+      const list = ranks.get(v)
+      if (list) list.push(Number(tidKey))
+      else ranks.set(v, [Number(tidKey)])
+    }
+  }
+  const full = new Set()
+  for (const [wk, ranks] of weeks) {
+    let n = 0
+    for (const list of ranks.values()) n += list.length
+    if (n >= FULL_POLL_MIN) full.add(wk)
+  }
+  const index = { weeks, full }
+  byYear.set(key, index)
+  return index
+}
+
+// Whether a team's rank at `week` was written by one of its own (non weekly-
+// scores) game saves with that exact rank — i.e. the rank came from a game
+// form, not from a poll.
+function rankIsGameBacked(dynasty, tid, year, week, rank) {
+  for (const g of dynasty?.games || []) {
+    if (!g || Number(g.year) !== Number(year) || g.source === 'weekly-scores') continue
+    if (rankSlotForGame(g) !== Number(week)) continue
+    if (Number(g.team1Tid) === tid && g.team1Rank === rank) return true
+    if (Number(g.team2Tid) === tid && g.team2Rank === rank) return true
+  }
+  return false
+}
+
+/**
+ * True when a team's rank at a full-poll week is a phantom: another team
+ * holds the same rank in that poll, and this team's entry came from one of
+ * its own game saves while the other team's did not. A game editor that
+ * pre-filled a stale rank and was saved used to write exactly that ("my team
+ * is always #19, our preseason rank"); the poll entry wins.
+ */
+export function isShadowedPollRank(dynasty, tid, year, week, rank) {
+  const index = getRankPollIndex(dynasty, year)
+  const wk = Number(week)
+  if (!index.full.has(wk)) return false
+  const holders = index.weeks.get(wk)?.get(rank)
+  if (!holders || holders.length < 2) return false
+  const t = Number(tid)
+  if (!holders.includes(t)) return false
+  if (!rankIsGameBacked(dynasty, t, year, wk, rank)) return false
+  return holders.some(other => other !== t && !rankIsGameBacked(dynasty, other, year, wk, rank))
+}
+
+/**
  * Read the rank a team CARRIED INTO a given week (entering rank).
  * Returns the integer rank (1-25) or null if unranked / unknown.
  *
@@ -2381,31 +2461,46 @@ export function getTeamRankForWeek(dynasty, tidOrAbbr, year, week) {
     const n = Number(v)
     return n >= 1 && n <= 25 ? n : null
   }
+  const wk = Number(week)
+  const polls = getRankPollIndex(dynasty, yearNum)
+  // A rank read from a full-poll week, minus phantom duplicates written by a
+  // game save (see isShadowedPollRank).
+  const rankAt = (w, raw) => {
+    const r = validRank(raw)
+    if (r == null) return null
+    return isShadowedPollRank(dynasty, tid, yearNum, w, r) ? null : r
+  }
+  // The most recent week at or before `week` that has a real poll (>=
+  // FULL_POLL_MIN ranked teams). Calendar slots (<=20) never look at the
+  // Final Poll (105) or legacy CFP-round slots (101-104).
+  let latestPoll = null
+  if (Number.isFinite(wk)) {
+    for (const pw of polls.full) {
+      if (pw > wk) continue
+      if (wk <= 20 && pw > 20) continue
+      if (latestPoll == null || pw > latestPoll) latestPoll = pw
+    }
+  }
+
   if (entry) {
     // Exact week first. An EXPLICITLY-PRESENT null/invalid entry means "this
-    // team is unranked as of this week" — the Top 25 sheet save writes exactly
-    // that for teams that fell out of a poll — and must stop the lookup here,
-    // not fall through to carry-forward.
+    // team is unranked as of this week" and stops the lookup here.
     const hasExact = week in entry || String(week) in entry || Number(week) in entry
     if (hasExact) {
-      return validRank(entry[week] ?? entry[String(week)] ?? entry[Number(week)])
+      return rankAt(wk, entry[week] ?? entry[String(week)] ?? entry[Number(week)])
     }
-    // CARRY-FORWARD: a poll stands until a newer one is entered. If this exact
-    // week has no ranking (e.g. the user entered a preseason / early Top 25 but
-    // hasn't entered a fresh poll for this week), fall back to the most recent
-    // EARLIER week with an entry — including preseason (week 0). Without this,
-    // the Scores page and Sportsbook showed no rank pips for teams that are
-    // clearly ranked on the Rankings page (which displays the latest populated
-    // week). Calendar slots (≤20) never inherit the Final Poll (105) or a
-    // legacy CFP-round slot (101–104).
+    // This week has a real poll and the team isn't in it: unranked.
+    if (latestPoll === wk) return null
+    // CARRY-FORWARD: a poll stands until a newer one is entered, so take the
+    // team's most recent entry at or before this week (explicit null = the
+    // drop-out marker, which wins over an older rank).
     //
-    // The scan keeps the most recent PRESENT entry, valid or not — an explicit
-    // null at week N is the drop-out marker, and it must win over week N-1's
-    // real rank. The old scan skipped invalid values, so a team that fell out
-    // of the poll carried its last rank forward forever: deleting the rank on
-    // the game re-derived it right back, and re-saving the Top 25 couldn't
-    // clear it either ("rank stuck at #23" report).
-    const wk = Number(week)
+    // But only until a NEWER poll replaces it. Poll saves write rankings only
+    // for teams IN the poll and never mark the ones that fell out, so a team
+    // ranked in the preseason poll and absent from every weekly poll used to
+    // carry its preseason rank all season ("my team is always ranked #19, our
+    // preseason ranking"). If a real poll exists after the team's last entry,
+    // the team isn't in it: unranked.
     if (Number.isFinite(wk)) {
       let bestRaw
       let bestWk = -Infinity
@@ -2416,18 +2511,16 @@ export function getTeamRankForWeek(dynasty, tidOrAbbr, year, week) {
         if (kw > bestWk) { bestWk = kw; bestRaw = entry[k] }
       }
       if (bestWk !== -Infinity) {
-        const r = validRank(bestRaw)
-        // A valid rank carries forward; an explicit unranked marker means
-        // unranked from that week on — do NOT continue into the preseason
-        // fallback, which would resurrect an even older rank.
-        return r
+        if (latestPoll != null && latestPoll > bestWk) return null
+        return rankAt(bestWk, bestRaw)
       }
     }
   }
+  // No rankByWeek entry for this team up to this week. If a weekly poll
+  // exists, the team isn't in it.
+  if (latestPoll != null && latestPoll > 0) return null
   // Preseason-array fallback — a separate store some dynasties use before any
-  // rankByWeek is written. A preseason poll stands until a weekly one replaces
-  // it, so this now applies to ANY week (was week ≤ 1 only), matching the
-  // carry-forward semantic above.
+  // rankByWeek is written. Stands until a weekly poll replaces it (above).
   {
     const presPolls = dynasty.preseasonRankingsByYear?.[yearNum]
       || dynasty.preseasonRankingsByYear?.[yearStr]
@@ -2754,8 +2847,18 @@ export function applyGameRanksToTeams(dynasty, game) {
   const t2 = game.team2Tid != null ? Number(game.team2Tid) : null
   const r1 = typeof game.team1Rank === 'number' ? game.team1Rank : null
   const r2 = typeof game.team2Rank === 'number' ? game.team2Rank : null
-  if (t1 != null && r1 != null) writeRank(t1, game.year, weekKey, r1)
-  if (t2 != null && r2 != null) writeRank(t2, game.year, weekKey, r2)
+  // Once this slot holds a real poll, a game save must not put a team at a
+  // rank another team already holds in it — that's how a stale pre-filled
+  // rank became a phantom duplicate in the poll. The game record still keeps
+  // its own rank; the poll stays as entered.
+  const polls = getRankPollIndex(dynasty, game.year)
+  const conflictsWithPoll = (tid, rank) => {
+    if (!polls.full.has(Number(weekKey))) return false
+    const holders = polls.weeks.get(Number(weekKey))?.get(rank) || []
+    return holders.some(other => other !== tid)
+  }
+  if (t1 != null && r1 != null && !conflictsWithPoll(t1, r1)) writeRank(t1, game.year, weekKey, r1)
+  if (t2 != null && r2 != null && !conflictsWithPoll(t2, r2)) writeRank(t2, game.year, weekKey, r2)
 
   return teamsCopy
 }
@@ -3175,6 +3278,8 @@ export function getTeamRanking(dynasty, tidOrAbbr, year) {
         if (snapshotWeek > -Infinity) {
           const v = rankByWeek[snapshotWeek] ?? rankByWeek[String(snapshotWeek)]
           if (typeof v === 'number' && v >= 1 && v <= 25) {
+            // A phantom duplicate left by an old game save isn't a ranking.
+            if (isShadowedPollRank(dynasty, Number(tid), year, snapshotWeek, v)) return null
             return { rank: v, source: 'rank_by_week', week: snapshotWeek }
           }
           // Team has rankByWeek data elsewhere but not at the snapshot

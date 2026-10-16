@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { useDynasty, calculateTeamRecordFromGames, getTeamRecord } from '../../context/DynastyContext'
+import { useDynasty, calculateTeamRecordFromGames, getTeamRecord, isShadowedPollRank } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getTeamLogo, getMascotName as getMascotNameFromTeams, stripMascotFromName } from '../../data/teams'
 import { getTeamColors } from '../../data/teamColors'
@@ -222,7 +222,18 @@ export default function Rankings() {
         v = usesCfp ? (media[selectedWeek] ?? media[String(selectedWeek)]) : (cfp[selectedWeek] ?? cfp[String(selectedWeek)])
       }
       if (typeof v !== 'number' || v < 1 || v > 25) continue
-      if (slotMap.has(v)) continue
+      if (slotMap.has(v)) {
+        // Two teams at one rank: keep the poll's entry over a phantom one a
+        // game save wrote (see isShadowedPollRank), instead of whichever team
+        // happens to come first.
+        const held = slotMap.get(v)
+        if (held.tid != null && isShadowedPollRank(currentDynasty, held.tid, displayYear, selectedWeek, v)
+          && !isShadowedPollRank(currentDynasty, Number(tidKey), displayYear, selectedWeek, v)) {
+          claimedTids.delete(held.tid)
+        } else {
+          continue
+        }
+      }
       slotMap.set(v, {
         rank: v,
         tid: Number(tidKey),
