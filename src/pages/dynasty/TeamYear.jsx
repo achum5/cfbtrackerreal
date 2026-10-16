@@ -4111,9 +4111,11 @@ export default function TeamYear() {
                       ) : ngRivalryTrophy ? (
                         <span className="text-[10px] font-bold uppercase tracking-wide text-yellow-400" title={ngRivalryTrophy.name}>Rivalry</span>
                       ) : null}
+                      {/* Sits on the seam between the two team colors, so it
+                          gets its own dark pill — readable on any pairing. */}
                       <span
-                        className="text-[10px] font-bold uppercase"
-                        style={{ letterSpacing: '2px', color: '#fff', opacity: 0.6 }}
+                        className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-sm"
+                        style={{ letterSpacing: '2px', color: 'rgba(255,255,255,0.85)', backgroundColor: 'rgba(0,0,0,0.55)' }}
                       >
                         {nextGameInfo.location === 'away' ? 'at' : 'vs'}
                       </span>
