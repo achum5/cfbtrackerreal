@@ -452,7 +452,11 @@ export default function PlayerEdit() {
   // (e.g. the player page's "Trading Card" button → edit?tab=card) land
   // the user there without an extra click.
   const [searchParams] = useSearchParams()
-  const initialTab = searchParams.get('tab') || 'profile'
+  // "attributes" is the tab's visible name; its id is "ratings". Unknown ids
+  // fall back to Profile instead of rendering an empty body.
+  const EDIT_TAB_IDS = ['profile', 'ratings', 'career', 'stats', 'awards', 'card']
+  const requestedTab = searchParams.get('tab') === 'attributes' ? 'ratings' : searchParams.get('tab')
+  const initialTab = EDIT_TAB_IDS.includes(requestedTab) ? requestedTab : 'profile'
   const [activeTab, setActiveTab] = useState(initialTab)
   // Selected season for the per-season Attributes editor (rostered players).
   // null = default to current season (resolved in the tab body).
@@ -1206,12 +1210,15 @@ export default function PlayerEdit() {
     : (currentYear && attrEditYears.includes(Number(currentYear)) ? Number(currentYear) : (attrEditYears[attrEditYears.length - 1] ?? Number(currentYear)))
 
   return (
-    <div className="min-h-dvh pb-24 -mx-4 sm:-mx-6 lg:-mx-8 -my-4 sm:-my-6">
+    // Full-bleed sticky header band: pulled out by exactly Layout's page
+    // padding (px-4 / py-6) so the band reaches the edges while the content
+    // inside stays on the same left edge as every other page.
+    <div className="min-h-dvh pb-24 -mx-4 -mt-6">
       {/* Header */}
       <div
         className="sticky top-0 z-30 bg-surface-2 border-b border-surface-4 shadow-lg"
       >
-        <div className="max-w-5xl mx-auto px-4 py-5">
+        <div className="max-w-5xl px-4 py-5">
           <div className="flex items-center gap-5">
             {/* Player Image or Placeholder - Clickable to edit */}
             <div className="relative flex-shrink-0">
@@ -1382,13 +1389,13 @@ export default function PlayerEdit() {
             {/* Header Actions */}
             {!isViewOnly && (
               <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
-                <Button variant="danger" size="sm" onClick={() => setShowDeleteConfirm(true)} disabled={deleting || saving}>
+                <Button variant="danger-outline" size="sm" onClick={() => setShowDeleteConfirm(true)} disabled={deleting || saving}>
                   Delete
                 </Button>
-                <Button variant="secondary" size="sm" onClick={handleCancel} disabled={saving || deleting}>
+                <Button variant="outline" size="sm" onClick={handleCancel} disabled={saving || deleting}>
                   Cancel
                 </Button>
-                <Button variant="primary" size="sm" accentColor={teamColors.primary} onClick={handleSave} disabled={saving || deleting}>
+                <Button variant="primary" size="sm" onClick={handleSave} disabled={saving || deleting}>
                   {saving ? 'Saving…' : 'Save Changes'}
                 </Button>
               </div>
@@ -1429,7 +1436,7 @@ export default function PlayerEdit() {
       </div>
 
       {/* Content */}
-      <div className="max-w-5xl mx-auto px-4 py-4">
+      <div className="max-w-5xl px-4 py-4">
 
         {/* Profile Tab */}
         {activeTab === 'profile' && (
@@ -3052,13 +3059,13 @@ export default function PlayerEdit() {
           style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         >
           <div className="px-4 py-3 flex items-center gap-2">
-            <Button variant="danger" size="sm" onClick={() => setShowDeleteConfirm(true)} disabled={deleting || saving}>
+            <Button variant="danger-outline" size="sm" onClick={() => setShowDeleteConfirm(true)} disabled={deleting || saving}>
               Delete
             </Button>
-            <Button variant="secondary" size="sm" className="flex-1" onClick={handleCancel} disabled={saving || deleting}>
+            <Button variant="outline" size="sm" className="flex-1" onClick={handleCancel} disabled={saving || deleting}>
               Cancel
             </Button>
-            <Button variant="primary" size="sm" accentColor={teamColors.primary} className="flex-1" onClick={handleSave} disabled={saving || deleting}>
+            <Button variant="primary" size="sm" className="flex-1" onClick={handleSave} disabled={saving || deleting}>
               {saving ? 'Saving…' : 'Save'}
             </Button>
           </div>

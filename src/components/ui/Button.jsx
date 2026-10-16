@@ -9,6 +9,7 @@ import { getContrastTextColor } from '../../utils/colorUtils'
  *   secondary — surface-3 fill with surface-5 border (default action)
  *   ghost     — no fill, hover surface-3
  *   danger    — danger fill
+ *   danger-outline — red text + red-tinted border (secondary destructive)
  *   outline   — transparent fill with surface-5 border
  *
  * Sizes: sm | md (default) | lg
@@ -61,6 +62,13 @@ const Button = forwardRef(function Button(
     }
     case 'danger':
       variantClass = 'bg-danger text-white hover:opacity-90 focus-visible:ring-danger'
+      break
+    case 'danger-outline':
+      // Destructive but not the main action on the screen (e.g. Delete next
+      // to Save) — red text + red-tinted border instead of a solid red fill
+      // competing with the primary button.
+      variantClass = 'bg-transparent border text-danger hover:bg-surface-3 focus-visible:ring-danger'
+      style = { borderColor: 'color-mix(in srgb, var(--accent-error) 45%, var(--surface-4))' }
       break
     case 'outline':
       variantClass = 'bg-transparent border border-surface-5 text-txt-primary hover:bg-surface-3 focus-visible:ring-surface-5'
