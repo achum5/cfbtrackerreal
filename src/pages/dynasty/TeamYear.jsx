@@ -3931,6 +3931,10 @@ export default function TeamYear() {
                 const oppTid = teamIsTeam1 ? lastGame.team2Tid : lastGame.team1Tid
                 const userColor = teamInfo.backgroundColor
                 const oppColor = teamsSource?.[oppTid]?.primaryColor || '#374151'
+                // Each half's text follows its own color (white text on a
+                // maize/tan half was unreadable).
+                const userText = getContrastTextColor(userColor)
+                const oppText = getContrastTextColor(oppColor)
                 return (
               <div
                 className="relative mb-5 rounded-xl overflow-hidden cfb-texture cfb-texture-strong"
@@ -3950,7 +3954,7 @@ export default function TeamYear() {
                   <div className="flex flex-col items-start min-w-0">
                     <span
                       className="text-[10px] font-semibold uppercase leading-tight"
-                      style={{ letterSpacing: '1.5px', color: '#fff', opacity: 0.7 }}
+                      style={{ letterSpacing: '1.5px', color: userText, opacity: 0.7 }}
                     >
                       {teamRank ? `#${teamRank}` : ' '}
                     </span>
@@ -3958,7 +3962,7 @@ export default function TeamYear() {
                         legible at a glance without leaning on the W/L chip. */}
                     <span
                       className="text-5xl font-black tabular-nums leading-none"
-                      style={{ color: '#fff', opacity: lastGameInfo.isWin ? 1 : 0.6, fontFamily: 'var(--font-display)' }}
+                      style={{ color: userText, opacity: lastGameInfo.isWin ? 1 : 0.6, fontFamily: 'var(--font-display)' }}
                     >
                       {lastGameInfo.teamScore}
                     </span>
@@ -3966,24 +3970,24 @@ export default function TeamYear() {
                 </div>
                 <div className="flex flex-col items-center justify-center gap-1 px-1 flex-shrink-0">
                   <span
-                    className={`text-[11px] font-black uppercase px-2.5 py-1 rounded-md ${lastGameInfo.isWin ? 'bg-green-500/25 text-green-300' : 'bg-red-500/25 text-red-300'}`}
-                    style={{ letterSpacing: '1px' }}
+                    className="text-[11px] font-black uppercase px-2.5 py-1 rounded-md text-white"
+                    style={{ letterSpacing: '1px', backgroundColor: lastGameInfo.isWin ? '#15803d' : '#b91c1c' }}
                   >
                     {lastGameInfo.isWin ? 'W' : 'L'}
                   </span>
-                  <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: '#fff', opacity: 0.6 }}>Final</span>
+                  <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 rounded-sm" style={{ color: '#fff', backgroundColor: 'rgba(0,0,0,0.45)' }}>Final</span>
                 </div>
                 <div className="flex flex-1 items-center justify-end gap-3 min-w-0 px-4 py-4">
                   <div className="flex flex-col items-end min-w-0">
                     <span
                       className="text-[10px] font-semibold uppercase leading-tight"
-                      style={{ letterSpacing: '1.5px', color: '#fff', opacity: 0.7 }}
+                      style={{ letterSpacing: '1.5px', color: oppText, opacity: 0.7 }}
                     >
                       {lastGame.opponentRank ? `#${lastGame.opponentRank}` : ' '}
                     </span>
                     <span
                       className="text-5xl font-black tabular-nums leading-none"
-                      style={{ color: '#fff', opacity: lastGameInfo.isWin ? 0.6 : 1, fontFamily: 'var(--font-display)' }}
+                      style={{ color: oppText, opacity: lastGameInfo.isWin ? 0.6 : 1, fontFamily: 'var(--font-display)' }}
                     >
                       {lastGameInfo.oppScore}
                     </span>
@@ -4006,8 +4010,8 @@ export default function TeamYear() {
                         <div className="flex flex-col min-w-0">
                           {our ? (
                             <>
-                              <span className="font-semibold truncate" style={{ color: '#fff' }}>{our.name}</span>
-                              <span className="tabular-nums" style={{ color: '#fff', opacity: 0.7 }}>{fmt(our)}</span>
+                              <span className="font-semibold truncate" style={{ color: userText }}>{our.name}</span>
+                              <span className="tabular-nums" style={{ color: userText, opacity: 0.7 }}>{fmt(our)}</span>
                             </>
                           ) : (
                             <span className="opacity-30">—</span>
@@ -4016,8 +4020,8 @@ export default function TeamYear() {
                         <div className="flex flex-col text-right min-w-0">
                           {opp ? (
                             <>
-                              <span className="font-semibold truncate" style={{ color: '#fff' }}>{opp.name}</span>
-                              <span className="tabular-nums" style={{ color: '#fff', opacity: 0.7 }}>{fmt(opp)}</span>
+                              <span className="font-semibold truncate" style={{ color: oppText }}>{opp.name}</span>
+                              <span className="tabular-nums" style={{ color: oppText, opacity: 0.7 }}>{fmt(opp)}</span>
                             </>
                           ) : (
                             <span className="opacity-30">—</span>

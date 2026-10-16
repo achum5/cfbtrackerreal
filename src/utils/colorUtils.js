@@ -36,8 +36,11 @@ export function isLightColor(hexColor) {
   const { r, g, b } = hexToRgb(hexColor)
   const luminance = getLuminance(r, g, b)
 
-  // Threshold of 0.5 - colors with luminance > 0.5 are considered light
-  return luminance > 0.5
+  // Light (→ dark text) above 0.42. At the old 0.5 cutoff, colors between
+  // 0.42 and 0.5 (Tulsa's tan, light custom-team golds) kept white text at
+  // ~2:1 contrast. 0.42 keeps white ≥ 2.25:1 and leaves brand-standard
+  // white-on-orange/Carolina-blue (Tennessee, UNC, ~0.37–0.40) unchanged.
+  return luminance > 0.42
 }
 
 /**
