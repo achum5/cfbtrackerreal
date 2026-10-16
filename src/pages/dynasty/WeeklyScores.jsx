@@ -886,7 +886,10 @@ export default function WeeklyScores() {
       {(() => {
         return (
         <div className="relative">
-          <div className="relative pb-1 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          {/* Side-by-side only from xl: the three-part title plus up to five
+              action buttons need the room, and at laptop widths (sidebar
+              open) "RECAP" used to wrap under the year beside the buttons. */}
+          <div className="relative pb-1 flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
             <h1
               className="group font-display font-extrabold uppercase tracking-tight leading-none m-0 break-words inline-flex items-baseline flex-wrap gap-x-3 text-txt-primary"
               style={{ fontSize: 'clamp(1.6rem, 3.4vw, 2.6rem)' }}

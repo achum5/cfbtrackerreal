@@ -3741,7 +3741,7 @@ export default function TeamYear() {
                     of bare text on the page background. No left indent so the
                     card's left edge lines up with the Previous Game scorebug
                     below; -mr-4/pr-4 lets it bleed off the right while scrolling. */}
-                <div className="md:hidden -mr-4 pr-4 overflow-x-auto scrollbar-hide">
+                <div className="lg:hidden -mr-4 pr-4 overflow-x-auto scrollbar-hide">
                   <div
                     className="inline-flex rounded-xl overflow-hidden cfb-texture cfb-texture-strong stagger-reveal align-top"
                     style={{ backgroundColor: teamInfo.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.44) 100%)' }}
@@ -3774,12 +3774,12 @@ export default function TeamYear() {
                   </div>
                 </div>
 
-                {/* Desktop: 5-col grid at md+; collapses to vertical stack at xl+
+                {/* Desktop: 5-col grid at lg+ (below lg the names truncated to "R. Bea…", so the swipe strip above covers md too); collapses to vertical stack at xl+
                     where the Home layout drops into its narrow left rail.
                     (Was lg+ before — but the outer 3-col grid also moved
                     to xl, so between lg and xl the leaders should keep
                     the wide horizontal row instead of stacking early.) */}
-                <div className="hidden md:grid md:grid-cols-5 xl:grid-cols-1 stagger-reveal rounded-xl overflow-hidden cfb-texture cfb-texture-strong" style={{ backgroundColor: teamInfo.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.44) 100%)' }}>
+                <div className="hidden lg:grid lg:grid-cols-5 xl:grid-cols-1 stagger-reveal rounded-xl overflow-hidden cfb-texture cfb-texture-strong" style={{ backgroundColor: teamInfo.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.44) 100%)' }}>
                   {leaders.map((l, idx) => (
                     <Link
                       key={l.key}

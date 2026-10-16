@@ -3108,8 +3108,12 @@ export default function Dashboard() {
         )
       })()}
 
-      {/* Main Content Grid - Two columns on desktop */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Main Content Grid - Two columns on desktop. When the recap card
+          spans both rows on the right, row 1 (the to-dos) sizes to its
+          content and row 2 (Schedule/Roster) takes the rest — otherwise the
+          grid split the recap's height across both rows and left a tall empty
+          gap under the to-do list. */}
+      <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 ${lastWeekRecapExists ? 'lg:grid-rows-[auto_1fr]' : ''}`}>
         {/* Left Column: Phase-Specific Tasks */}
         <div className="space-y-6 lg:flex lg:flex-col lg:h-full">
           {/* Phase-Specific Content */}
