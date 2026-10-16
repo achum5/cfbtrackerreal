@@ -2831,7 +2831,7 @@ export default function TeamYear() {
     return (
       <div className="flex items-center justify-center min-h-dvh">
         <div className="text-center">
-          <div className="inline-block w-12 h-12 border-4 border-surface-4 border-t-blue-500 rounded-full animate-spin mb-4" />
+          <div className="inline-block w-10 h-10 border-2 border-surface-5 border-t-txt-primary rounded-full animate-spin mb-4" />
           <p className="text-lg font-medium text-txt-secondary">Loading dynasty data...</p>
           <p className="text-sm text-txt-muted mt-2">Please wait while we fetch your games and roster from the cloud.</p>
         </div>

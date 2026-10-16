@@ -2851,7 +2851,7 @@ export default function ScoutAnalysis({ players = [], removedRecruits = [], onTo
                                     );
                                   })()}
                                 </div>
-                                {pl.isATH && !pl.isIncoming && <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-purple-950 border border-purple-800 text-purple-400 shrink-0">ATH</span>}
+                                {pl.isATH && !pl.isIncoming && <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-surface-3 border border-surface-5 text-txt-secondary shrink-0">ATH</span>}
                                 {!pl.isIncoming && <span className="text-xs text-txt-tertiary tabular-nums shrink-0">{pl.ovr > 0 ? pl.ovr : '—'} OVR</span>}
                                 {!pl.isIncoming && <span className="text-xs text-txt-tertiary tabular-nums shrink-0 w-8 text-right">{pl.cls}</span>}
                                 {pl.isIncoming && (
