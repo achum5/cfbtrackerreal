@@ -1943,7 +1943,9 @@ export default function Game() {
           {/* Right: edit / spacer */}
           {!isViewOnly && !isCfb27Auto ? (
             <button
+              type="button"
               onClick={() => navigate(`${pathPrefix}/game/${gameId}/edit`, { state: { from: routeLocation.pathname } })}
+              aria-label="Edit game"
               className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium text-xs transition-colors"
               style={{
                 backgroundColor: 'var(--surface-3)',

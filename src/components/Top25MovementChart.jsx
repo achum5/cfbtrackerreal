@@ -160,7 +160,8 @@ export default function Top25MovementChart({ dynasty, year, weeks, weekLabel }) 
 
   return (
     <div>
-      <div ref={wrapRef} className="overflow-x-auto">
+      {/* Focusable so keyboard users can scroll it when it overflows (phones). */}
+      <div ref={wrapRef} className="overflow-x-auto" tabIndex={0} role="region" aria-label="Rank movement chart">
         <svg
           ref={svgRef}
           viewBox={`0 0 ${width} ${height}`}
