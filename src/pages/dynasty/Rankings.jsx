@@ -581,8 +581,9 @@ export default function Rankings() {
 }
 
 /**
- * Inline week selector — same baseline-aligned, headline-styled chevron
- * pattern as InlineYearSelect, but supports a non-numeric "Final" value
+ * Inline week selector — same baseline-aligned chevron pattern as
+ * InlineYearSelect (chevron at 1em here: it sits in the small eyebrow, where
+ * the headline's 0.5em rendered as a 6px dot), but supports a non-numeric "Final" value
  * alongside week numbers. Native <select> sits invisibly on top so the
  * picker stays keyboard- and screen-reader-accessible.
  */
@@ -591,7 +592,7 @@ function InlineWeekSelect({ value, label, options, onChange }) {
     <span className="relative inline-flex items-baseline group">
       <span aria-hidden="true">{label}</span>
       <svg
-        className="ml-1 self-center w-[0.5em] h-[0.5em] opacity-60 transition-opacity group-hover:opacity-100"
+        className="ml-1 self-center w-[1em] h-[1em] opacity-70 transition-opacity group-hover:opacity-100"
         viewBox="0 0 20 20"
         fill="currentColor"
         aria-hidden="true"
