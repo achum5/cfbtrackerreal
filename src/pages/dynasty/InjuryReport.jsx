@@ -71,10 +71,10 @@ export default function InjuryReport() {
         title="Injury Report"
         right={(
           <div className="flex items-center gap-2">
-            <Select value={selectedTid} onChange={(e) => handleTeamChange(e.target.value)} size="sm">
+            <Select value={selectedTid} onChange={(e) => handleTeamChange(e.target.value)} size="sm" aria-label="Team">
               {teamOptions.map((t) => <option key={t.tid} value={t.tid}>{t.name}</option>)}
             </Select>
-            <Select value={positionFilter} onChange={(e) => setPositionFilter(e.target.value)} size="sm">
+            <Select value={positionFilter} onChange={(e) => setPositionFilter(e.target.value)} size="sm" aria-label="Position">
               <option value="ALL">All Positions</option>
               {positions.map((p) => <option key={p} value={p}>{p}</option>)}
             </Select>

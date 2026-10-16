@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { Card, EmptyState } from '../../components/ui'
 import { useDynasty } from '../../context/DynastyContext'
 import { proxyImageUrl } from '../../utils/imageProxy'
@@ -52,7 +52,6 @@ const Chevron = ({ open }) => (
 
 function Row({ r, rank, pathPrefix, scoutResult, scoring, localScore, useLocalScores, allPlayers, weightsMap, pool, draggable: isDraggable, onDragStart, onDragOver, onDrop, isDragOver, onToggleRemove, onHide, dynastyTeams, canEdit, isOpen, onToggleOpen }) {
   const { p, status } = r
-  const navigate = useNavigate()
   const open = isOpen
   const lost = status === 'committed_elsewhere'
   const committed = status === 'committed_us'
@@ -129,11 +128,11 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring, localScore, useLocalSc
         opacity: committed ? 1 : lost ? 0.55 : removed ? 0.4 : 1,
       }}
     >
+      {/* Clicking anywhere on the row toggles it (a mouse convenience); the
+          chevron at the end is the real, focusable toggle. The row itself
+          isn't role="button", since it holds a player link and icon buttons. */}
       <div
-        role="button"
-        tabIndex={0}
         onClick={onToggleOpen}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onToggleOpen() }}
         className={[
           'w-full flex items-center gap-3 sm:gap-3.5 px-4 py-3 transition-colors text-left hover:bg-surface-2',
           canDrag ? 'cursor-grab active:cursor-grabbing' : '',
@@ -167,15 +166,14 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring, localScore, useLocalSc
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             <span className="relative inline-block">
-              <span
-                role="link"
-                tabIndex={0}
-                onClick={(e) => { e.stopPropagation(); navigate(`${pathPrefix}/player/${p.pid}`) }}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); navigate(`${pathPrefix}/player/${p.pid}`) } }}
+              <Link
+                to={`${pathPrefix}/player/${p.pid}`}
+                onClick={(e) => e.stopPropagation()}
+                draggable={false}
                 className="text-[13px] sm:text-[15px] font-bold text-txt-primary truncate hover:underline cursor-pointer"
               >
                 {p.name}
-              </span>
+              </Link>
               <GemBustIcon type={p.gemBust} />
             </span>
             {Number(p.stars) > 0 && <span className="text-[10px] flex-shrink-0 tracking-tight" style={{ color: 'var(--accent-warning)' }}>{STAR(p.stars)}</span>}
@@ -290,6 +288,7 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring, localScore, useLocalSc
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onToggleRemove(p) }}
+            aria-label={`${removed ? 'Restore' : 'Remove'} ${p.name} ${removed ? 'to' : 'from'} board`}
             className={`flex-shrink-0 p-1.5 rounded transition ${removed ? 'text-txt-muted hover:text-emerald-400 hover:bg-emerald-950/40' : 'text-txt-muted hover:text-red-400 hover:bg-red-950/40'}`}
             title={removed ? 'Restore to board' : 'Remove from board'}
           >
@@ -309,6 +308,7 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring, localScore, useLocalSc
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onHide(p) }}
+            aria-label={`Hide ${p.name} from this page`}
             className="flex-shrink-0 p-1.5 rounded transition text-txt-muted hover:text-red-500 hover:bg-red-950/40"
             title="Hide from this page completely (kept in the Recruiting Database)"
           >
@@ -318,7 +318,15 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring, localScore, useLocalSc
           </button>
         )}
 
-        <Chevron open={open} />
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onToggleOpen() }}
+          aria-expanded={open}
+          aria-label={`${open ? 'Hide' : 'Show'} scouting report for ${p.name}`}
+          className="flex-shrink-0 -m-1.5 p-1.5 rounded hover:bg-surface-3"
+        >
+          <Chevron open={open} />
+        </button>
       </div>
 
       {open && (

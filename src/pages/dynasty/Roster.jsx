@@ -72,6 +72,7 @@ export default function Roster() {
         <select
           value={selectedPosition}
           onChange={(e) => setSelectedPosition(e.target.value)}
+          aria-label="Position"
           className="w-full px-3 py-2 rounded-md bg-surface-2 text-txt-primary text-sm font-medium"
           style={{ border: '1px solid var(--surface-4)' }}
         >
