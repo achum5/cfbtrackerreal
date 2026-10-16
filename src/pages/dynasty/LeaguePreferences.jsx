@@ -620,23 +620,23 @@ export default function LeaguePreferences() {
 
         {/* Filters */}
         <div className="px-4 py-3 flex flex-wrap items-center gap-2 border-b border-surface-4">
-          <input className={`${inputCls} flex-1 min-w-[160px]`} placeholder="Search name, handle, role…" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <select className={inputCls} value={kind} onChange={(e) => setKind(e.target.value)}>
+          <input className={`${inputCls} flex-1 min-w-[160px]`} placeholder="Search name, handle, role…" aria-label="Search accounts" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <select className={inputCls} aria-label="Account kind" value={kind} onChange={(e) => setKind(e.target.value)}>
             <option value="all">All kinds</option>
             <option value="national">National</option>
             <option value="team">Team</option>
             <option value="conference">Conference</option>
           </select>
-          <select className={inputCls} value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)}>
+          <select className={inputCls} aria-label="Team" value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)}>
             <option value="all">All teams</option>
             {teamOptions.map(t => <option key={t.tid} value={t.tid}>{t.name}</option>)}
           </select>
-          <select className={inputCls} value={realFilter} onChange={(e) => setRealFilter(e.target.value)}>
+          <select className={inputCls} aria-label="Real or fictional" value={realFilter} onChange={(e) => setRealFilter(e.target.value)}>
             <option value="all">Real &amp; fictional</option>
             <option value="real">Real only</option>
             <option value="fake">Fictional only</option>
           </select>
-          <select className={inputCls} value={pfpFilter} onChange={(e) => setPfpFilter(e.target.value)}>
+          <select className={inputCls} aria-label="Profile picture" value={pfpFilter} onChange={(e) => setPfpFilter(e.target.value)}>
             <option value="all">Any PFP</option>
             <option value="has">Has PFP</option>
             <option value="none">No PFP</option>
@@ -659,7 +659,7 @@ export default function LeaguePreferences() {
           <div className="px-4 py-3 border-b border-surface-4 bg-surface-2/40 space-y-2">
             <div className="text-xs font-semibold text-txt-secondary">Mass edit {selected.size} accounts — only set fields are applied</div>
             <div className="flex flex-wrap items-center gap-2">
-              <select className={inputCls} value={bulkVerified} onChange={(e) => setBulkVerified(e.target.value)}>
+              <select className={inputCls} aria-label="Verified" value={bulkVerified} onChange={(e) => setBulkVerified(e.target.value)}>
                 <option value="">Verified: no change</option>
                 <option value="yes">Set verified</option>
                 <option value="no">Set not verified</option>
@@ -669,9 +669,9 @@ export default function LeaguePreferences() {
                 Color
                 <input type="color" value={bulkColor} onChange={(e) => setBulkColor(e.target.value)} disabled={!bulkColorOn} className="w-8 h-7 rounded bg-transparent border border-surface-4" />
               </label>
-              <input className={`${inputCls} w-40`} placeholder="Set category…" value={bulkCategory} onChange={(e) => setBulkCategory(e.target.value)} />
+              <input className={`${inputCls} w-40`} placeholder="Set category…" aria-label="Category" value={bulkCategory} onChange={(e) => setBulkCategory(e.target.value)} />
             </div>
-            <input className={`${inputCls} w-full`} placeholder="Append to personality (e.g. 'Always uses ALL CAPS.')" value={bulkPersonality} onChange={(e) => setBulkPersonality(e.target.value)} />
+            <input className={`${inputCls} w-full`} placeholder="Append to personality (e.g. 'Always uses ALL CAPS.')" aria-label="Append to personality" value={bulkPersonality} onChange={(e) => setBulkPersonality(e.target.value)} />
             <button onClick={applyBulk} disabled={applying} className="px-4 py-1.5 rounded-lg text-sm font-semibold disabled:opacity-50" style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}>
               {applying ? 'Applying…' : `Apply to ${selected.size}`}
             </button>
@@ -685,7 +685,7 @@ export default function LeaguePreferences() {
           ) : pageItems.map(c => (
             <div key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 border-b border-surface-4">
               {!isViewOnly && (
-                <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} className="w-4 h-4 flex-shrink-0" style={{ accentColor: 'var(--text-primary)' }} />
+                <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} aria-label={`Select ${c.displayName}`} className="w-4 h-4 flex-shrink-0" style={{ accentColor: 'var(--text-primary)' }} />
               )}
               <Link to={`${pathPrefix}/social/${encodeURIComponent(c.id)}`} className="flex items-center gap-3 min-w-0 flex-1 group">
                 <Avatar c={c} />

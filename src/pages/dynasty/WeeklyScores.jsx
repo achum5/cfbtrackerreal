@@ -168,7 +168,6 @@ function FittedNameLink({ to, onClick, full, abbr, className, style, children })
 }
 
 function GameCard({ game, teams, pathPrefix, recordsByTid, domId, compact = false }) {
-  const navigate = useNavigate()
   const { currentDynasty } = useDynasty()
   const t1 = Number(game.team1Tid)
   const t2 = Number(game.team2Tid)
@@ -226,13 +225,16 @@ function GameCard({ game, teams, pathPrefix, recordsByTid, domId, compact = fals
   const topRank = rankFor(topTid)
   const bottomRank = rankFor(bottomTid)
 
-  const handleCardClick = () => navigate(`${pathPrefix}/game/${game.id}`)
-  const handleCardKey = (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      navigate(`${pathPrefix}/game/${game.id}`)
-    }
+  // Spoken name for the card's overlay link (see the return below).
+  const schoolFor = (tid, team) => {
+    const mascot = getMascotNameFromTeams(tid, teams) || team?.name || ''
+    return getSchoolName(mascot) || team?.abbr || `TID ${tid}`
   }
+  const topSchool = schoolFor(topTid, topTeam)
+  const bottomSchool = schoolFor(bottomTid, bottomTeam)
+  const cardLabel = isPlayed
+    ? `${topSchool} ${topScore}, ${bottomSchool} ${bottomScore}, final`
+    : `${topSchool} ${isNeutral ? 'vs' : 'at'} ${bottomSchool}`
 
   // Only surface a header strip for non-default states (tie, scheduled).
   // "Final" is implied by a played game's score, so we don't repeat it.
@@ -300,7 +302,7 @@ function GameCard({ game, teams, pathPrefix, recordsByTid, domId, compact = fals
             full={school}
             abbr={team?.abbr || ''}
             className={`${compact ? 'text-[12px]' : 'text-[15px]'} truncate hover:underline transition-colors`}
-            style={{ fontWeight: won ? 800 : 600, color: txt, opacity: lost ? 0.85 : 1, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}
+            style={{ fontWeight: won ? 800 : 600, color: txt, opacity: lost ? 0.85 : 1, textShadow: '0 1px 2px rgba(0,0,0,0.3)', zIndex: 2 }}
           />
           {record && !compact && (
             <span className="tabular-nums flex-shrink-0" style={{ fontSize: '11px', color: txt, opacity: 0.65 }}>
@@ -329,14 +331,18 @@ function GameCard({ game, teams, pathPrefix, recordsByTid, domId, compact = fals
 
   return (
     <div
-      role="button"
-      tabIndex={0}
       id={domId}
-      onClick={handleCardClick}
-      onKeyDown={handleCardKey}
-      className="game-card relative rounded-lg overflow-hidden bg-surface-2 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-surface-5"
+      className="game-card relative isolate rounded-lg overflow-hidden bg-surface-2 transition-all cursor-pointer"
       style={{ border: '1px solid rgba(255,255,255,0.55)', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}
     >
+      {/* The whole card opens the game. A transparent link stretched over it
+          (rather than role="button" on the card) keeps the team-name links
+          inside reachable and valid — they sit above it at z-index 2. */}
+      <Link
+        to={`${pathPrefix}/game/${game.id}`}
+        aria-label={cardLabel}
+        className="absolute inset-0 z-[1] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/80"
+      />
       {/* Header strip only renders for non-default states (tie, scheduled, neutral) */}
       {showStatusStrip && (
         <div
