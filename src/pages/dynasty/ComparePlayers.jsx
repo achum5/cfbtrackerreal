@@ -12,6 +12,7 @@ import { getTeamLogoByTid, getMascotName, stripMascotFromName } from '../../data
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { displayGroups, displayLabel } from '../../utils/recruitAttributes'
 import { areRatingsHiddenForDisplay } from '../../editions'
+import { PageHero } from '../../components/ui'
 
 // -------------------------------------------------------------------------
 // Stat normalization — mirrors the per-season shape used on the Player page
@@ -601,18 +602,15 @@ export default function ComparePlayers() {
 
   return (
     <div>
-      {/* Header — matched to the table width + mx-auto so its left edge lines
-          up with the centered comparison table below. */}
-      <div className="mb-5 mx-auto" style={{ maxWidth: `${tableWidth}px` }}>
-        <h1 className="font-display font-extrabold uppercase tracking-tight text-2xl sm:text-3xl" style={{ color: 'var(--text-primary)' }}>
-          Compare Players
-        </h1>
-      </div>
+      {/* Same page header as every other league page; the table below is
+          left-aligned with it (it used to center, sitting inset from the
+          sidebar and from every other page's content edge). */}
+      <PageHero title="Compare Players" />
 
       {/* Comparison table — selection lives in the column headers. The outer
           box scrolls horizontally; the inner wrapper is the table's fixed
           intrinsic width so every row aligns and scrolls together. */}
-      <div className="rounded-lg overflow-x-auto mx-auto" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--surface-4)', maxWidth: `${tableWidth}px` }}>
+      <div className="rounded-lg overflow-x-auto" style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--surface-4)', maxWidth: `${tableWidth}px` }}>
         <div style={{ width: `${tableWidth}px` }}>
         {/* Player header cards (each is a selector) */}
         <div className="grid" style={gridCols}>
