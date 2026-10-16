@@ -331,8 +331,9 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
   // Nav item styling — neutral rounded rows. Active = raised surface + full
   // white text; inactive = secondary text with a quieter hover. Padding is
   // identical in both states so the label never shifts when it activates.
+  // Touch screens get ~44px rows (the minimum comfortable tap target).
   const navItemClass = (active) =>
-    `relative block px-3 py-[7px] rounded-md text-sm transition-colors ${
+    `relative block px-3 py-[7px] [@media(pointer:coarse)]:py-[11px] rounded-md text-sm transition-colors ${
       active
         ? 'text-txt-primary font-semibold'
         : 'text-txt-secondary font-medium hover:text-txt-primary hover:bg-surface-2'
