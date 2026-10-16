@@ -226,24 +226,38 @@ export default function CFPBracket() {
   const [savingBracket, setSavingBracket] = useState(false)
   const [bracketEditError, setBracketEditError] = useState(null)
 
-  // Scale bracket based on screen size
+  // Scale the bracket to the space it actually has. It used to key off the
+  // window width, which ignores the sidebar: at a 1024px laptop the bracket
+  // got the 0.8 "desktop" scale inside a ~720px content area and the
+  // semifinal + championship columns were cut off. Now it measures its own
+  // scroll container and fits the whole bracket (capped at 0.8), with a
+  // floor so phones still get a readable size and scroll sideways instead.
+  // Callback-ref via state, so the observer attaches whenever the scroll box
+  // actually mounts (it isn't rendered on the loading/empty paths).
+  const [bracketScrollEl, setBracketScrollEl] = useState(null)
+  const [bracketBoxWidth, setBracketBoxWidth] = useState(null)
   useEffect(() => {
-    const updateScale = () => {
-      const width = window.innerWidth
-      if (width < 400) {
-        setBracketScale(0.35) // Very small mobile
-      } else if (width < 640) {
-        setBracketScale(0.42) // Mobile
-      } else if (width < 1024) {
-        setBracketScale(0.65)  // Tablet
-      } else {
-        setBracketScale(0.8)  // Desktop
-      }
+    const el = bracketScrollEl
+    if (!el) return
+    const measure = () => setBracketBoxWidth(el.clientWidth)
+    measure()
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure)
+      return () => window.removeEventListener('resize', measure)
     }
-    updateScale()
-    window.addEventListener('resize', updateScale)
-    return () => window.removeEventListener('resize', updateScale)
-  }, [])
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [bracketScrollEl])
+  useEffect(() => {
+    if (!bracketBoxWidth) return
+    // Must match BRACKET_WIDTH below (3 columns of slot + connector gap,
+    // then the championship slot + 40px).
+    const naturalWidth = 3 * (300 + 60) + 300 + 40
+    const fit = (bracketBoxWidth - 32) / naturalWidth
+    const floor = bracketBoxWidth < 400 ? 0.35 : bracketBoxWidth < 640 ? 0.42 : 0.45
+    setBracketScale(Math.max(floor, Math.min(0.8, fit)))
+  }, [bracketBoxWidth])
 
   if (!currentDynasty) {
     return <div className="p-6">Loading...</div>
@@ -1572,6 +1586,7 @@ export default function CFPBracket() {
 
       {/* Bracket Container - scrollable on mobile, centered on larger screens */}
       <div
+        ref={setBracketScrollEl}
         className="overflow-x-auto overflow-y-visible pb-4"
         style={{
           WebkitOverflowScrolling: 'touch',
