@@ -1543,7 +1543,7 @@ function PlayerInner() {
       console.warn(`[gameLog] ${statType}: ${cells.length + 3} cells vs colSpan ${colSpan} — game log columns will not line up`)
     }
 
-    const tint = `${teamInfo.backgroundColor}15`
+    const tint = `color-mix(in srgb, ${teamInfo.backgroundColor} 8%, var(--surface-2))`
     const edge = `${teamInfo.backgroundColor}30`
 
     return (
@@ -4162,7 +4162,7 @@ function PlayerInner() {
 
                 return (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm table-fixed">
+                    <table className="stats-pin-first w-full text-sm table-fixed">
                       <thead>
                         <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
                           {renderSortableHeader('passing', 'year', 'Year', 'left', colWidths.year)}
@@ -4193,7 +4193,7 @@ function PlayerInner() {
                           const colSpan = 15 + (primaryStat === 'passing' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
                             <React.Fragment key={y.year}>
-                              <tr className="transition-opacity hover:opacity-80" style={{ backgroundColor: isGameLogExpanded(y.year, 'passing') ? `${teamInfo.backgroundColor}15` : idx % 2 === 1 ? 'var(--surface-2)' : 'var(--surface-1)', borderBottom: `1px solid ${teamInfo.backgroundColor}25` }}>
+                              <tr className="transition-opacity hover:opacity-80" style={{ backgroundColor: isGameLogExpanded(y.year, 'passing') ? `color-mix(in srgb, ${teamInfo.backgroundColor} 8%, var(--surface-2))` : idx % 2 === 1 ? 'var(--surface-2)' : 'var(--surface-1)', borderBottom: `1px solid ${teamInfo.backgroundColor}25` }}>
                                 <td
                                   className="px-1.5 py-2 font-medium cursor-pointer hover:underline truncate"
                                   style={{ color: 'var(--text-primary)' }}
@@ -4276,7 +4276,7 @@ function PlayerInner() {
 
                 return (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm table-fixed">
+                    <table className="stats-pin-first w-full text-sm table-fixed">
                       <thead>
                         <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
                           {renderSortableHeader('rushing', 'year', 'Year', 'left', colWidths.year)}
@@ -4306,7 +4306,7 @@ function PlayerInner() {
                           const colSpan = 14 + (primaryStat === 'rushing' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
                             <React.Fragment key={y.year}>
-                              <tr className="transition-opacity hover:opacity-80" style={{ backgroundColor: isGameLogExpanded(y.year, 'rushing') ? `${teamInfo.backgroundColor}15` : idx % 2 === 1 ? 'var(--surface-2)' : 'var(--surface-1)', borderBottom: `1px solid ${teamInfo.backgroundColor}25` }}>
+                              <tr className="transition-opacity hover:opacity-80" style={{ backgroundColor: isGameLogExpanded(y.year, 'rushing') ? `color-mix(in srgb, ${teamInfo.backgroundColor} 8%, var(--surface-2))` : idx % 2 === 1 ? 'var(--surface-2)' : 'var(--surface-1)', borderBottom: `1px solid ${teamInfo.backgroundColor}25` }}>
                                 <td
                                   className="px-1.5 py-2 font-medium cursor-pointer hover:underline truncate"
                                   style={{ color: 'var(--text-primary)' }}
@@ -4388,7 +4388,7 @@ function PlayerInner() {
 
                 return (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm table-fixed">
+                    <table className="stats-pin-first w-full text-sm table-fixed">
                       <thead>
                         <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
                           {renderSortableHeader('receiving', 'year', 'Year', 'left', colWidths.year)}
@@ -4416,7 +4416,7 @@ function PlayerInner() {
                           const colSpan = 12 + (primaryStat === 'receiving' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
                             <React.Fragment key={y.year}>
-                              <tr className="transition-opacity hover:opacity-80" style={{ backgroundColor: isGameLogExpanded(y.year, 'receiving') ? `${teamInfo.backgroundColor}15` : idx % 2 === 1 ? 'var(--surface-2)' : 'var(--surface-1)', borderBottom: `1px solid ${teamInfo.backgroundColor}25` }}>
+                              <tr className="transition-opacity hover:opacity-80" style={{ backgroundColor: isGameLogExpanded(y.year, 'receiving') ? `color-mix(in srgb, ${teamInfo.backgroundColor} 8%, var(--surface-2))` : idx % 2 === 1 ? 'var(--surface-2)' : 'var(--surface-1)', borderBottom: `1px solid ${teamInfo.backgroundColor}25` }}>
                                 <td
                                   className="px-1.5 py-2 font-medium cursor-pointer hover:underline truncate"
                                   style={{ color: 'var(--text-primary)' }}
@@ -4491,7 +4491,7 @@ function PlayerInner() {
 
                 return (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="stats-pin-first w-full text-sm">
                       <thead>
                         <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
                           {renderSortableHeader('blocking', 'year', 'Year', 'left', 'w-14')}
@@ -4512,7 +4512,7 @@ function PlayerInner() {
                           const colSpan = 5 + (primaryStat === 'blocking' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
                             <React.Fragment key={y.year}>
-                              <tr className="transition-opacity hover:opacity-80" style={{ backgroundColor: isGameLogExpanded(y.year, 'blocking') ? `${teamInfo.backgroundColor}15` : idx % 2 === 1 ? 'var(--surface-2)' : 'var(--surface-1)', borderBottom: `1px solid ${teamInfo.backgroundColor}25` }}>
+                              <tr className="transition-opacity hover:opacity-80" style={{ backgroundColor: isGameLogExpanded(y.year, 'blocking') ? `color-mix(in srgb, ${teamInfo.backgroundColor} 8%, var(--surface-2))` : idx % 2 === 1 ? 'var(--surface-2)' : 'var(--surface-1)', borderBottom: `1px solid ${teamInfo.backgroundColor}25` }}>
                                 <td
                                   className="px-2 py-2.5 font-medium w-14 cursor-pointer hover:underline"
                                   style={{ color: 'var(--text-primary)' }}
@@ -4575,7 +4575,7 @@ function PlayerInner() {
 
                 return (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="stats-pin-first w-full text-sm">
                       <thead>
                         <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
                           {renderSortableHeader('defense', 'year', 'Year', 'left', 'w-14')}
@@ -4606,7 +4606,7 @@ function PlayerInner() {
                           const colSpan = 15 + (primaryStat === 'defense' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
                             <React.Fragment key={y.year}>
-                              <tr className="transition-opacity hover:opacity-80" style={{ backgroundColor: isGameLogExpanded(y.year, 'defense') ? `${teamInfo.backgroundColor}15` : idx % 2 === 1 ? 'var(--surface-2)' : 'var(--surface-1)', borderBottom: `1px solid ${teamInfo.backgroundColor}25` }}>
+                              <tr className="transition-opacity hover:opacity-80" style={{ backgroundColor: isGameLogExpanded(y.year, 'defense') ? `color-mix(in srgb, ${teamInfo.backgroundColor} 8%, var(--surface-2))` : idx % 2 === 1 ? 'var(--surface-2)' : 'var(--surface-1)', borderBottom: `1px solid ${teamInfo.backgroundColor}25` }}>
                                 <td
                                   className="px-2 py-2.5 font-medium w-14 cursor-pointer hover:underline"
                                   style={{ color: 'var(--text-primary)' }}
@@ -4690,7 +4690,7 @@ function PlayerInner() {
 
                 return (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="stats-pin-first w-full text-sm">
                       <thead>
                         <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
                           {renderSortableHeader('kicking', 'year', 'Year', 'left', 'w-14')}
@@ -4717,7 +4717,7 @@ function PlayerInner() {
                           const colSpan = 11 + (primaryStat === 'kicking' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
                             <React.Fragment key={y.year}>
-                              <tr className="transition-opacity hover:opacity-80" style={{ backgroundColor: isGameLogExpanded(y.year, 'kicking') ? `${teamInfo.backgroundColor}15` : idx % 2 === 1 ? 'var(--surface-2)' : 'var(--surface-1)', borderBottom: `1px solid ${teamInfo.backgroundColor}25` }}>
+                              <tr className="transition-opacity hover:opacity-80" style={{ backgroundColor: isGameLogExpanded(y.year, 'kicking') ? `color-mix(in srgb, ${teamInfo.backgroundColor} 8%, var(--surface-2))` : idx % 2 === 1 ? 'var(--surface-2)' : 'var(--surface-1)', borderBottom: `1px solid ${teamInfo.backgroundColor}25` }}>
                                 <td
                                   className="px-2 py-2.5 font-medium w-14 cursor-pointer hover:underline"
                                   style={{ color: 'var(--text-primary)' }}
@@ -4792,7 +4792,7 @@ function PlayerInner() {
 
                 return (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="stats-pin-first w-full text-sm">
                       <thead>
                         <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
                           {renderSortableHeader('punting', 'year', 'Year', 'left', 'w-14')}
@@ -4818,7 +4818,7 @@ function PlayerInner() {
                           const colSpan = 10 + (primaryStat === 'punting' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
                             <React.Fragment key={y.year}>
-                              <tr className="transition-opacity hover:opacity-80" style={{ backgroundColor: isGameLogExpanded(y.year, 'punting') ? `${teamInfo.backgroundColor}15` : idx % 2 === 1 ? 'var(--surface-2)' : 'var(--surface-1)', borderBottom: `1px solid ${teamInfo.backgroundColor}25` }}>
+                              <tr className="transition-opacity hover:opacity-80" style={{ backgroundColor: isGameLogExpanded(y.year, 'punting') ? `color-mix(in srgb, ${teamInfo.backgroundColor} 8%, var(--surface-2))` : idx % 2 === 1 ? 'var(--surface-2)' : 'var(--surface-1)', borderBottom: `1px solid ${teamInfo.backgroundColor}25` }}>
                                 <td
                                   className="px-2 py-2.5 font-medium w-14 cursor-pointer hover:underline"
                                   style={{ color: 'var(--text-primary)' }}
@@ -4889,7 +4889,7 @@ function PlayerInner() {
 
                 return (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="stats-pin-first w-full text-sm">
                   <thead>
                     <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
                       {renderSortableHeader('kickReturn', 'year', 'Year', 'left', 'w-14')}
@@ -4977,7 +4977,7 @@ function PlayerInner() {
 
                 return (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="stats-pin-first w-full text-sm">
                   <thead>
                     <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
                       {renderSortableHeader('puntReturn', 'year', 'Year', 'left', 'w-14')}

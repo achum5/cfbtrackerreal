@@ -1106,6 +1106,22 @@ button.media-card:active,
   cursor: not-allowed;
 }
 
+/* Career stat tables (player Stats tab) are wider than a phone and scroll
+   sideways; keep the Year column pinned while they do, ESPN-style, so every
+   number stays tied to its season. Desktop never scrolls, so it's scoped to
+   narrower screens. Expanded game-log rows (a single colspan cell) and other
+   spanning cells are left alone. */
+@media (max-width: 1023.98px) {
+  .stats-pin-first > thead > tr > :first-child,
+  .stats-pin-first > tbody > tr > :first-child:not([colspan]) {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background-color: inherit;
+    box-shadow: 1px 0 0 var(--surface-4);
+  }
+}
+
 /* Respect reduced-motion — kill the animations entirely. */
 @media (prefers-reduced-motion: reduce) {
   .press, .lift, .reveal, .animate-pulse-subtle, .animate-glow,
