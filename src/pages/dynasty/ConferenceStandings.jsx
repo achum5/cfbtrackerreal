@@ -492,7 +492,7 @@ export default function ConferenceStandings() {
           {rank}
         </div>
 
-        <div className="w-6 h-6 rounded-full bg-white p-0.5 flex-shrink-0 flex items-center justify-center transition-transform duration-150 group-hover:scale-110">
+        <div className="w-6 h-6 rounded-full bg-white p-0.5 flex-shrink-0 flex items-center justify-center">
           {logo ? (
             <img src={logo} alt="" className="w-full h-full object-contain" />
           ) : (

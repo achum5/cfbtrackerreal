@@ -556,7 +556,7 @@ export default function ConferenceChampionshipHistory() {
                   className="group w-full flex items-center gap-3 px-4 py-3.5 hover:bg-surface-3 transition-colors text-left"
                 >
                   <div
-                    className="w-11 h-11 rounded-md flex-shrink-0 flex items-center justify-center bg-white p-1 transition-transform duration-200 group-hover:scale-105"
+                    className="w-11 h-11 rounded-md flex-shrink-0 flex items-center justify-center bg-white p-1"
                     style={{
                       boxShadow: isExpanded
                         ? '0 0 0 2px var(--surface-5)'
@@ -666,7 +666,7 @@ export default function ConferenceChampionshipHistory() {
                           <div className="flex items-center gap-2 px-2.5 sm:px-3 py-2.5 min-w-0" style={{ width: '50%' }}>
                             <span className="font-display font-black tabular-nums text-[11px] flex-shrink-0 w-8 sm:w-10" style={{ color: t1Txt, opacity: 0.72 }}>{game.year}</span>
                             {team1Logo && (
-                              <div className="w-7 h-7 rounded-full bg-white p-1 flex-shrink-0 flex items-center justify-center transition-transform duration-150 group-hover:scale-105">
+                              <div className="w-7 h-7 rounded-full bg-white p-1 flex-shrink-0 flex items-center justify-center">
                                 <img src={team1Logo} alt="" className="w-full h-full object-contain" />
                               </div>
                             )}
@@ -686,7 +686,7 @@ export default function ConferenceChampionshipHistory() {
                               {getSchoolName(t2Tid != null ? t2Tid : game.team2, teamsSrc) || game.team2}
                             </span>
                             {team2Logo && (
-                              <div className="w-7 h-7 rounded-full bg-white p-1 flex-shrink-0 flex items-center justify-center transition-transform duration-150 group-hover:scale-105">
+                              <div className="w-7 h-7 rounded-full bg-white p-1 flex-shrink-0 flex items-center justify-center">
                                 <img src={team2Logo} alt="" className="w-full h-full object-contain" />
                               </div>
                             )}

@@ -89,7 +89,7 @@ export default function Contact() {
           href={DISCORD_INVITE_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="group relative block overflow-hidden rounded-2xl transition-all duration-300 hover:-translate-y-1"
+          className="group relative block overflow-hidden rounded-2xl transition-shadow duration-200"
           style={{
             background: 'linear-gradient(135deg, #5865F2 0%, #404EED 50%, #2F3BD6 100%)',
             boxShadow: '0 10px 40px -8px rgba(88, 101, 242, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06) inset',
@@ -109,7 +109,7 @@ export default function Contact() {
               <img
                 src={circleLogo}
                 alt=""
-                className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl transition-transform duration-300 group-hover:scale-105"
+                className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl"
               />
               {/* Discord badge chip on the logo */}
               <div
@@ -143,7 +143,7 @@ export default function Contact() {
             rel="noopener noreferrer"
             aria-label="Reddit: u/achum5"
             title="Reddit"
-            className="group w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5"
+            className="group w-11 h-11 rounded-xl flex items-center justify-center transition-colors duration-200"
             style={{
               backgroundColor: 'var(--surface-2)',
               border: '1px solid var(--rule-soft)',
@@ -160,7 +160,7 @@ export default function Contact() {
             rel="noopener noreferrer"
             aria-label="Instagram: @alexguess_"
             title="Instagram"
-            className="group w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5"
+            className="group w-11 h-11 rounded-xl flex items-center justify-center transition-colors duration-200"
             style={{
               backgroundColor: 'var(--surface-2)',
               border: '1px solid var(--rule-soft)',
@@ -177,7 +177,7 @@ export default function Contact() {
             rel="noopener noreferrer"
             aria-label="Twitter: @alexguess_"
             title="Twitter"
-            className="group w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5"
+            className="group w-11 h-11 rounded-xl flex items-center justify-center transition-colors duration-200"
             style={{
               backgroundColor: 'var(--surface-2)',
               border: '1px solid var(--rule-soft)',
@@ -194,7 +194,7 @@ export default function Contact() {
             rel="noopener noreferrer"
             aria-label="Facebook: alex.chumbler"
             title="Facebook"
-            className="group w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5"
+            className="group w-11 h-11 rounded-xl flex items-center justify-center transition-colors duration-200"
             style={{
               backgroundColor: 'var(--surface-2)',
               border: '1px solid var(--rule-soft)',

@@ -341,7 +341,7 @@ export default function Awards() {
                 src={img}
                 alt={display.name}
                 loading="lazy"
-                className="max-h-full w-auto object-contain transition-transform duration-200 group-hover:scale-105"
+                className="max-h-full w-auto object-contain"
                 style={{ filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.5))' }}
               />
             ) : (

@@ -140,7 +140,7 @@ export default function Teams() {
                         to={`${pathPrefix}/team/${team.tid}/${currentDynasty.currentYear}`}
                         className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-2.5 no-underline text-center"
                       >
-                        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white flex items-center justify-center p-1.5 shadow-md flex-shrink-0 transition-transform duration-200 group-hover:scale-105">
+                        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white flex items-center justify-center p-1.5 shadow-md flex-shrink-0">
                           {team.logo ? (
                             <img src={team.logo} alt="" className="w-full h-full object-contain" loading="lazy" decoding="async" />
                           ) : (

@@ -296,9 +296,10 @@ a.card-elevated:hover,
 button.card:hover,
 button.card-bordered:hover,
 button.card-elevated:hover {
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--team-primary) 55%, var(--surface-4));
-  box-shadow: var(--shadow-accent);
+  /* Border only — no jump or glow. Lifting every linked card 2px with a
+     team-colored halo on hover is the generic generated-UI tell; a quiet
+     border step says "clickable" without the page moving under the cursor. */
+  border-color: var(--surface-5);
 }
 
 /* ── CFB-27 broadcast texture ─────────────────────────────────────────────
@@ -620,7 +621,7 @@ button.card-elevated:hover {
     border-color var(--dur-base) var(--ease-out-expo);
 }
 .lift:hover {
-  transform: translateY(-2px);
+  border-color: var(--surface-5);
 }
 
 /* Scroll reveal — opt-in via .reveal; pair with IntersectionObserver */

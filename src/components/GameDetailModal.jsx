@@ -202,7 +202,7 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
         <Link
           to={teamLink}
           onClick={onClose}
-          className="w-16 h-16 sm:w-24 sm:h-24 md:w-32 md:h-32 mx-auto flex items-center justify-center mb-2 sm:mb-4 hover:scale-105 transition-transform"
+          className="w-16 h-16 sm:w-24 sm:h-24 md:w-32 md:h-32 mx-auto flex items-center justify-center mb-2 sm:mb-4"
         >
           {logo && (
             <img

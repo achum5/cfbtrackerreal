@@ -392,7 +392,7 @@ export default function Rankings() {
           {rank}
         </span>
         <div
-          className="rounded-full bg-white flex items-center justify-center p-1 flex-shrink-0 shadow-sm transition-transform duration-200 group-hover:scale-105"
+          className="rounded-full bg-white flex items-center justify-center p-1 flex-shrink-0 shadow-sm"
           style={{ width: 34, height: 34 }}
         >
           {teamLogo ? (
