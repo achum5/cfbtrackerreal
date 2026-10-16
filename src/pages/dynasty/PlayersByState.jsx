@@ -179,7 +179,9 @@ export default function PlayersByState() {
 
       {stateStats && (
         <Card>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-4">
+          {/* Top Player takes two tracks at lg so a full name fits at
+              stat size instead of "Ryan Clem…". */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
             <Stat label="Avg OVR" value={stateStats.avgOverall} size="lg" align="left" />
             <Stat label="85+ OVR" value={stateStats.starPlayers} size="lg" align="left" />
             <Stat label="Top Pos" value={stateStats.topPosition?.[0] || '—'} size="lg" align="left" />
@@ -187,7 +189,7 @@ export default function PlayersByState() {
             {stateStats.topPlayer && (
               <Link
                 to={`${pathPrefix}/player/${stateStats.topPlayer.pid}`}
-                className="flex flex-col items-start hover:opacity-80 transition-opacity"
+                className="col-span-2 sm:col-span-4 lg:col-span-2 flex flex-col items-start min-w-0 hover:opacity-80 transition-opacity"
               >
                 <span className="label-xs text-txt-tertiary">Top Player</span>
                 <span className="stat-lg text-txt-primary leading-none truncate max-w-full">

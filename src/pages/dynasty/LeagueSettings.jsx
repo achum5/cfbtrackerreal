@@ -905,6 +905,9 @@ export default function LeagueSettings() {
 
   return (
     <div className="space-y-4 page-enter">
+      {/* Same page title the no-access state already shows — the main view
+          had none, so it was the one dynasty page that opened on a card. */}
+      <PageHero title="League Members" />
       <Card>
         <header className="flex items-baseline justify-between mb-1">
           <h3
