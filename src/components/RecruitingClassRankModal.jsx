@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
-import { getModalColors } from '../utils/colorUtils'
+import { useState, useEffect } from 'react'
 import { useToast } from './ui/Toast'
+import Modal from './ui/Modal'
 
 export default function RecruitingClassRankModal({
   isOpen,
@@ -8,14 +8,12 @@ export default function RecruitingClassRankModal({
   onSave,
   currentRank,
   seasonLabel,
-  teamColors
 }) {
   const { toast } = useToast()
   const [rank, setRank] = useState('')
   const [saving, setSaving] = useState(false)
   const [clearing, setClearing] = useState(false)
 
-  const modalColors = useMemo(() => getModalColors(teamColors), [teamColors])
 
   useEffect(() => {
     if (isOpen) {
@@ -57,98 +55,65 @@ export default function RecruitingClassRankModal({
     }
   }
 
+  // The shared Modal: same header, close button and footer as every other
+  // dialog (this one used to draw its own, with a "×" glyph for close).
   return (
-    <div
-      className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-70 flex items-center justify-center z-[9999] p-4"
-      style={{ margin: 0 }}
-      onMouseDown={onClose}
-    >
-      <div
-        className="rounded-xl shadow-xl w-full max-w-md border"
-        style={{ backgroundColor: modalColors.background, borderColor: modalColors.border }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div
-          className="p-4 rounded-t-xl flex justify-between items-center"
-          style={{ backgroundColor: modalColors.headerBg }}
-        >
-          <h2 className="text-xl font-bold" style={{ color: modalColors.text }}>
-            Recruiting Class Rank
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-2xl font-bold hover:opacity-70"
-            style={{ color: modalColors.text }}
-          >
-            ×
-          </button>
-        </div>
-
-        <div className="p-6 text-center">
-          {seasonLabel ? (
-            <p className="text-base font-bold mb-1" style={{ color: modalColors.text }}>
-              {seasonLabel}
-            </p>
-          ) : null}
-          <p className="text-sm mb-6" style={{ color: modalColors.textMuted }}>
-            Enter where this recruiting class ranked nationally.
-          </p>
-
-          <div className="mb-6">
-            <label className="block text-sm font-semibold mb-3" style={{ color: modalColors.text }}>
-              National Rank
-            </label>
-            <div className="flex items-center justify-center gap-2">
-              <span className="text-3xl font-bold" style={{ color: modalColors.text }}>#</span>
-              <input
-                type="number"
-                min="1"
-                max="134"
-                value={rank}
-                onChange={(e) => setRank(e.target.value)}
-                placeholder="1-134"
-                className="w-28 px-4 py-3 rounded-lg border-2 text-3xl font-bold text-center focus:outline-none"
-                style={{
-                  backgroundColor: modalColors.inputBg,
-                  borderColor: modalColors.inputBorder,
-                  color: modalColors.text
-                }}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div
-          className="p-4 rounded-b-xl flex justify-center gap-3"
-          style={{ borderTop: `2px solid ${modalColors.border}` }}
-        >
-          <button
-            onClick={onClose}
-            className="px-5 py-2 rounded-lg font-semibold hover:opacity-80"
-            style={{ backgroundColor: modalColors.inputBg, color: modalColors.text }}
-          >
-            Cancel
-          </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Recruiting Class Rank"
+      size="sm"
+      footer={(
+        <>
           {currentRank ? (
             <button
+              type="button"
               onClick={handleClear}
               disabled={saving || clearing}
-              className="px-5 py-2 rounded-lg font-semibold hover:opacity-80 disabled:opacity-50"
-              style={{ backgroundColor: modalColors.inputBg, color: '#f87171' }}
+              className="btn-refined btn-refined--danger mr-auto disabled:opacity-50"
             >
-              {clearing ? 'Clearing...' : 'Clear Rank'}
+              {clearing ? 'Clearing…' : 'Clear Rank'}
             </button>
           ) : null}
+          <button type="button" onClick={onClose} className="btn-refined">
+            Cancel
+          </button>
           <button
+            type="button"
             onClick={handleSave}
             disabled={saving || clearing || !rank}
-            className="px-5 py-2 rounded-lg font-semibold hover:opacity-90 disabled:opacity-50"
-            style={{ backgroundColor: modalColors.text, color: modalColors.background }}
+            className="btn-refined btn-refined--solid disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save'}
           </button>
+        </>
+      )}
+    >
+      <div className="text-center">
+        {seasonLabel ? (
+          <p className="text-base font-bold text-txt-primary mb-1 mt-0">{seasonLabel}</p>
+        ) : null}
+        <p className="text-sm text-txt-tertiary mb-6 mt-0">
+          Enter where this recruiting class ranked nationally.
+        </p>
+        <label htmlFor="class-rank-input" className="block text-sm font-semibold text-txt-primary mb-3">
+          National Rank
+        </label>
+        <div className="flex items-center justify-center gap-2">
+          <span className="text-3xl font-bold text-txt-primary" aria-hidden="true">#</span>
+          <input
+            id="class-rank-input"
+            type="number"
+            min="1"
+            max="134"
+            value={rank}
+            onChange={(e) => setRank(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && rank) handleSave() }}
+            placeholder="1-134"
+            className="w-28 px-4 py-3 rounded-lg border-2 border-surface-4 bg-surface-1 text-3xl font-bold text-center text-txt-primary focus:outline-none focus:border-surface-5"
+          />
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
