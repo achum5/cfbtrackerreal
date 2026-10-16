@@ -153,6 +153,7 @@ export default function DraftResults() {
             value={selectedTid ?? ''}
             onChange={(e) => setSelectedTid(Number(e.target.value))}
             className="max-w-xs"
+            aria-label="Team"
           >
             {teamOptions.map((t) => (
               <option key={t.tid} value={t.tid}>{t.name}</option>
@@ -202,6 +203,7 @@ export default function DraftResults() {
                   value={selectedRound}
                   onChange={(e) => setSelectedRound(Number(e.target.value))}
                   className="max-w-[10rem]"
+                  aria-label="Round"
                 >
                   {ROUNDS.map((round) => (
                     <option key={round} value={round}>Round {round}</option>
@@ -264,6 +266,7 @@ export default function DraftResults() {
                     value={selectedNflTeam}
                     onChange={(e) => setSelectedNflTeam(e.target.value)}
                     className="w-full mb-3"
+                    aria-label="NFL team"
                   >
                     <option value="">Select an NFL team...</option>
                     {NFL_TEAM_OPTIONS.map((t) => (

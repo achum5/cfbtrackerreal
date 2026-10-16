@@ -104,7 +104,7 @@ function ManualManageRivalries({ currentDynasty, updateDynasty, isViewOnly }) {
       {/* Add a rivalry */}
       {canEdit && (
         <Card>
-          <h3 className="label-sm text-txt-primary mb-3">Add a rivalry</h3>
+          <h2 className="label-sm text-txt-primary mb-3">Add a rivalry</h2>
           <RivalryEditor
             key={`add-${customRivalries.length}`}
             teamOptions={teamOptions}
@@ -117,7 +117,7 @@ function ManualManageRivalries({ currentDynasty, updateDynasty, isViewOnly }) {
 
       {/* Custom rivalries */}
       <div className="space-y-2">
-        <h3 className="label-sm text-txt-tertiary">Your rivalries {customRivalries.length > 0 && `(${customRivalries.length})`}</h3>
+        <h2 className="label-sm text-txt-tertiary">Your rivalries {customRivalries.length > 0 && `(${customRivalries.length})`}</h2>
         {customRivalries.length === 0 ? (
           <Card><EmptyState title="No custom rivalries yet" message={canEdit ? 'Add one above.' : undefined} /></Card>
         ) : (

@@ -34,9 +34,9 @@ export default function EmptyState({
       {...rest}
     >
       {title && (
-        <h3 className="font-display font-bold text-xl sm:text-2xl tracking-tight text-txt-primary leading-tight m-0">
+        <h2 className="font-display font-bold text-xl sm:text-2xl tracking-tight text-txt-primary leading-tight m-0">
           {title}
-        </h3>
+        </h2>
       )}
       {message && (
         <p className="mt-2 text-sm text-txt-secondary max-w-md m-0">{message}</p>

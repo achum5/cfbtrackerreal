@@ -13,6 +13,7 @@
  *   title       — string or ReactNode (rendered display-lg if string)
  *   eyebrow     — optional pre-title small label (all-caps)
  *   meta        — optional ReactNode rendered below title
+ *   subtitle    — optional sentence-case intro line below the title/meta
  *   right       — optional ReactNode placed on the right (e.g. stat cluster)
  *   actions     — optional ReactNode below right (e.g. action buttons)
  *   children    — renders inside the hero body (below title+meta), e.g. tabs
@@ -23,6 +24,7 @@ export default function PageHero({
   title,
   eyebrow,
   meta,
+  subtitle,
   right,
   actions,
   children,
@@ -61,6 +63,11 @@ export default function PageHero({
               <div className="mt-2.5 label-sm text-txt-tertiary flex items-center gap-2 flex-wrap normal-case">
                 {meta}
               </div>
+            )}
+            {subtitle && (
+              <p className="mt-3 text-sm text-txt-secondary leading-relaxed max-w-2xl">
+                {subtitle}
+              </p>
             )}
           </div>
           {(right || actions) && (

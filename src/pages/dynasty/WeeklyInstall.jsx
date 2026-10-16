@@ -167,6 +167,7 @@ function Bar({ label, style, compact, size = 'md', editable, value, placeholder 
           onBlur={onBlur}
           disabled={disabled}
           placeholder={disabled ? placeholder : `Click to Name — ${placeholder}`}
+          aria-label="Formation name"
           autoComplete="off"
           spellCheck="false"
           className="w-full outline-none truncate uppercase placeholder:text-[color:var(--bar-text)] placeholder:opacity-70"
@@ -225,14 +226,15 @@ function SlotRowEdit({ row, onChange, onBlur, disabled, numbered, index }) {
       {numbered && (
         <div className="flex-none text-center text-xs font-bold text-txt-tertiary" style={{ width: '1.25rem' }}>{index + 1}.</div>
       )}
-      <Input size="sm" value={row.num} onChange={(e) => onChange('num', e.target.value)} onBlur={onBlur} disabled={disabled} placeholder="#" className="flex-none text-center" style={{ width: '2.25rem' }} autoComplete="off" spellCheck="false" />
-      <Input size="sm" value={row.formation} onChange={(e) => onChange('formation', e.target.value)} onBlur={onBlur} disabled={disabled} placeholder="Formation" className="flex-[1.3] min-w-0" autoComplete="off" spellCheck="false" />
-      <Input size="sm" value={row.play} onChange={(e) => onChange('play', e.target.value)} onBlur={onBlur} disabled={disabled} placeholder="Play" className="flex-1 min-w-0" autoComplete="off" spellCheck="false" />
+      <Input size="sm" value={row.num} onChange={(e) => onChange('num', e.target.value)} onBlur={onBlur} disabled={disabled} placeholder="#" aria-label="Number" className="flex-none text-center" style={{ width: '2.25rem' }} autoComplete="off" spellCheck="false" />
+      <Input size="sm" value={row.formation} onChange={(e) => onChange('formation', e.target.value)} onBlur={onBlur} disabled={disabled} placeholder="Formation" aria-label="Formation" className="flex-[1.3] min-w-0" autoComplete="off" spellCheck="false" />
+      <Input size="sm" value={row.play} onChange={(e) => onChange('play', e.target.value)} onBlur={onBlur} disabled={disabled} placeholder="Play" aria-label="Play" className="flex-1 min-w-0" autoComplete="off" spellCheck="false" />
       <div className="relative flex-none" style={{ width: '2.25rem' }}>
         <Input
           size="sm"
           readOnly
           tabIndex={-1}
+          aria-hidden="true"
           value={PLAY_TAG_ABBR[row.tag] ? `${PLAY_TAG_ABBR[row.tag]} ▾` : '▾'}
           disabled={disabled}
           className="text-center pointer-events-none"

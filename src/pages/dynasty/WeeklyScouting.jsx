@@ -249,8 +249,9 @@ export default function WeeklyScouting() {
         <div className="flex flex-col">
           <SectionHeader title="Opponent Offense" size="sm" />
           <Card className="h-full">
-            <FormField label="Offensive Playbook">
+            <FormField label="Offensive Playbook" htmlFor="scout-off-playbook">
               <Select
+                id="scout-off-playbook"
                 value={fields.offensivePlaybook || ''}
                 onChange={(e) => handleSelectChange('offensivePlaybook', e.target.value)}
                 disabled={isViewOnly}
@@ -266,8 +267,9 @@ export default function WeeklyScouting() {
         <div className="flex flex-col">
           <SectionHeader title="Opponent Defense" size="sm" />
           <Card className="h-full">
-            <FormField label="Defensive Playbook">
+            <FormField label="Defensive Playbook" htmlFor="scout-def-playbook">
               <Select
+                id="scout-def-playbook"
                 value={fields.defensivePlaybook || ''}
                 onChange={(e) => handleSelectChange('defensivePlaybook', e.target.value)}
                 disabled={isViewOnly}
