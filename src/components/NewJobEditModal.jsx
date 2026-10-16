@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { getContrastTextColor } from '../utils/colorUtils'
 import { teamAbbreviations } from '../data/teamAbbreviations'
 import { getTeamLogo } from '../data/teams'
 import { getTeamColors } from '../data/teamColors'
@@ -157,13 +158,10 @@ export default function NewJobEditModal({ isOpen, onClose, onSave, teamColors, c
                 if (!selectedTeam) setSelectedTeam('')
                 if (!selectedPosition) setSelectedPosition('')
               }}
-              className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-all ${
-                takingNewJob === true ? 'ring-2 ring-offset-2' : ''
-              }`}
+              className="flex-1 px-4 py-3 rounded-lg font-semibold transition-all" aria-pressed={takingNewJob === true}
               style={{
                 backgroundColor: takingNewJob === true ? 'var(--text-primary)' : 'var(--surface-3)',
-                color: takingNewJob === true ? 'var(--surface-1)' : 'var(--text-primary)',
-                ringColor: 'var(--text-primary)'
+                color: takingNewJob === true ? 'var(--surface-1)' : 'var(--text-primary)'
               }}
             >
               Yes
@@ -174,13 +172,10 @@ export default function NewJobEditModal({ isOpen, onClose, onSave, teamColors, c
                 setSelectedTeam('')
                 setSelectedPosition('')
               }}
-              className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-all ${
-                takingNewJob === false ? 'ring-2 ring-offset-2' : ''
-              }`}
+              className="flex-1 px-4 py-3 rounded-lg font-semibold transition-all" aria-pressed={takingNewJob === false}
               style={{
                 backgroundColor: takingNewJob === false ? 'var(--text-primary)' : 'var(--surface-3)',
-                color: takingNewJob === false ? 'var(--surface-1)' : 'var(--text-primary)',
-                ringColor: 'var(--text-primary)'
+                color: takingNewJob === false ? 'var(--surface-1)' : 'var(--text-primary)'
               }}
             >
               No
@@ -204,20 +199,14 @@ export default function NewJobEditModal({ isOpen, onClose, onSave, teamColors, c
                   if (!e.target.value) setSelectedTeam('')
                 }}
                 onFocus={() => setShowTeamDropdown(true)}
-                className="w-full px-4 py-3 rounded-lg border-2 text-txt-primary placeholder:text-txt-tertiary"
-                style={{
-                  borderColor: 'var(--text-primary)',
-                  backgroundColor: '#ffffff'
-                }}
+                // Was a white field with near-white text (typed text invisible).
+                className="w-full px-4 py-3 rounded-lg border border-surface-4 bg-surface-1 text-txt-primary placeholder:text-txt-tertiary focus:outline-none focus:border-surface-5"
+                aria-label="Search for a team"
                 placeholder="Search for a team…"
               />
               {showTeamDropdown && (
                 <div
-                  className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto rounded-lg shadow-lg border-2"
-                  style={{
-                    backgroundColor: '#ffffff',
-                    borderColor: 'var(--text-primary)'
-                  }}
+                  className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto rounded-lg shadow-xl border border-surface-5 bg-surface-2"
                 >
                   {filteredTeams.length === 0 ? (
                     <div className="px-4 py-3 text-txt-muted">No teams found</div>
@@ -228,7 +217,8 @@ export default function NewJobEditModal({ isOpen, onClose, onSave, teamColors, c
                         <button
                           key={team.abbr}
                           onClick={() => handleTeamSelect(team)}
-                          className="w-full px-4 py-2 text-left hover:bg-surface-3 flex items-center gap-2"
+                          type="button"
+                          className="w-full px-4 py-2 text-left text-txt-primary hover:bg-surface-3 flex items-center gap-2"
                         >
                           {logo && (
                             <img src={logo} alt="" className="w-6 h-6 object-contain" />
@@ -246,24 +236,17 @@ export default function NewJobEditModal({ isOpen, onClose, onSave, teamColors, c
             {selectedTeam && newTeamColors && (
               <div
                 className="mt-3 p-3 rounded-lg flex items-center gap-3"
-                style={{
-                  backgroundColor: 'var(--text-primary)',
-                  border: `2px solid ${newTeamColors.secondary}`
-                }}
+                style={{ backgroundColor: newTeamColors.primary }}
               >
                 {newTeamLogo && (
                   <div
                     className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{
-                      backgroundColor: '#FFFFFF',
-                      border: `2px solid ${newTeamColors.secondary}`,
-                      padding: '2px'
-                    }}
+                    style={{ backgroundColor: '#FFFFFF', padding: '3px' }}
                   >
                     <img src={newTeamLogo} alt="" className="w-full h-full object-contain" />
                   </div>
                 )}
-                <span className="font-semibold" style={{ color: 'var(--surface-1)' }}>
+                <span className="font-semibold" style={{ color: getContrastTextColor(newTeamColors.primary) }}>
                   {dynastyTeams?.[selectedTeamTid]?.name || selectedTeam}
                 </span>
               </div>
@@ -286,13 +269,10 @@ export default function NewJobEditModal({ isOpen, onClose, onSave, teamColors, c
                 <button
                   key={pos.value}
                   onClick={() => setSelectedPosition(pos.value)}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                    selectedPosition === pos.value ? 'ring-2 ring-offset-2' : ''
-                  }`}
+                  className="px-4 py-2 rounded-lg font-semibold transition-all" aria-pressed={selectedPosition === pos.value}
                   style={{
                     backgroundColor: selectedPosition === pos.value ? 'var(--text-primary)' : 'var(--surface-3)',
-                    color: selectedPosition === pos.value ? 'var(--surface-1)' : 'var(--text-primary)',
-                    ringColor: 'var(--text-primary)'
+                    color: selectedPosition === pos.value ? 'var(--surface-1)' : 'var(--text-primary)'
                   }}
                 >
                   {pos.label}

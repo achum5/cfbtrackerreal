@@ -2843,6 +2843,66 @@ export default function Dashboard() {
       .sort((a, b) => a.week - b.week)
   }, [currentDynasty?.games, currentDynasty?.currentYear, currentDynasty?.coachTeamByYear])
 
+  // Taking a New Job — team / position pickers. Rendered as the row's
+  // belowContent (right under "Taking a New Job?") once the user answers
+  // Yes; they used to render after the whole task list, detached from the
+  // question and often below the fold.
+  const renderNewJobPicker = () => {
+    if (takingNewJob !== true || (newJobTeam && newJobPosition)) return null
+    if (!newJobTeam) {
+      return (
+        <div className="max-w-xs">
+          <p className="mb-2 text-xs sm:text-sm text-txt-secondary">Which team?</p>
+          <SearchableSelect
+            options={dynastyTeamNames}
+            value={newJobTeam}
+            onChange={async (value) => {
+              setNewJobTeam(value)
+              await updateDynasty(currentDynasty.id, {
+                ...buildNewJobUpdate({ ...myNewJobData, takingNewJob: true, team: value, teamTid: getTidFromTeamName(value, currentDynasty?.teams) ?? null }),
+              })
+            }}
+            placeholder="Search for team…"
+            teamColors={teamColors}
+            dynastyTeams={currentDynasty?.teams}
+          />
+        </div>
+      )
+    }
+    return (
+      <div>
+        <p className="mb-2 text-xs sm:text-sm text-txt-secondary">
+          New team: <strong className="text-txt-primary">{getTeamNameFromAbbr(newJobTeam)}</strong>. What position?
+        </p>
+        <div className="flex gap-2 flex-wrap">
+          {['HC', 'OC', 'DC'].map(pos => (
+            <button
+              key={pos}
+              type="button"
+              onClick={async () => {
+                setNewJobPosition(pos)
+                const newTeamTid = myNewJobData?.teamTid ?? getTidFromTeamName(newJobTeam || myNewJobData?.team, currentDynasty.teams)
+                // pendingUserId drives the OWNER's team swap at the
+                // season flip — never set it for a member's job.
+                const updatedTeams = (isDynastyOwner && newTeamTid)
+                  ? setPendingUserTeam(currentDynasty.teams, newTeamTid, pos)
+                  : null
+                await updateDynasty(currentDynasty.id, {
+                  ...buildNewJobUpdate({ ...myNewJobData, takingNewJob: true, position: pos }),
+                  ...(updatedTeams ? { teams: updatedTeams } : {}),
+                })
+              }}
+              className="btn-refined btn-refined--solid"
+            >
+              {pos === 'HC' ? 'Head Coach' : pos === 'OC' ? 'Offensive Coordinator' : 'Defensive Coordinator'}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+  const newJobPendingSubtitle = takingNewJob === true ? 'Taking a new job' : 'Yes or no?'
+
   return (
     <div className="atmosphere relative space-y-3 sm:space-y-6 max-w-7xl mx-auto">
       {/* Read-only banner — collapses to a single pill via the chevron.
@@ -2917,24 +2977,22 @@ export default function Dashboard() {
         // newJobTeam is already the full display name (e.g., "Delaware Fightin' Blue Hens")
         const newTeamLogo = getTeamLogo(newJobTeam, currentDynasty?.teams || currentDynasty?.customTeams)
         const newTeamColors = getTeamColors(newJobTeam, currentDynasty?.teams || currentDynasty?.customTeams) || { primary: '#333', secondary: '#fff' }
-        const newTeamPrimaryText = 'var(--surface-1)'
+        // The new team's colors, like every other team-colored strip (it
+        // was a near-white card with a 3px secondary-color border).
+        const newTeamPrimaryText = getContrastTextColor(newTeamColors.primary)
 
         return (
           <div
-            className="rounded-lg shadow-lg p-4 flex items-center gap-4"
+            className="card overflow-hidden cfb-texture cfb-texture-strong p-4 flex items-center gap-4"
             style={{
-              backgroundColor: 'var(--text-primary)',
-              border: `3px solid ${newTeamColors.secondary}`
+              backgroundColor: newTeamColors.primary,
+              backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.36) 100%)',
             }}
           >
             {newTeamLogo && (
               <div
                 className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  border: `2px solid ${newTeamColors.secondary}`,
-                  padding: '3px'
-                }}
+                style={{ backgroundColor: '#FFFFFF', padding: '4px' }}
               >
                 <img
                   src={newTeamLogo}
@@ -5087,7 +5145,8 @@ export default function Dashboard() {
                   ? takingNewJob === true
                     ? `${newJobPosition} at ${getTeamNameFromAbbr(newJobTeam)}`
                     : 'Staying with current team'
-                  : 'Yes or no?',
+                  : newJobPendingSubtitle,
+                belowContent: renderNewJobPicker(),
                 viewTo: newJobTid ? `${pathPrefix}/team/${newJobTid}/${currentDynasty.currentYear}` : null,
                 onAction: askingNewJobBW1 ? async () => {
                   setTakingNewJob(true)
@@ -5199,60 +5258,6 @@ export default function Dashboard() {
                   </h2>
                   {renderTodoList({ todos: bw1Todos, isViewOnly })}
 
-                  {/* Taking a New Job wizard panels — initial Yes/No now
-                      lives inline on the new-job-bw1 row; follow-up team /
-                      position pickers still render below. */}
-                  {takingNewJob === true && !newJobTeam && (
-                    <div className="media-card mt-3 px-3 py-3 sm:px-5 sm:py-4">
-                      <p className="mb-2 text-xs sm:text-sm text-txt-secondary">Which team?</p>
-                      <div className="max-w-xs">
-                        <SearchableSelect
-                          options={dynastyTeamNames}
-                          value={newJobTeam}
-                          onChange={async (value) => {
-                            setNewJobTeam(value)
-                            await updateDynasty(currentDynasty.id, {
-                              ...buildNewJobUpdate({ ...myNewJobData, takingNewJob: true, team: value, teamTid: getTidFromTeamName(value, currentDynasty?.teams) ?? null }),
-                            })
-                          }}
-                          placeholder="Search for team…"
-                          teamColors={teamColors}
-                          dynastyTeams={currentDynasty?.teams}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  {takingNewJob === true && newJobTeam && !newJobPosition && (
-                    <div className="media-card mt-3 px-3 py-3 sm:px-5 sm:py-4">
-                      <p className="mb-2 text-xs sm:text-sm text-txt-secondary">
-                        New team: <strong className="text-txt-primary">{getTeamNameFromAbbr(newJobTeam)}</strong>
-                      </p>
-                      <p className="mb-2 text-xs sm:text-sm text-txt-secondary">What position?</p>
-                      <div className="flex gap-2 flex-wrap">
-                        {['HC', 'OC', 'DC'].map(pos => (
-                          <button
-                            key={pos}
-                            onClick={async () => {
-                              setNewJobPosition(pos)
-                              const newTeamTid = myNewJobData?.teamTid ?? getTidFromTeamName(newJobTeam || myNewJobData?.team, currentDynasty.teams)
-                              // pendingUserId drives the OWNER's team swap at the
-                              // season flip — never set it for a member's job.
-                              const updatedTeams = (isDynastyOwner && newTeamTid)
-                                ? setPendingUserTeam(currentDynasty.teams, newTeamTid, pos)
-                                : null
-                              await updateDynasty(currentDynasty.id, {
-                                ...buildNewJobUpdate({ ...myNewJobData, takingNewJob: true, position: pos }),
-                                ...(updatedTeams ? { teams: updatedTeams } : {}),
-                              })
-                            }}
-                            className="btn-refined btn-refined--solid"
-                          >
-                            {pos === 'HC' ? 'Head Coach' : pos === 'OC' ? 'Offensive Coordinator' : 'Defensive Coordinator'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </>
               )
             }
@@ -5451,7 +5456,8 @@ export default function Dashboard() {
                   ? takingNewJob === true
                     ? `${newJobPosition} at ${getTeamNameFromAbbr(newJobTeam)}`
                     : 'Staying with current team'
-                  : 'Yes or no?',
+                  : newJobPendingSubtitle,
+                belowContent: renderNewJobPicker(),
                 onAction: askingNewJobBW2 ? async () => {
                   setTakingNewJob(true)
                   await updateDynasty(currentDynasty.id, {
@@ -5605,61 +5611,9 @@ export default function Dashboard() {
                   </h2>
                   {renderTodoList({ todos: bw2Todos, isViewOnly })}
 
-                  {/* Mid-flow wizard panels — initial Yes/No prompts now
-                      live inline on their to-do rows, but follow-up
-                      selectors (team / position / coordinator name) still
-                      need real UI space and render here. */}
-                  {takingNewJob === true && !newJobTeam && (
-                    <div className="media-card mt-3 px-3 py-3 sm:px-5 sm:py-4">
-                      <p className="mb-2 text-xs sm:text-sm text-txt-secondary">Which team?</p>
-                      <div className="max-w-xs">
-                        <SearchableSelect
-                          options={dynastyTeamNames}
-                          value={newJobTeam}
-                          onChange={async (value) => {
-                            setNewJobTeam(value)
-                            await updateDynasty(currentDynasty.id, {
-                              ...buildNewJobUpdate({ ...myNewJobData, takingNewJob: true, team: value, teamTid: getTidFromTeamName(value, currentDynasty?.teams) ?? null }),
-                            })
-                          }}
-                          placeholder="Search for team…"
-                          teamColors={teamColors}
-                          dynastyTeams={currentDynasty?.teams}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  {takingNewJob === true && newJobTeam && !newJobPosition && (
-                    <div className="media-card mt-3 px-3 py-3 sm:px-5 sm:py-4">
-                      <p className="mb-2 text-xs sm:text-sm text-txt-secondary">
-                        New team: <strong className="text-txt-primary">{getTeamNameFromAbbr(newJobTeam)}</strong>
-                      </p>
-                      <p className="mb-2 text-xs sm:text-sm text-txt-secondary">What position?</p>
-                      <div className="flex gap-2 flex-wrap">
-                        {['HC', 'OC', 'DC'].map(pos => (
-                          <button
-                            key={pos}
-                            onClick={async () => {
-                              setNewJobPosition(pos)
-                              const newTeamTid = myNewJobData?.teamTid ?? getTidFromTeamName(newJobTeam || myNewJobData?.team, currentDynasty.teams)
-                              // pendingUserId drives the OWNER's team swap at the
-                              // season flip — never set it for a member's job.
-                              const updatedTeams = (isDynastyOwner && newTeamTid)
-                                ? setPendingUserTeam(currentDynasty.teams, newTeamTid, pos)
-                                : null
-                              await updateDynasty(currentDynasty.id, {
-                                ...buildNewJobUpdate({ ...myNewJobData, takingNewJob: true, position: pos }),
-                                ...(updatedTeams ? { teams: updatedTeams } : {}),
-                              })
-                            }}
-                            className="btn-refined btn-refined--solid"
-                          >
-                            {pos === 'HC' ? 'Head Coach' : pos === 'OC' ? 'Offensive Coordinator' : 'Defensive Coordinator'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  {/* The new-job team / position pickers render inside the
+                      new-job row (belowContent); only the coordinator-name
+                      step below still renders after the list. */}
 
                   {/* Coordinator vacancy mid-flow panels — initial
                       Yes/Not Yet for each pending position lives inline
@@ -5672,8 +5626,8 @@ export default function Dashboard() {
                         <input
                           type="text"
                           id="new-oc-name"
-                          className="flex-1 px-3 py-2 border-2 rounded-lg focus:outline-none"
-                          style={{ borderColor: 'var(--text-primary)' }}
+                          className="flex-1 px-3 py-2 rounded-lg border border-surface-4 bg-surface-1 text-txt-primary placeholder:text-txt-tertiary focus:outline-none focus:border-surface-5"
+                          aria-label="New OC name"
                           placeholder="New OC name…"
                           onKeyDown={async (e) => {
                             if (e.key === 'Enter' && e.target.value.trim()) {
@@ -5718,8 +5672,8 @@ export default function Dashboard() {
                         <input
                           type="text"
                           id="new-dc-name"
-                          className="flex-1 px-3 py-2 border-2 rounded-lg focus:outline-none"
-                          style={{ borderColor: 'var(--text-primary)' }}
+                          className="flex-1 px-3 py-2 rounded-lg border border-surface-4 bg-surface-1 text-txt-primary placeholder:text-txt-tertiary focus:outline-none focus:border-surface-5"
+                          aria-label="New DC name"
                           placeholder="New DC name…"
                           onKeyDown={async (e) => {
                             if (e.key === 'Enter' && e.target.value.trim()) {
@@ -6378,7 +6332,8 @@ export default function Dashboard() {
                   ? takingNewJob === true
                     ? `${newJobPosition} at ${getTeamNameFromAbbr(newJobTeam)}`
                     : 'Staying with current team'
-                  : 'Yes or no?',
+                  : newJobPendingSubtitle,
+                belowContent: renderNewJobPicker(),
                 onAction: askingNewJobBW34 ? async () => {
                   setTakingNewJob(true)
                   await updateDynasty(currentDynasty.id, {
@@ -6530,62 +6485,6 @@ export default function Dashboard() {
                 </h2>
                 {renderTodoList({ todos: w34Todos, isViewOnly })}
 
-                {/* New Job wizard panels — initial Yes/No now lives
-                    inline on the new-job-bw34 row; only the team /
-                    position pickers render below. (week 4 hides this
-                    task entirely.) */}
-                {week !== 4 && takingNewJob === true && !newJobTeam && (
-                  <div className="media-card mt-3 px-3 py-3 sm:px-5 sm:py-4">
-                    <p className="mb-2 text-xs sm:text-sm text-txt-secondary">Which team?</p>
-                    <div className="max-w-xs">
-                      <SearchableSelect
-                        options={dynastyTeamNames}
-                        value={newJobTeam}
-                        onChange={async (value) => {
-                          setNewJobTeam(value)
-                          await updateDynasty(currentDynasty.id, {
-                            ...buildNewJobUpdate({ ...myNewJobData, takingNewJob: true, team: value, teamTid: getTidFromTeamName(value, currentDynasty?.teams) ?? null }),
-                          })
-                        }}
-                        placeholder="Search for team…"
-                        teamColors={teamColors}
-                        dynastyTeams={currentDynasty?.teams}
-                      />
-                    </div>
-                  </div>
-                )}
-                {week !== 4 && takingNewJob === true && newJobTeam && !newJobPosition && (
-                  <div className="media-card mt-3 px-3 py-3 sm:px-5 sm:py-4">
-                    <p className="mb-2 text-xs sm:text-sm text-txt-secondary">
-                      New team: <strong className="text-txt-primary">{getTeamNameFromAbbr(newJobTeam)}</strong>
-                    </p>
-                    <p className="mb-2 text-xs sm:text-sm text-txt-secondary">What position?</p>
-                    <div className="flex gap-2 flex-wrap">
-                      {['HC', 'OC', 'DC'].map(pos => (
-                        <button
-                          key={pos}
-                          onClick={async () => {
-                            setNewJobPosition(pos)
-                            const newTeamTid = myNewJobData?.teamTid ?? getTidFromTeamName(myNewJobData?.team, currentDynasty.teams)
-                            // pendingUserId drives the OWNER's team swap at the
-                            // season flip — never set it for a member's job.
-                            const updatedTeams = (isDynastyOwner && newTeamTid)
-                              ? setPendingUserTeam(currentDynasty.teams, newTeamTid, pos)
-                              : null
-                            await updateDynasty(currentDynasty.id, {
-                              ...buildNewJobUpdate({ ...myNewJobData, takingNewJob: true, position: pos }),
-                              ...(updatedTeams ? { teams: updatedTeams } : {}),
-                            })
-                          }}
-                          className="btn-refined btn-refined--solid"
-                        >
-                          {pos === 'HC' ? 'Head Coach' : pos === 'OC' ? 'Offensive Coordinator' : 'Defensive Coordinator'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {/* Coordinator vacancy mid-flow panels — initial
                     Yes/Not Yet for each pending position lives inline on
                     the coord-vacancy-bw34 row; only the new-name input
@@ -6597,8 +6496,8 @@ export default function Dashboard() {
                       <input
                         type="text"
                         id="new-oc-name-week34"
-                        className="flex-1 px-3 py-2 border-2 rounded-lg focus:outline-none"
-                        style={{ borderColor: 'var(--text-primary)' }}
+                        className="flex-1 px-3 py-2 rounded-lg border border-surface-4 bg-surface-1 text-txt-primary placeholder:text-txt-tertiary focus:outline-none focus:border-surface-5"
+                        aria-label="New OC name"
                         placeholder="New OC name…"
                         onKeyDown={async (e) => {
                           if (e.key === 'Enter' && e.target.value.trim()) {
@@ -6643,8 +6542,8 @@ export default function Dashboard() {
                       <input
                         type="text"
                         id="new-dc-name-week34"
-                        className="flex-1 px-3 py-2 border-2 rounded-lg focus:outline-none"
-                        style={{ borderColor: 'var(--text-primary)' }}
+                        className="flex-1 px-3 py-2 rounded-lg border border-surface-4 bg-surface-1 text-txt-primary placeholder:text-txt-tertiary focus:outline-none focus:border-surface-5"
+                        aria-label="New DC name"
                         placeholder="New DC name…"
                         onKeyDown={async (e) => {
                           if (e.key === 'Enter' && e.target.value.trim()) {
