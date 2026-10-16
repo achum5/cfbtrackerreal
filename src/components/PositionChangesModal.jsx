@@ -195,7 +195,6 @@ export default function PositionChangesModal({
   const [positionChanges, setPositionChanges] = useState([{ playerId: '', oldPosition: '', newPosition: '' }])
 
   const primaryColor = teamColors?.primary || 'var(--text-primary)'
-  const primaryBgText = getContrastTextColor(primaryColor)
 
   const sortedPlayers = [...players].sort((a, b) =>
     (a.name || '').localeCompare(b.name || '')
@@ -301,22 +300,25 @@ export default function PositionChangesModal({
       onMouseDown={onClose}
     >
       <div
-        className="bg-surface-1 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col border border-surface-4"
+        className="card-elevated w-full max-w-2xl flex flex-col overflow-hidden"
         style={{ maxHeight: '85vh' }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Position Changes"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        {/* Header — accent bar in team color, dark surface body */}
-        <div className="rounded-t-2xl flex-shrink-0 overflow-hidden">
-          <div className="h-1" style={{ backgroundColor: primaryColor }} aria-hidden />
-          <div className="px-5 py-4 bg-surface-2 flex justify-between items-start">
-            <div>
-              <h2 className="text-xl font-bold text-txt-primary">Position Changes</h2>
-              <p className="text-sm mt-1 text-txt-tertiary">Update player positions for your roster</p>
+        {/* Header — same chrome as the shared Modal / sheet modals. */}
+        <div className="flex-shrink-0 px-4 sm:px-6 py-4 border-b border-surface-4">
+          <div className="flex justify-between items-start gap-3">
+            <div className="min-w-0">
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight leading-tight text-txt-primary m-0">Position Changes</h2>
+              <p className="text-sm mt-1 text-txt-tertiary m-0">Update player positions for your roster</p>
             </div>
             <button
+              type="button"
               aria-label="Close"
               onClick={onClose}
-              className="p-2 -mr-2 -mt-1 rounded-lg hover:bg-surface-3 text-txt-tertiary hover:text-txt-primary transition-colors"
+              className="p-1.5 rounded-md hover:bg-surface-3 text-txt-tertiary hover:text-txt-primary transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -326,7 +328,7 @@ export default function PositionChangesModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-3">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-3">
           {positionChanges.map((change, index) => (
             <div
               key={index}
@@ -426,39 +428,22 @@ export default function PositionChangesModal({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-surface-4 flex-shrink-0 bg-surface-2 rounded-b-2xl">
+        <div className="px-4 sm:px-6 py-4 border-t border-surface-4 flex-shrink-0 bg-surface-2">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
             <div className="flex items-center gap-2">
               {validChangesCount > 0 ? (
-                <>
-                  <div
-                    className="w-2 h-2 rounded-full animate-pulse"
-                    style={{ backgroundColor: primaryColor }}
-                    aria-hidden
-                  />
-                  <span className="text-sm text-txt-secondary">
-                    <span className="font-bold text-txt-primary">{validChangesCount}</span> change{validChangesCount !== 1 ? 's' : ''} ready
-                  </span>
-                </>
+                <span className="text-sm text-txt-secondary">
+                  <span className="font-bold text-txt-primary">{validChangesCount}</span> change{validChangesCount !== 1 ? 's' : ''} ready
+                </span>
               ) : (
                 <span className="text-sm text-txt-tertiary">No changes to save</span>
               )}
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 rounded-lg font-semibold bg-surface-3 text-txt-secondary hover:bg-surface-4 transition-colors"
-              >
+              <button type="button" onClick={onClose} className="btn-refined">
                 Cancel
               </button>
-              <button
-                onClick={handleSave}
-                className="px-4 py-2 rounded-lg font-semibold transition-all"
-                style={{
-                  backgroundColor: primaryColor,
-                  color: primaryBgText
-                }}
-              >
+              <button type="button" onClick={handleSave} className="btn-refined btn-refined--solid">
                 {validChangesCount > 0 ? 'Save Changes' : 'Done'}
               </button>
             </div>
