@@ -589,6 +589,7 @@ export default function CreateDynasty() {
           </p>
         </div>
 
+        <p className="block text-sm font-medium text-txt-primary mb-2">Your Team</p>
         <div className="mb-6 flex w-full rounded-lg p-1 bg-surface-2 border border-surface-4">
           {[
             { value: 'fbs', label: 'FBS Team' },

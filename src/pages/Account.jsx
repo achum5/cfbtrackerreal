@@ -630,9 +630,10 @@ export default function Account() {
             Delete your account permanently. This cancels any active subscription, removes your
             cloud dynasties, and signs you out. Local dynasties on this device are not affected.
           </p>
+          {/* Outlined, not a full-width red slab: the page's most dangerous
+              action shouldn't be its loudest element (it still confirms). */}
           <Button
-            variant="danger"
-            className="w-full"
+            variant="danger-outline"
             onClick={handleDeleteAccount}
             disabled={deleting}
           >
@@ -640,12 +641,11 @@ export default function Account() {
           </Button>
         </Card>
 
-        <Link
-          to="/"
-          className="flex items-center justify-center gap-2 mt-6 text-sm text-txt-tertiary hover:text-txt-primary transition-colors"
-        >
-          Back to Dynasties
-        </Link>
+        <div className="flex justify-center pt-2">
+          <Link to="/" className="btn-refined">
+            Back to Dynasties
+          </Link>
+        </div>
       </div>
     </div>
   )
