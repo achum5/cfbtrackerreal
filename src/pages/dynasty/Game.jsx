@@ -2901,9 +2901,8 @@ export default function Game() {
                                 {team.logo && <img src={team.logo} alt="" className="w-full h-full object-contain" />}
                               </div>
                               <div className="flex-1 min-w-0 flex items-center gap-4">
-                                <div className="flex-1 min-w-0 text-[13px] font-semibold truncate group-hover:underline" style={{ color: txt }}>
-                                  <span className="sm:hidden">{stripMascotFromName(team.name) || team.name}</span>
-                                  <span className="hidden sm:inline">{team.name}</span>
+                                <div className="flex-1 min-w-0 text-[13px] font-semibold truncate group-hover:underline" style={{ color: txt }} title={team.name}>
+                                  {stripMascotFromName(team.name) || team.name}
                                 </div>
                                 <div className="flex items-center gap-3 flex-shrink-0">
                                   {cell('OVR', ratings.ovr, 'ovr')}

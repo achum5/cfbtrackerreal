@@ -5678,9 +5678,11 @@ export default function TeamYear() {
                             #{game.opponentRank}
                           </span>
                         )}
-                        <span className="text-sm font-semibold truncate" style={{ color: rowText }}>
-                          <span className="sm:hidden">{getSchoolName(oppMascot) || oppMascot || displayOpponent}</span>
-                          <span className="hidden sm:inline">{oppMascot || displayOpponent}</span>
+                        {/* School name only: these rows sit in narrow columns at
+                            every width, where 'Appalachian State Mountaineers'
+                            was cut off. The full name stays in the tooltip. */}
+                        <span className="text-sm font-semibold truncate" style={{ color: rowText }} title={oppMascot || displayOpponent}>
+                          {getSchoolName(oppMascot) || oppMascot || displayOpponent}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
