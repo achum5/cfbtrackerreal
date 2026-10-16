@@ -87,13 +87,23 @@ export function getContrastTextColor(backgroundColor, secondaryColor = null) {
  * unreadable (e.g. Tulane's light blue on its dark green, ~2:1), in which
  * case fall back to black/white via getContrastTextColor. `min` defaults to
  * 3:1, the floor for bold UI text; most real team pairings clear it and keep
- * their two-tone look.
+ * their two-tone look. Pass 4.5 for small text: the fallback then picks the
+ * higher-contrast of black and white.
  */
 export function readableTextOn(backgroundColor, preferredColor, min = 3) {
   const hex = /^#[0-9A-Fa-f]{6}$/
   if (!hex.test(backgroundColor || '')) return preferredColor || '#ffffff'
   if (hex.test(preferredColor || '') && getContrastRatio(backgroundColor, preferredColor) >= min) {
     return preferredColor
+  }
+  // Small text (min 4.5) takes whichever of black / white actually contrasts
+  // more. The default luminance cutoff deliberately keeps white on mid-tone
+  // brand colors (Clemson orange), which is fine for large text but only
+  // ~3:1 — too faint for a 10px label.
+  if (min >= 4.5) {
+    return getContrastRatio(backgroundColor, '#000000') >= getContrastRatio(backgroundColor, '#ffffff')
+      ? '#000000'
+      : '#ffffff'
   }
   return getContrastTextColor(backgroundColor)
 }

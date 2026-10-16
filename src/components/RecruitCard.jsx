@@ -296,7 +296,8 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, team
             {showFromChip ? (() => {
               const prevTeam = previousTeamTid ? teamsSource[previousTeamTid] : null
               const prevPrimary = prevTeam?.primaryColor
-              const prevSecondary = readableTextOn(prevPrimary, prevTeam?.secondaryColor || '#ffffff')
+              // 10px label text, so hold it to the 4.5:1 small-text floor.
+              const prevSecondary = readableTextOn(prevPrimary, prevTeam?.secondaryColor || '#ffffff', 4.5)
               const themed = !!prevPrimary
               return (
                 <span
