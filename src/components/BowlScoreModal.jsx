@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { getTeamAbbreviationsList } from '../data/teamAbbreviations'
-import { getModalColors } from '../utils/colorUtils'
+import { getModalColors, getContrastTextColor } from '../utils/colorUtils'
 import { useToast } from './ui/Toast'
 
 // CFP game structure by week (updated for 5-week postseason)
@@ -247,9 +247,10 @@ export default function BowlScoreModal({ isOpen, onClose, onSave, currentYear, c
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 px-4 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors text-white"
+            className="flex-1 px-4 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors"
             style={{
-              backgroundColor: modalColors.accent
+              backgroundColor: modalColors.accent,
+              color: getContrastTextColor(modalColors.accent),
             }}
           >
             {saving ? 'Saving…' : 'Save Results'}

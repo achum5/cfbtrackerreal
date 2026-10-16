@@ -23,6 +23,7 @@ import CardEditorModal from './CardEditorModal'
 import { newCardId } from '../utils/playerCards'
 import { CARD_STYLES, getCardStyle } from '../data/cardStyles'
 import { proxyImageUrl } from '../utils/imageProxy'
+import { getContrastTextColor } from '../utils/colorUtils'
 
 export default function PlayerCards({
   cards,
@@ -259,7 +260,7 @@ function AddCardButton({ onClick, accent }) {
       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-transform active:scale-[0.97]"
       style={{
         backgroundColor: accent,
-        color: '#fff',
+        color: getContrastTextColor(accent),
         boxShadow: `0 6px 18px -8px ${accent}66`,
       }}
     >
@@ -278,7 +279,7 @@ function AddCardButton({ onClick, accent }) {
 function SaveButton({ onSave, saving, dirty, accent }) {
   const cls = 'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-50'
   const style = dirty
-    ? { backgroundColor: accent, color: '#fff', boxShadow: `0 6px 18px -8px ${accent}66` }
+    ? { backgroundColor: accent, color: getContrastTextColor(accent), boxShadow: `0 6px 18px -8px ${accent}66` }
     : { backgroundColor: 'var(--surface-3)', color: 'var(--text-tertiary)' }
   return (
     <button
@@ -332,7 +333,7 @@ function EmptyState({ accent, onAdd }) {
         className="mt-5 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-transform active:scale-[0.97]"
         style={{
           backgroundColor: accent,
-          color: '#fff',
+          color: getContrastTextColor(accent),
           boxShadow: `0 6px 18px -8px ${accent}66`,
         }}
       >

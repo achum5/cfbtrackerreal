@@ -677,9 +677,9 @@ FINAL CHECK before you send the answer
                 <>
                   <p className="mb-3 text-txt-primary">{createError}</p>
                   <button
+                    type="button"
                     onClick={() => setCreateError(null)}
-                    className="px-4 py-2 rounded-lg font-semibold"
-                    style={{ backgroundColor: teamColors?.primary || 'var(--text-primary)', color: '#fff' }}
+                    className="btn-refined btn-refined--solid"
                   >
                     Try again
                   </button>
