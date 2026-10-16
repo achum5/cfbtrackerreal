@@ -430,7 +430,6 @@ export default function Rankings() {
       return (
         <Card>
           <EmptyState
-            variant="compact"
             title="No rankings yet"
             message={`Enter weekly scores with team ranks, or save a final poll, for ${displayYear}.`}
           />

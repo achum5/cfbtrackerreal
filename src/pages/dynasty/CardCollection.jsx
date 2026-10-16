@@ -17,7 +17,7 @@ import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getAllDynastyCards } from '../../utils/playerCards'
 import CardComposer from '../../components/CardComposer'
 import FlippableCard from '../../components/FlippableCard'
-import { PageHero, EmptyState } from '../../components/ui'
+import { PageHero, EmptyState, Card } from '../../components/ui'
 
 export default function CardCollection() {
   const { currentDynasty, isViewOnly } = useDynasty()
@@ -61,9 +61,12 @@ export default function CardCollection() {
       )}
 
       {allCards.length === 0 ? (
-        <EmptyState
-          title="No cards yet"
-        />
+        <Card>
+          <EmptyState
+            title="No cards yet"
+            message={isViewOnly ? undefined : 'Use Add new card to make a trading card for any player.'}
+          />
+        </Card>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5 sm:gap-6">
           {allCards.map(({ player, card }) => {

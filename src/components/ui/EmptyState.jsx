@@ -34,7 +34,7 @@ export default function EmptyState({
       {...rest}
     >
       {title && (
-        <h3 className="text-display-md text-txt-primary leading-tight m-0">
+        <h3 className="font-display font-bold text-xl sm:text-2xl tracking-tight text-txt-primary leading-tight m-0">
           {title}
         </h3>
       )}
