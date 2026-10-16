@@ -5785,15 +5785,19 @@ function PlayerInner() {
                 <div className="overflow-x-auto">
                   {/* Fixed column widths: each season is its own table, and with
                       auto layout the columns drifted from one season to the next. */}
-                  <table className="w-full min-w-[640px] table-fixed text-sm">
+                  {/* Phones: Result folds into the Score cell and the per-game
+                      Scoring Plays column hides (the season's "Watch Scores"
+                      button above covers them), so the table fits the screen
+                      instead of scrolling the score and stats off the edge. */}
+                  <table className="w-full sm:min-w-[640px] table-fixed text-sm">
                     <thead>
                       <tr className="bg-surface-3" style={{ borderBottom: `2px solid ${teamColors.primary}` }}>
-                        <th className="w-24 px-2 py-2.5 text-xs font-semibold uppercase text-left" style={{ color: secondaryText, opacity: 0.8 }}>Week</th>
-                        <th className="w-[22%] px-2 py-2.5 text-xs font-semibold uppercase text-left" style={{ color: secondaryText, opacity: 0.8 }}>Opponent</th>
-                        <th className="w-20 px-2 py-2.5 text-xs font-semibold uppercase text-center" style={{ color: secondaryText, opacity: 0.8 }}>Result</th>
-                        <th className="w-24 px-2 py-2.5 text-xs font-semibold uppercase text-center" style={{ color: secondaryText, opacity: 0.8 }}>Score</th>
+                        <th className="w-14 sm:w-24 px-2 py-2.5 text-xs font-semibold uppercase text-left" style={{ color: secondaryText, opacity: 0.8 }}>Week</th>
+                        <th className="w-24 sm:w-[22%] px-2 py-2.5 text-xs font-semibold uppercase text-left" style={{ color: secondaryText, opacity: 0.8 }}><span className="sm:hidden">Opp</span><span className="hidden sm:inline">Opponent</span></th>
+                        <th className="hidden sm:table-cell w-20 px-2 py-2.5 text-xs font-semibold uppercase text-center" style={{ color: secondaryText, opacity: 0.8 }}>Result</th>
+                        <th className="w-[5.5rem] sm:w-24 px-2 py-2.5 text-xs font-semibold uppercase text-center" style={{ color: secondaryText, opacity: 0.8 }}>Score</th>
                         <th className="px-2 py-2.5 text-xs font-semibold uppercase text-left" style={{ color: secondaryText, opacity: 0.8 }}>Stats</th>
-                        <th className="w-32 px-2 py-2.5 text-xs font-semibold uppercase text-center" style={{ color: secondaryText, opacity: 0.8 }}>Scoring Plays</th>
+                        <th className="hidden sm:table-cell w-32 px-2 py-2.5 text-xs font-semibold uppercase text-center" style={{ color: secondaryText, opacity: 0.8 }}>Scoring Plays</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -5967,8 +5971,9 @@ function PlayerInner() {
                               borderBottom: `1px solid ${teamInfo.backgroundColor}25`
                             }}
                           >
-                            <td className="px-2 py-2 font-medium" style={{ color: 'var(--text-secondary)' }}>
-                              {gameWeekLabel(game, 'Week ') || 'N/A'}
+                            <td className="px-2 py-2 font-medium whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
+                              <span className="sm:hidden">{gameWeekLabel(game, 'Wk ') || '—'}</span>
+                              <span className="hidden sm:inline">{gameWeekLabel(game, 'Week ') || '—'}</span>
                             </td>
                             <td className="px-2 py-2">
                               <div className="flex items-center gap-2">
@@ -5993,17 +5998,18 @@ function PlayerInner() {
                                 )}
                               </div>
                             </td>
-                            <td className="px-2 py-2 text-center font-bold" style={{ color: resultColor }}>
+                            <td className="hidden sm:table-cell px-2 py-2 text-center font-bold" style={{ color: resultColor }}>
                               {game.result || '-'}
                             </td>
-                            <td className="px-2 py-2 text-center tabular-nums" style={{ color: 'var(--text-primary)' }}>
+                            <td className="px-2 py-2 text-center tabular-nums whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
+                              {game.result && <span className="sm:hidden font-bold mr-1" style={{ color: resultColor }}>{game.result}</span>}
                               {formatScoreHighLow(game.teamScore, game.opponentScore) || '-'}
                             </td>
                             <td className="px-2 py-2 text-sm" style={{ color: 'var(--text-primary)' }}>
                               {statDisplay}
                             </td>
                             <td
-                              className="px-2 py-2 text-center"
+                              className="hidden sm:table-cell px-2 py-2 text-center"
                               onClick={(e) => {
                                 if (playerScoringPlays.length > 0) {
                                   e.stopPropagation() // Prevent row click
