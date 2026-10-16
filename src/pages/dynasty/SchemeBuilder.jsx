@@ -918,10 +918,10 @@ function BuildMode({
       {selectedScheme && (
         <section>
           <h2 className="text-sm font-bold uppercase tracking-wide text-txt-secondary mb-1">
-            Choose a {selectedScheme} Playbook
+            Choose {/^[aeiou]/i.test(selectedScheme || '') ? 'an' : 'a'} {selectedScheme} Playbook
           </h2>
           <p className="text-xs text-txt-tertiary mb-3">
-            Pick one real playbook to build from — your base package comes from that playbook's actual formations, scored against your roster. The one you're on is highlighted in your team color; click it again to deselect. Each playbook's own score reflects how well your personnel fits ITS specific formation mix, not just the scheme in general.
+            Pick one real playbook to build from — your base package comes from that playbook's actual formations, scored against your roster. The one you're on is highlighted in your team color; click it again to deselect. Each playbook's own score reflects how well your personnel fits its specific formation mix, not just the scheme in general.
           </p>
 
           <div className="flex flex-wrap items-start gap-2 mb-3">
@@ -1013,10 +1013,10 @@ function BuildMode({
                   Quick-fill top 6 by fit
                 </Button>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
                 {scoredFormations.map((f) => (
                   <Card key={f.id} variant={f.isSelected ? 'elevated' : 'bordered'} padding="sm" style={f.isSelected ? { borderColor: teamColors.primary } : undefined}>
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-txt-primary truncate">{f.formation_name}</div>
                         <div className="text-xs text-txt-tertiary">
@@ -1027,19 +1027,24 @@ function BuildMode({
                           {f.fit.avgOvr != null ? ` · ${f.fit.avgOvr} OVR personnel` : ''}
                         </div>
                       </div>
-                      <Badge variant={f.fit.score >= 70 ? 'success' : f.fit.score >= 40 ? 'default' : 'outline'}>{f.fit.score.toFixed(2)}</Badge>
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        <Badge variant={f.fit.score >= 70 ? 'success' : f.fit.score >= 40 ? 'default' : 'outline'}>{f.fit.score.toFixed(2)}</Badge>
+                        <Button
+                          size="sm"
+                          variant={f.isSelected ? 'primary' : 'outline'}
+                          accentColor={f.isSelected ? teamColors.primary : undefined}
+                          disabled={isViewOnly}
+                          onClick={() => onTogglePackage(f.id)}
+                          aria-pressed={f.isSelected}
+                          aria-label={`${f.isSelected ? 'Remove' : 'Add'} ${f.formation_name} ${f.isSelected ? 'from' : 'to'} package`}
+                        >
+                          {f.isSelected ? 'Remove' : 'Add'}
+                        </Button>
+                      </div>
                     </div>
-                    <BreakdownToggle breakdown={f.fit.breakdown} />
-                    <Button
-                      className="mt-2 w-full"
-                      size="sm"
-                      variant={f.isSelected ? 'primary' : 'outline'}
-                      accentColor={f.isSelected ? teamColors.primary : undefined}
-                      disabled={isViewOnly}
-                      onClick={() => onTogglePackage(f.id)}
-                    >
-                      {f.isSelected ? 'Remove from package' : 'Add to package'}
-                    </Button>
+                    <div className="mt-1">
+                      <BreakdownToggle breakdown={f.fit.breakdown} />
+                    </div>
                   </Card>
                 ))}
               </div>
@@ -1227,58 +1232,62 @@ function ArchetypesMode({ side, players, board, currentDynasty, updatePlayer, is
       <p className="text-xs text-txt-tertiary mb-3">
         Starters plus the key extra roles ({side === 'offense' ? 'WR2, HB2, Slot WR, TE2' : 'DT2, CB2, Nickel'}) by default — pick a different player from the dropdown if you'd rather set someone else's archetype. Writes the same <code>archetype</code> field used everywhere else in the app.
       </p>
-      <div className="space-y-1">
+      <Card padding="none" className="divide-y divide-surface-4 overflow-hidden">
         {rows.map(({ slot, pool, entry }) => {
           const options = entry ? archetypesForPosition(entry.position) : []
           const current = entry?.player?.archetype || ''
           return (
-            <Card key={slot.id} variant="bordered" padding="sm">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="min-w-0 flex items-center gap-2">
-                  <Badge variant="outline">{slot.label}</Badge>
-                  {pool.length > 1 ? (
-                    <Select
-                      size="sm"
-                      value={entry?.pid || ''}
-                      disabled={isViewOnly}
-                      onChange={(e) => onAssignRole(slot.id, e.target.value)}
-                      className="max-w-[240px]"
-                    >
-                      {pool.map((p) => (
-                        <option key={p.pid} value={p.pid}>
-                          {p.name} ({Number.isFinite(p.projectedOvr) ? `${p.projectedOvr} OVR` : '?'})
-                        </option>
-                      ))}
-                    </Select>
-                  ) : entry ? (
-                    <span className="text-sm font-semibold text-txt-primary truncate">
-                      {entry.name}{Number.isFinite(entry.projectedOvr) ? ` (${entry.projectedOvr} OVR)` : ''}
-                    </span>
-                  ) : (
-                    <span className="text-xs text-txt-tertiary">No {slot.label} on roster</span>
-                  )}
-                </div>
-                {entry && (options.length ? (
+            <div key={slot.id} className="flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 px-3 sm:px-4 py-2.5">
+              <div className="w-16 shrink-0">
+                <Badge variant="outline" className="whitespace-nowrap">{slot.label}</Badge>
+              </div>
+              <div className="min-w-0 flex-1 sm:flex-none sm:w-64">
+                {pool.length > 1 ? (
                   <Select
                     size="sm"
-                    value={current}
+                    value={entry?.pid || ''}
                     disabled={isViewOnly}
-                    onChange={(e) => setArchetype(entry, e.target.value)}
-                    className="max-w-[220px]"
+                    onChange={(e) => onAssignRole(slot.id, e.target.value)}
+                    aria-label={`${slot.label} player`}
                   >
-                    <option value="">No archetype set</option>
-                    {options.map((a) => (
-                      <option key={a} value={a}>{a}</option>
+                    {pool.map((p) => (
+                      <option key={p.pid} value={p.pid}>
+                        {p.name} ({Number.isFinite(p.projectedOvr) ? `${p.projectedOvr} OVR` : '?'})
+                      </option>
                     ))}
                   </Select>
+                ) : entry ? (
+                  <span className="block text-sm font-semibold text-txt-primary truncate">
+                    {entry.name}{Number.isFinite(entry.projectedOvr) ? ` (${entry.projectedOvr} OVR)` : ''}
+                  </span>
                 ) : (
-                  <span className="text-xs text-txt-tertiary">No archetype options for {entry.position}</span>
-                ))}
+                  <span className="text-xs text-txt-tertiary">No {slot.label} on roster</span>
+                )}
               </div>
-            </Card>
+              {entry && (
+                <div className="w-full sm:w-56 sm:ml-auto pl-[76px] sm:pl-0">
+                  {options.length ? (
+                    <Select
+                      size="sm"
+                      value={current}
+                      disabled={isViewOnly}
+                      onChange={(e) => setArchetype(entry, e.target.value)}
+                      aria-label={`${slot.label} archetype`}
+                    >
+                      <option value="">No archetype set</option>
+                      {options.map((a) => (
+                        <option key={a} value={a}>{a}</option>
+                      ))}
+                    </Select>
+                  ) : (
+                    <span className="text-xs text-txt-tertiary">No archetype options for {entry.position}</span>
+                  )}
+                </div>
+              )}
+            </div>
           )
         })}
-      </div>
+      </Card>
     </section>
   )
 }
@@ -2029,7 +2038,7 @@ function GameViewMode({
     return (
       <EmptyState
         title="No playbook selected yet"
-        message={`Pick a ${side} playbook in Build mode, then come back here for a clean in-game reference of every formation in it.`}
+        message={`Pick ${side === 'offense' ? 'an offense' : 'a defense'} playbook in Build mode, then come back here for a clean in-game reference of every formation in it.`}
         action={<Button variant="primary" onClick={onSwitchToBuild}>Go to Build mode</Button>}
       />
     )
