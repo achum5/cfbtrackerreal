@@ -67,6 +67,7 @@ import { applyPreviousSchool } from '../../utils/previousSchool'
 import { markRecommit } from '../../utils/portalRecommit'
 import RecruitingInsightLink from '../../components/ui/RecruitingInsightLink'
 import { useToast } from '../../components/ui/Toast'
+import EmptyState from '../../components/ui/EmptyState'
 import SellVsSendCalculator, { SellVsSendButton } from '../../components/SellVsSendCalculator'
 import PositionChangesModal from '../../components/PositionChangesModal'
 import NationalCommitsModal from '../../components/NationalCommitsModal'
@@ -8030,19 +8031,10 @@ export default function Dashboard() {
             </h3>
           </div>
           ) : (
-          <div className="text-center py-12">
-            <div className="text-txt-muted mb-4">
-              <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <h3 className="font-display text-lg font-medium mb-2 text-txt-primary">
-              No Schedule Yet
-            </h3>
-            <p className="text-txt-tertiary">
-              Add your season schedule to get started.
-            </p>
-          </div>
+          <EmptyState
+            title="No schedule yet"
+            message={isViewOnly ? null : 'Enter it from the Enter Schedule task, or with the pencil above.'}
+          />
         )}
         </div>
       </div>
@@ -8487,9 +8479,10 @@ export default function Dashboard() {
                     <p className="text-txt-tertiary">Loading schedule...</p>
                   </div>
                 ) : (
-                  <div className="text-center py-12">
-                    <p className="text-txt-tertiary">No schedule entered yet.</p>
-                  </div>
+                  <EmptyState
+                    title="No schedule yet"
+                    message={isViewOnly ? null : 'Enter it from the Enter Schedule task, or with the pencil above.'}
+                  />
                 )}
               </div>
             </div>
