@@ -61,7 +61,9 @@ const Button = forwardRef(function Button(
       break
     }
     case 'danger':
-      variantClass = 'bg-danger text-white hover:opacity-90 focus-visible:ring-danger'
+      // red-600, not the stock red-500 token: white on red-500 is 3.8:1,
+      // under the 4.5:1 a 14px label needs.
+      variantClass = 'bg-[#dc2626] text-white hover:bg-[#b91c1c] focus-visible:ring-danger'
       break
     case 'danger-outline':
       // Destructive but not the main action on the screen (e.g. Delete next

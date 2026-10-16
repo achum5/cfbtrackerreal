@@ -82,18 +82,18 @@ export default function CalendarJumper() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <div>
-          <label className="label-xs text-txt-tertiary block mb-1">Year</label>
-          <Input type="number" value={year} onChange={(e) => setYear(e.target.value)} className="tabular" />
+          <label htmlFor="cal-jump-year" className="label-xs text-txt-tertiary block mb-1">Year</label>
+          <Input id="cal-jump-year" type="number" value={year} onChange={(e) => setYear(e.target.value)} className="tabular" />
         </div>
         <div>
-          <label className="label-xs text-txt-tertiary block mb-1">Phase</label>
-          <select value={phase} onChange={(e) => setPhaseSafe(e.target.value)} className={selectClass}>
+          <label htmlFor="cal-jump-phase" className="label-xs text-txt-tertiary block mb-1">Phase</label>
+          <select id="cal-jump-phase" value={phase} onChange={(e) => setPhaseSafe(e.target.value)} className={selectClass}>
             {PHASES.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
           </select>
         </div>
         <div>
-          <label className="label-xs text-txt-tertiary block mb-1">Week</label>
-          <select value={week} onChange={(e) => setWeek(e.target.value)} className={selectClass}>
+          <label htmlFor="cal-jump-week" className="label-xs text-txt-tertiary block mb-1">Week</label>
+          <select id="cal-jump-week" value={week} onChange={(e) => setWeek(e.target.value)} className={selectClass}>
             {weeks.map((w) => <option key={w} value={w}>{w}</option>)}
           </select>
         </div>

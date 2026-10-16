@@ -7,7 +7,7 @@ import { useTeamColors } from '../../hooks/useTeamColors'
 import { isPcAutoDynasty } from '../../editions'
 import { getTeamLogo, getMascotName as getMascotNameFromTeams, stripMascotFromName } from '../../data/teams'
 import { getTeamColors } from '../../data/teamColors'
-import { getContrastTextColor } from '../../utils/colorUtils'
+import { readableTextOn } from '../../utils/colorUtils'
 import { AWARD_IMAGES } from '../../data/awardImages'
 import { TEAMS, resolveTid, getCurrentTeamAbbr, getTidFromAbbr } from '../../data/teamRegistry'
 import AwardsModal from '../../components/AwardsModal'
@@ -290,7 +290,8 @@ export default function Awards() {
     const teamLogo = mascotName ? getTeamLogo(mascotName, currentDynasty?.teams || currentDynasty?.customTeams) : null
     const colors = mascotName ? getTeamColors(mascotName, currentDynasty?.teams || currentDynasty?.customTeams) : null
     const primary = colors?.primary || '#3a3f47'
-    const pillText = getContrastTextColor(primary)
+    // 11px school name, so hold it to the small-text 4.5:1 floor.
+    const pillText = readableTextOn(primary, null, 4.5)
     const matchingPlayer = findPlayerByName(awardData.player, teamAbbrLive, displayYear)
     const isCoachAward = display.category === 'coach'
     const schoolName = getSchoolName(mascotName) || teamAbbrLive

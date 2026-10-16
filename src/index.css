@@ -1119,14 +1119,15 @@ button.media-card:active,
   font-size: 0.9375rem;
 }
 .btn-refined--danger {
-  color: var(--accent-error);
+  /* Lifted toward white so the label clears 4.5:1 on the dark surfaces. */
+  color: color-mix(in srgb, var(--accent-error) 78%, #fff);
   border-color: color-mix(in srgb, var(--accent-error) 35%, var(--surface-4));
 }
 @media (hover: hover) and (pointer: fine) {
   .btn-refined--danger:hover:not(:disabled) {
     background-color: color-mix(in srgb, var(--accent-error) 12%, var(--surface-3));
     border-color: var(--accent-error);
-    color: var(--accent-error);
+    color: color-mix(in srgb, var(--accent-error) 78%, #fff);
   }
 }
 .btn-refined:disabled {

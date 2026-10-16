@@ -910,12 +910,12 @@ export default function LeagueSettings() {
       <PageHero title="League Members" />
       <Card>
         <header className="flex items-baseline justify-between mb-1">
-          <h3
+          <h2
             className="label-sm text-txt-primary"
             style={{ letterSpacing: '2px', fontSize: '11px', fontWeight: 700 }}
           >
             COACHES
-          </h3>
+          </h2>
           <span
             className="label-xs text-txt-tertiary tabular"
             style={{ letterSpacing: '1.5px', fontSize: '9px' }}
@@ -937,12 +937,12 @@ export default function LeagueSettings() {
       {canShareWithOthers && (
         <Card>
           <header className="flex items-baseline justify-between mb-1">
-            <h3
+            <h2
               className="label-sm text-txt-primary"
               style={{ letterSpacing: '2px', fontSize: '11px', fontWeight: 700 }}
             >
               INVITE A USER
-            </h3>
+            </h2>
             {visibleInvitesCount > 0 && (
               <span
                 className="label-xs text-txt-tertiary tabular"
@@ -1070,12 +1070,12 @@ export default function LeagueSettings() {
 
       {myRole !== ROLE_COMMISH && (
         <Card>
-          <h3
+          <h2
             className="label-sm text-txt-primary mb-1"
             style={{ letterSpacing: '2px', fontSize: '11px', fontWeight: 700 }}
           >
             YOUR USER ID
-          </h3>
+          </h2>
           <p className="text-xs text-txt-tertiary mb-2">
             Share this ID if a commish needs to add you to another dynasty.
           </p>
@@ -1104,12 +1104,12 @@ export default function LeagueSettings() {
           of a button. */}
       {myRole && myRole !== ROLE_COMMISH && (
         <Card>
-          <h3
+          <h2
             className="label-sm text-txt-primary mb-1"
             style={{ letterSpacing: '2px', fontSize: '11px', fontWeight: 700 }}
           >
             LEAVE DYNASTY
-          </h3>
+          </h2>
           <p className="text-xs text-txt-tertiary mb-3">
             Walk yourself out. Your past coaching record stays in the timeline so the commish
             can still see your career; you just lose edit access.
@@ -1127,12 +1127,12 @@ export default function LeagueSettings() {
 
       {myRole === ROLE_COMMISH && otherEditors.length > 0 && (
         <Card>
-          <h3
+          <h2
             className="label-sm text-txt-primary mb-1"
             style={{ letterSpacing: '2px', fontSize: '11px', fontWeight: 700 }}
           >
             LEAVING THE DYNASTY
-          </h3>
+          </h2>
           <p className="text-xs text-txt-tertiary">
             As commish you can't leave directly. Use <span className="font-semibold text-txt-primary">Make Commish</span> on
             another member's row to transfer ownership; once transferred, you become a regular

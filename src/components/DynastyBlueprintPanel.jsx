@@ -493,14 +493,14 @@ function DynastyBlueprintPanelInner({ year, tid }) {
         {showAddCoach && (
           <div className="mt-3 p-3 rounded-md" style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--surface-4)' }}>
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-              <div className="sm:col-span-5"><Input value={newCoach.name} onChange={(e) => setNewCoach({ ...newCoach, name: e.target.value })} placeholder="Coach name" autoFocus /></div>
+              <div className="sm:col-span-5"><Input value={newCoach.name} onChange={(e) => setNewCoach({ ...newCoach, name: e.target.value })} placeholder="Coach name" aria-label="Coach name" autoFocus /></div>
               <div className="sm:col-span-2">
-                <select value={newCoach.role} onChange={(e) => setNewCoach({ ...newCoach, role: e.target.value })} className="w-full bg-surface-2 border border-surface-4 rounded-md px-2 py-2 text-sm text-txt-primary">
+                <select value={newCoach.role} onChange={(e) => setNewCoach({ ...newCoach, role: e.target.value })} aria-label="Role" className="w-full bg-surface-2 border border-surface-4 rounded-md px-2 py-2 text-sm text-txt-primary">
                   {COACH_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
-              <div className="sm:col-span-2"><Input type="number" min="0" value={newCoach.level} onChange={(e) => setNewCoach({ ...newCoach, level: e.target.value })} placeholder="Level" className="tabular text-right" /></div>
-              <div className="sm:col-span-3"><Input type="number" min="0" value={newCoach.salary} onChange={(e) => setNewCoach({ ...newCoach, salary: e.target.value })} placeholder="Salary" className="tabular text-right" /></div>
+              <div className="sm:col-span-2"><Input type="number" min="0" value={newCoach.level} onChange={(e) => setNewCoach({ ...newCoach, level: e.target.value })} placeholder="Level" aria-label="Level" className="tabular text-right" /></div>
+              <div className="sm:col-span-3"><Input type="number" min="0" value={newCoach.salary} onChange={(e) => setNewCoach({ ...newCoach, salary: e.target.value })} placeholder="Salary" aria-label="Salary" className="tabular text-right" /></div>
             </div>
             <div className="flex justify-end gap-2 mt-3">
               <Button variant="outline" size="sm" onClick={resetAddCoach}>Cancel</Button>

@@ -2626,14 +2626,14 @@ export default function DangerZone() {
           {(danger || pcOnly) && (
             <div className="flex items-center gap-2 mb-1.5">
               {danger && (
-                <span className="label-xs" style={{ color: 'var(--accent-error)', letterSpacing: '1.5px' }}>
+                <span className="label-xs" style={{ color: 'color-mix(in srgb, var(--accent-error) 78%, #fff)', letterSpacing: '1.5px' }}>
                   USE WITH CAUTION
                 </span>
               )}
               {pcOnly && (
                 <span
                   className="label-xs px-1.5 py-0.5 rounded"
-                  style={{ color: 'var(--accent-info, #60a5fa)', border: '1px solid currentColor', letterSpacing: '1px' }}
+                  style={{ color: 'color-mix(in srgb, var(--accent-info) 70%, #fff)', border: '1px solid currentColor', letterSpacing: '1px' }}
                 >
                   PC ONLY
                 </span>
@@ -2681,7 +2681,7 @@ export default function DangerZone() {
           browser clearing its site data. Non-destructive (restore merges). */}
       <Card>
         <div className="flex items-center justify-between mb-2">
-          <h3 className="label-sm text-txt-primary m-0">Local Backups</h3>
+          <h2 className="label-sm text-txt-primary m-0">Local Backups</h2>
           <Button variant="outline" size="sm" onClick={loadLocalBackups}>
             {localBackups === null ? 'Show Backups' : 'Refresh'}
           </Button>
@@ -2727,6 +2727,7 @@ export default function DangerZone() {
           <select
             value={recoverRecruitSourceId}
             onChange={(e) => setRecoverRecruitSourceId(e.target.value)}
+            aria-label="Source dynasty"
             className="flex-1 px-3 py-2 rounded-lg text-sm bg-surface-3 text-txt-primary border border-surface-5"
           >
             <option value="">Copy data from…</option>
@@ -2812,7 +2813,7 @@ export default function DangerZone() {
           <p className="text-xs text-txt-secondary m-0">
             <span
               className="label-xs px-1.5 py-0.5 rounded mr-2"
-              style={{ color: 'var(--accent-info, #60a5fa)', border: '1px solid currentColor', letterSpacing: '1px' }}
+              style={{ color: 'color-mix(in srgb, var(--accent-info) 70%, #fff)', border: '1px solid currentColor', letterSpacing: '1px' }}
             >
               PC ONLY
             </span>
@@ -3099,7 +3100,7 @@ export default function DangerZone() {
               </p>
             </div>
             <div className="mt-auto space-y-2">
-              <Select
+              <Select aria-label="Season"
                 size="sm"
                 value={statsSyncYear}
                 onChange={(e) => setStatsSyncYear(parseInt(e.target.value))}
@@ -3379,7 +3380,7 @@ export default function DangerZone() {
                 </Button>
               </div>
 
-              <Select
+              <Select aria-label="Game to delete"
                 value={selectedGameToDelete || ''}
                 onChange={(e) => setSelectedGameToDelete(e.target.value)}
               >
@@ -3446,11 +3447,13 @@ export default function DangerZone() {
 
               <Input
                 placeholder="Paste Game ID (e.g. game-1234567890)"
+                aria-label="Game ID"
                 value={selectedGameToSwap || ''}
                 onChange={(e) => { setSelectedGameToSwap(e.target.value); setBoxScoreSwapStatus(null) }}
               />
 
               <Select
+                aria-label="Game to swap"
                 value={selectedGameToSwap || ''}
                 onChange={(e) => { setSelectedGameToSwap(e.target.value); setBoxScoreSwapStatus(null) }}
               >

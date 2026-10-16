@@ -162,6 +162,7 @@ export default function PlayersByState() {
         actions={
           <Select
             size="sm"
+            aria-label="State"
             value={stateCode}
             onChange={(e) => handleStateChange(e.target.value)}
           >
