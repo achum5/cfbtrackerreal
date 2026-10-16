@@ -5441,21 +5441,36 @@ export default function TeamYear() {
           {teamYearGames.length > 0 && (
         <div className="card-elevated overflow-hidden relative cfb-texture">
           {!isViewOnly && (
-            <button
-              type="button"
-              onClick={() => setShowScheduleModal(true)}
-              className="absolute top-2.5 right-2.5 z-10 p-1.5 rounded-md transition-colors text-txt-tertiary hover:text-txt-primary hover:bg-surface-3"
-              title="Edit Schedule"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-            </button>
+            // Desktop: sits in the column-header row. Phones have no header
+            // row, so there it gets its own slim bar instead of floating over
+            // the first game's score.
+            <>
+              <div className="md:hidden flex justify-end px-2 py-1.5" style={{ borderBottom: `1px solid ${accentColor}15` }}>
+                <button
+                  type="button"
+                  onClick={() => setShowScheduleModal(true)}
+                  className="px-2 py-1 rounded-md text-xs font-semibold text-txt-tertiary hover:text-txt-primary hover:bg-surface-3 transition-colors"
+                >
+                  Edit schedule
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowScheduleModal(true)}
+                className="hidden md:block absolute top-2.5 right-2.5 z-10 p-1.5 rounded-md transition-colors text-txt-tertiary hover:text-txt-primary hover:bg-surface-3"
+                title="Edit Schedule"
+                aria-label="Edit schedule"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+            </>
           )}
           <div>
             {/* Column headers for stat leaders - show at md breakpoint */}
             <div className="hidden md:flex items-center gap-3 py-3 px-4 text-xs font-semibold uppercase tracking-wider" style={{ borderBottom: `1px solid ${accentColor}15`, color: accentColorMuted }}>
-              <span className="w-10 flex-shrink-0"></span>
+              <span className="w-12 flex-shrink-0"></span>
               <span className="w-11 flex-shrink-0"></span>
               <span className="w-44 flex-shrink-0">Opponent</span>
               <span className="w-20 flex-shrink-0 text-center">Result</span>
@@ -5641,7 +5656,7 @@ export default function TeamYear() {
                   {/* Main game row */}
                   <div className="flex items-center gap-3">
                     {/* Week number */}
-                    <span className="w-12 text-xs sm:text-sm font-medium flex-shrink-0 whitespace-nowrap tabular-nums" style={{ color: rowTextMuted }}>
+                    <span className="w-10 sm:w-12 text-xs sm:text-sm font-medium flex-shrink-0 whitespace-nowrap tabular-nums" style={{ color: rowTextMuted }}>
                       {weekLabel}
                     </span>
 
@@ -5656,8 +5671,10 @@ export default function TeamYear() {
                       )}
                     </div>
 
-                    {/* Team Info - fixed width */}
-                    <div className="w-44 flex-shrink-0 min-w-0">
+                    {/* Team Info - fixed width from md (so the stat-leader
+                        columns line up row to row); on phones it flexes so the
+                        score never gets pushed off the right edge. */}
+                    <div className="flex-1 md:flex-none md:w-44 min-w-0">
                       <div className="flex items-center gap-1.5">
                         {game.opponentRank && (
                           <span className="text-xs font-bold text-amber-400">
@@ -7050,8 +7067,9 @@ export default function TeamYear() {
                           type="button"
                           onClick={cell.onClick || undefined}
                           disabled={!isClickable}
-                          className={`group relative flex flex-col items-start py-3 px-3 text-left transition-colors ${isClickable ? 'cursor-pointer hover:bg-surface-3' : 'cursor-default'}`}
-                          style={{ borderLeft: idx % 6 === 0 ? 'none' : '1px solid var(--surface-4)' }}
+                          // Rule between cells, none at the start of a row: every
+                          // 3rd cell on phones (3-col grid), every 6th from sm.
+                          className={`group relative flex flex-col items-start py-3 px-3 text-left transition-colors border-surface-4 ${idx % 3 === 0 ? 'border-l-0' : 'border-l'} ${idx % 6 === 0 ? 'sm:border-l-0' : 'sm:border-l'} ${idx >= 3 ? 'border-t sm:border-t-0' : ''} ${isClickable ? 'cursor-pointer hover:bg-surface-3' : 'cursor-default'}`}
                         >
                           <span className="tabular-nums leading-none" style={{ fontFamily: "var(--font-display)", fontSize: '1.5rem', fontWeight: 900, color: valueColor }}>{cell.value}</span>
                           <span className="text-[10px] font-bold uppercase mt-1.5 text-txt-tertiary" style={{ letterSpacing: '1px' }}>{cell.label}</span>
@@ -7117,7 +7135,7 @@ export default function TeamYear() {
                   <thead>
                     <tr>
                       {['Year', 'Record', 'Final Rank', 'Postseason'].map(h => (
-                        <th key={h} className="px-4 py-2 text-left text-[10px] font-bold uppercase text-txt-tertiary" style={{ letterSpacing: '1.5px', borderBottom: '1px solid var(--surface-4)', backgroundColor: 'var(--surface-2)' }}>{h}</th>
+                        <th key={h} className="px-3 sm:px-4 py-2 text-left text-[10px] font-bold uppercase whitespace-nowrap text-txt-tertiary" style={{ letterSpacing: '1.5px', borderBottom: '1px solid var(--surface-4)', backgroundColor: 'var(--surface-2)' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
