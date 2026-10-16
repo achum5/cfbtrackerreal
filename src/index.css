@@ -140,6 +140,18 @@ html {
   color-scheme: dark;
 }
 
+/* iOS Safari zooms the whole page into any focused field under 16px and
+   leaves it zoomed. Touch devices get 16px form text; mouse/trackpad keeps
+   the compact sizes. (Viewport-level max-scale would also stop the zoom,
+   but it blocks pinch-zoom on Android — this doesn't.) */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 /* Taps act immediately (no double-tap-zoom wait) and don't flash the default
    grey highlight box over controls; pressed states come from our own styles. */
 a, button, input, select, textarea, label, summary, [role="button"] {
@@ -566,8 +578,10 @@ button.card-elevated:hover {
    Alabama-crimson outline against a dark surface looks like an
    out-of-place colored frame. Matches the --tw-ring-color override
    below so all keyboard focus indicators share one neutral tone. */
+/* Keyboard focus ring: 60% white clears the 3:1 non-text contrast floor on
+   every surface (30% read ~2.5:1 on cards — easy to lose). */
 *:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--text-primary) 30%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--text-primary) 60%, transparent);
   outline-offset: 2px;
 }
 
@@ -1150,11 +1164,11 @@ textarea:focus-visible,
 select:focus-visible,
 [role="button"]:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--text-primary) 30%, transparent) !important;
+  outline: 2px solid color-mix(in srgb, var(--text-primary) 60%, transparent) !important;
   outline-offset: 2px !important;
 }
 .focus-ring:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--text-primary) 30%, transparent) !important;
+  outline: 2px solid color-mix(in srgb, var(--text-primary) 60%, transparent) !important;
   outline-offset: 2px !important;
 }
 

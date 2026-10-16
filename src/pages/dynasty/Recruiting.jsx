@@ -1445,7 +1445,10 @@ export default function Recruiting() {
               of stacking as three full-width dropdowns. From md the wrapper
               dissolves (display: contents) and each filter is its own
               divided toolbar cell again. */}
-          <div className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.1fr)_minmax(0,1.1fr)] gap-2 px-3 py-3 md:contents">
+          {/* Touch phones use 16px form text (no iOS focus-zoom), and three
+              selects don't fit one row at that size — there Sort drops to its
+              own row. */}
+          <div className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.1fr)_minmax(0,1.1fr)] [@media(pointer:coarse)]:grid-cols-2 gap-2 px-3 py-3 md:contents">
           <div className="flex items-center gap-1.5 min-w-0 md:px-4 md:py-3 md:flex-shrink-0 md:border-l md:border-white/15">
             <span className="label-xs text-txt-tertiary hidden md:inline" style={{ letterSpacing: '1.5px' }}>Stars</span>
             <Select
@@ -1481,7 +1484,7 @@ export default function Recruiting() {
           </div>
 
           {/* Sort control — anchored to the right edge on desktop. */}
-          <div className="flex items-center gap-1.5 min-w-0 md:px-4 md:py-3 md:flex-shrink-0 md:ml-auto md:border-l md:border-white/15">
+          <div className="flex items-center gap-1.5 min-w-0 [@media(pointer:coarse)]:col-span-2 md:px-4 md:py-3 md:flex-shrink-0 md:ml-auto md:border-l md:border-white/15">
             <span className="label-xs text-txt-tertiary hidden md:inline" style={{ letterSpacing: '1.5px' }}>Sort</span>
             <Select
               size="sm"
