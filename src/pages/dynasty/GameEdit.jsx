@@ -167,14 +167,16 @@ function StatField({ label, children }) {
 // render body, every keystroke would create a new component reference,
 // React would unmount/remount the input, and focus would drop after
 // each character. (Lesson learned the painful way.)
-function QuarterInput({ value, onChange, onBlur }) {
+// `fluid` lets the box shrink with its column (down to two digits' room) so
+// the phone scoreboard's quarter row fits a 320px screen instead of scrolling.
+function QuarterInput({ value, onChange, onBlur, fluid = false }) {
   return (
     <input
       type="number"
       value={value ?? ''}
       onChange={onChange}
       onBlur={onBlur}
-      className="w-12 text-center tabular-nums text-sm rounded-sm py-1 bg-transparent text-txt-secondary focus:outline-none focus:ring-1 focus:ring-white/40"
+      className={`${fluid ? 'no-spin w-full min-w-[2rem] max-w-[3rem] mx-auto block' : 'w-12'} text-center tabular-nums text-sm rounded-sm py-1 bg-transparent text-txt-secondary focus:outline-none focus:ring-1 focus:ring-white/40`}
       style={{ border: '1px solid var(--surface-5)' }}
       min="0"
       placeholder="0"
@@ -2386,18 +2388,18 @@ export default function GameEdit() {
 
               {/* Mobile quarter inputs */}
               <div className="px-3 sm:px-4 pb-4 overflow-x-auto">
-                <table className="w-full text-center min-w-[400px]">
+                <table className="w-full text-center">
                   <thead>
                     <tr className="text-[10px] sm:text-xs text-txt-tertiary uppercase tracking-wider">
-                      <th className="text-left py-2 px-2 font-semibold">Team</th>
-                      <th className="py-2 px-1 font-semibold">1st</th>
-                      <th className="py-2 px-1 font-semibold">2nd</th>
-                      <th className="py-2 px-1 font-semibold">3rd</th>
-                      <th className="py-2 px-1 font-semibold">4th</th>
+                      <th className="text-left py-2 px-1 sm:px-2 font-semibold">Team</th>
+                      <th className="py-2 px-0.5 sm:px-1 font-semibold">1st</th>
+                      <th className="py-2 px-0.5 sm:px-1 font-semibold">2nd</th>
+                      <th className="py-2 px-0.5 sm:px-1 font-semibold">3rd</th>
+                      <th className="py-2 px-0.5 sm:px-1 font-semibold">4th</th>
                       {formData.overtimes.map((_, i) => (
-                        <th key={i} className="py-2 px-1 font-semibold">OT{i > 0 ? i + 1 : ''}</th>
+                        <th key={i} className="py-2 px-0.5 sm:px-1 font-semibold">OT{i > 0 ? i + 1 : ''}</th>
                       ))}
-                      <th className="py-2 px-2 font-semibold">Total</th>
+                      <th className="py-2 px-1 sm:px-2 font-semibold">Total</th>
                     </tr>
                   </thead>
                   <tbody className="text-sm">
@@ -2406,15 +2408,16 @@ export default function GameEdit() {
                       { prefix: displayRightTeam, abbr: rightTeamAbbr, logo: rightTeamLogo },
                     ].map(({ prefix, abbr, logo }, idx) => (
                       <tr key={prefix} className={idx === 0 ? 'border-b border-surface-4' : ''}>
-                        <td className="py-2 px-2">
-                          <div className="flex items-center gap-2">
-                            {logo && <img src={logo} alt="" className="w-6 h-6 object-contain shrink-0" />}
-                            <span className="text-sm font-bold text-txt-primary">{abbr}</span>
+                        <td className="py-2 px-1 sm:px-2">
+                          <div className="flex items-center gap-1.5 sm:gap-2">
+                            {logo && <img src={logo} alt="" className="w-5 h-5 sm:w-6 sm:h-6 object-contain shrink-0" />}
+                            <span className="text-xs sm:text-sm font-bold text-txt-primary">{abbr}</span>
                           </div>
                         </td>
                         {['Q1', 'Q2', 'Q3', 'Q4'].map(q => (
-                          <td key={q} className="py-2 px-1">
+                          <td key={q} className="py-2 px-0.5 sm:px-1">
                             <QuarterInput
+                              fluid
                               value={formData.quarters?.[prefix]?.[q]}
                               onChange={(e) => handleQuarterChange(prefix, q, e.target.value)}
                               onBlur={(e) => { if (e.target.value === '') handleQuarterChange(prefix, q, '0') }}
@@ -2422,15 +2425,16 @@ export default function GameEdit() {
                           </td>
                         ))}
                         {formData.overtimes.map((ot, otIdx) => (
-                          <td key={otIdx} className="py-2 px-1">
+                          <td key={otIdx} className="py-2 px-0.5 sm:px-1">
                             <QuarterInput
+                              fluid
                               value={ot[prefix]}
                               onChange={(e) => handleOvertimeChange(otIdx, prefix, e.target.value)}
                               onBlur={(e) => { if (e.target.value === '') handleOvertimeChange(otIdx, prefix, '0') }}
                             />
                           </td>
                         ))}
-                        <td className="py-2 px-2 text-lg font-black text-white tabular-nums">
+                        <td className="py-2 px-1 sm:px-2 text-lg font-black text-white tabular-nums">
                           {formData[`${prefix}Score`] || '0'}
                         </td>
                       </tr>

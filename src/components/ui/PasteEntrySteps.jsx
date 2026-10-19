@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { AI_TOOLS } from '../../data/aiTools'
 
@@ -7,6 +7,18 @@ import { AI_TOOLS } from '../../data/aiTools'
 // quiet: the white action buttons are the one bold element; the numbers,
 // captions, and hairline chevrons stay muted. A small info dot on each step
 // toggles a one-line explanation beneath the row.
+//
+// The row sits in full-width modals and in narrow two-column cards, so it is
+// sized to its own box, not the window. Each layout below is tried in turn,
+// widest first, and the first one that fits is kept (fitLayout sets it as
+// data-layout on the root; the classes key off it):
+//   wide     one row, chevrons between steps, full-size buttons
+//   compact  one row, no chevrons, smaller buttons
+//   tight    one row, captions wrapped to their button's width, "Copy" label
+//   stack    one step per line: caption left, button right
+// Before this, the row was sized by window breakpoints and scrolled sideways
+// when it didn't fit, which clipped buttons in the narrow game editor cards.
+const LAYOUTS = ['wide', 'compact', 'tight', 'stack']
 
 const STEP_HINTS = {
   screenshot: 'Take screenshots of the data you want to enter — or record a short video scrolling through it (either way it doesn\'t have to be perfect, just clear and fully showing). Then tap Copy Prompt to copy the instructions.',
@@ -14,7 +26,14 @@ const STEP_HINTS = {
   paste: 'Copy the AI\'s reply, then tap Paste. The grid fills in automatically. Tap the arrow to open a text box if the normal paste doesn\'t work.',
 }
 
-const WHITE_BTN = 'h-8 sm:h-9 px-2 sm:px-3 inline-flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm font-semibold transition-colors disabled:opacity-60 hover:opacity-90 whitespace-nowrap'
+const WHITE_BTN = 'h-8 px-2 inline-flex items-center justify-center gap-1 text-xs font-semibold transition-colors disabled:opacity-60 hover:opacity-90 whitespace-nowrap group-data-[layout=wide]/steps:h-9 group-data-[layout=wide]/steps:px-3 group-data-[layout=wide]/steps:gap-1.5 group-data-[layout=wide]/steps:text-sm group-data-[layout=stack]/steps:flex-1'
+// The arrow half of a split button.
+const ARROW_BTN = 'px-1.5 flex items-center justify-center transition-colors hover:opacity-90 group-data-[layout=wide]/steps:px-2'
+// One step: caption over control in a row, side by side when stacked.
+const STEP = 'flex flex-col gap-2 group-data-[layout=stack]/steps:flex-row group-data-[layout=stack]/steps:items-center group-data-[layout=stack]/steps:justify-between group-data-[layout=stack]/steps:gap-3'
+// A step's control: left-aligned under its caption in a row; stacked, a
+// shared minimum width at the right of its line so the three line up.
+const CONTROL = 'inline-flex self-start rounded-md overflow-hidden border border-surface-5 group-data-[layout=stack]/steps:self-center group-data-[layout=stack]/steps:flex-shrink-0 group-data-[layout=stack]/steps:min-w-[9.5rem]'
 const WHITE_STYLE = { backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }
 
 const InfoIcon = ({ className }) => (
@@ -24,37 +43,55 @@ const InfoIcon = ({ className }) => (
   </svg>
 )
 
-// "Copy Prompt" / "Copy AI Prompt" read "Copy" on the narrowest phones so all
+// "Copy Prompt" / "Copy AI Prompt" read "Copy" in the tight layout so all
 // three steps fit on one row; labels that don't start with "Copy" pass through.
 function CopyLabel({ text }) {
   if (typeof text !== 'string' || !/^Copy\s/.test(text)) return text
   return (
     <>
-      <span className="min-[400px]:hidden">Copy</span>
-      <span className="hidden min-[400px]:inline">{text}</span>
+      <span className="hidden group-data-[layout=tight]/steps:inline">Copy</span>
+      <span className="group-data-[layout=tight]/steps:hidden">{text}</span>
     </>
+  )
+}
+
+// The copy label and "Copied!" share one grid cell, so the button keeps its
+// width when the label swaps and the row never re-flows on a click.
+function CopyButtonLabel({ text, copied }) {
+  return (
+    <span className="grid">
+      <span className={`[grid-area:1/1] ${copied ? 'invisible' : ''}`}><CopyLabel text={text} /></span>
+      <span className={`[grid-area:1/1] ${copied ? '' : 'invisible'}`}>Copied!</span>
+    </span>
   )
 }
 
 function Caption({ num, title, active, onToggle }) {
   // One inline text run (number, title, info dot) so a wrapped caption reads
-  // naturally. On phones it takes its step's width — set by the button below
-  // it, via w-0 + min-w-full — and wraps, instead of widening the step: three
-  // nowrap captions made the row wider than the modal, and the centered row
-  // clipped both ends.
+  // naturally. In the tight layout it takes its step's width — set by the
+  // button below it, via w-0 + min-w-full — and wraps, instead of widening the
+  // step. Stacked, it fills the line beside its button and wraps there.
+  const words = String(title).split(' ')
+  const last = words.pop()
+  const lead = words.length ? `${words.join(' ')} ` : ''
   return (
-    <div className="w-0 min-w-full sm:w-auto sm:min-w-0 sm:h-4 sm:whitespace-nowrap text-[10px] sm:text-[11px] leading-tight">
+    <div className="w-0 min-w-full text-[10px] leading-tight group-data-[layout=wide]/steps:w-auto group-data-[layout=wide]/steps:min-w-0 group-data-[layout=wide]/steps:h-4 group-data-[layout=wide]/steps:whitespace-nowrap group-data-[layout=wide]/steps:text-[11px] group-data-[layout=compact]/steps:w-auto group-data-[layout=compact]/steps:min-w-0 group-data-[layout=compact]/steps:h-4 group-data-[layout=compact]/steps:whitespace-nowrap group-data-[layout=compact]/steps:text-[11px] group-data-[layout=stack]/steps:w-auto group-data-[layout=stack]/steps:min-w-0 group-data-[layout=stack]/steps:flex-1 group-data-[layout=stack]/steps:text-[11px]">
       <span className="font-bold tabular text-txt-secondary mr-1">{num}</span>
-      <span className="font-medium text-txt-tertiary">{title}</span>
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-label={`What do I do in step ${num}?`}
-        aria-pressed={active}
-        className={`inline-flex align-[-2px] ml-1 transition-colors ${active ? 'text-txt-primary' : 'text-txt-tertiary/50 hover:text-txt-secondary'}`}
-      >
-        <InfoIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-      </button>
+      <span className="font-medium text-txt-tertiary">{lead}</span>
+      {/* The last word and the info dot never part, so a wrapped caption
+          doesn't leave the dot alone on the second line. */}
+      <span className="whitespace-nowrap">
+        <span className="font-medium text-txt-tertiary">{last}</span>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={`What do I do in step ${num}?`}
+          aria-pressed={active}
+          className={`inline-flex align-[-2px] ml-1 transition-colors ${active ? 'text-txt-primary' : 'text-txt-tertiary/50 hover:text-txt-secondary'}`}
+        >
+          <InfoIcon className="w-3 h-3 group-data-[layout=wide]/steps:w-3.5 group-data-[layout=wide]/steps:h-3.5" />
+        </button>
+      </span>
     </div>
   )
 }
@@ -80,9 +117,10 @@ const menuStyle = (rect, minWidth, measuredWidth) => {
   }
 }
 
-// A hairline chevron between steps, aligned to the control row (not the caption).
+// A hairline chevron between steps, aligned to the control row (not the
+// caption). Wide layout only.
 const Chevron = () => (
-  <svg className="hidden min-[440px]:block self-end mb-2 sm:mb-2.5 w-3 h-3 sm:w-4 sm:h-4 text-txt-tertiary/40 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <svg className="hidden group-data-[layout=wide]/steps:block self-end mb-2.5 w-4 h-4 text-txt-tertiary/40 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M9 6l6 6-6 6" />
   </svg>
 )
@@ -134,6 +172,23 @@ export default function PasteEntrySteps({
   const [pasteMenuWidth, setPasteMenuWidth] = useState(0)
   const measure = (set) => (el) => { if (el) set(el.offsetWidth) }
 
+  // Pick the widest layout that fits the root's width (see LAYOUTS). The row
+  // is max-content wide in every one-row layout, so its width is exactly what
+  // that layout needs.
+  const rootRef = useRef(null)
+  const rowRef = useRef(null)
+  const fitLayout = useCallback(() => {
+    const root = rootRef.current
+    const row = rowRef.current
+    if (!root || !row) return
+    const avail = root.getBoundingClientRect().width
+    if (!avail) return // hidden; the resize observer refits once it shows
+    for (const layout of LAYOUTS) {
+      root.dataset.layout = layout
+      if (layout === 'stack' || row.getBoundingClientRect().width <= avail + 0.5) return
+    }
+  }, [])
+
   // The Paste arrow becomes a MENU only when an append action is offered
   // (roster-style grids). Without it, the arrow keeps its original single job of
   // toggling the raw text box — so every other modal is unchanged.
@@ -145,6 +200,28 @@ export default function PasteEntrySteps({
   ]
 
   const ai = resolveTool(aiKey)
+
+  // Refit when the content changes...
+  useLayoutEffect(() => { fitLayout() }, [fitLayout, ai.name, label.copy, label.ai, label.paste, label.copyButton, copyEmoji, copyLeading != null, hasPasteMenu, onToggleText != null])
+  // ...and when the box resizes or the web font arrives. The refit waits a
+  // frame: changing the layout inside the observer callback would resize the
+  // observed box again and trip the observer's loop error.
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root || typeof ResizeObserver === 'undefined') return undefined
+    let frame = 0
+    let lastWidth = -1
+    const ro = new ResizeObserver(([entry]) => {
+      const width = entry.contentRect.width
+      if (width === lastWidth) return
+      lastWidth = width
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(fitLayout)
+    })
+    ro.observe(root)
+    document.fonts?.ready?.then(fitLayout)
+    return () => { ro.disconnect(); cancelAnimationFrame(frame) }
+  }, [fitLayout])
   const hint = { ...STEP_HINTS, ...hints }
   // When the Paste arrow is a menu (append available), explain both choices —
   // unless the caller supplied its own paste hint.
@@ -219,33 +296,26 @@ export default function PasteEntrySteps({
   }, [pasteMenuOpen, repositionPasteMenu])
 
   return (
-    <div className="flex-shrink-0">
-      <div className="flex flex-row items-end [justify-content:safe_center] gap-2 sm:gap-3 overflow-x-auto no-scrollbar">
+    <div ref={rootRef} className="group/steps flex-shrink-0">
+      <div ref={rowRef} className="flex flex-row items-end w-max mx-auto gap-2 group-data-[layout=wide]/steps:gap-3 group-data-[layout=compact]/steps:gap-3 group-data-[layout=stack]/steps:flex-col group-data-[layout=stack]/steps:items-stretch group-data-[layout=stack]/steps:w-full">
         {/* Step 1 — screenshot & copy */}
-        <div className="flex flex-col gap-2">
+        <div className={STEP}>
           <Caption num="1" title={label.copy} active={openInfo === 'screenshot'} onToggle={() => toggleInfo('screenshot')} />
-          {copyLeading ? (
-            <div className="inline-flex self-start rounded-md overflow-hidden border border-surface-5">
-              {copyLeading}
-              <button type="button" onClick={copyPrompt} disabled={!aiPrompt} className={WHITE_BTN} style={WHITE_STYLE}>
-                {copyEmoji && <span className="text-base leading-none" role="img" aria-label="Screenshot">{copyEmoji}</span>}
-                {copied ? 'Copied!' : <CopyLabel text={label.copyButton} />}
-              </button>
-            </div>
-          ) : (
-            <button type="button" onClick={copyPrompt} disabled={!aiPrompt} className={`rounded-md ${WHITE_BTN}`} style={WHITE_STYLE}>
+          <div className={CONTROL}>
+            {copyLeading}
+            <button type="button" onClick={copyPrompt} disabled={!aiPrompt} className={WHITE_BTN} style={WHITE_STYLE}>
               {copyEmoji && <span className="text-base leading-none" role="img" aria-label="Screenshot">{copyEmoji}</span>}
-              {copied ? 'Copied!' : <CopyLabel text={label.copyButton} />}
+              <CopyButtonLabel text={label.copyButton} copied={copied} />
             </button>
-          )}
+          </div>
         </div>
 
         <Chevron />
 
         {/* Step 2 — send to your AI */}
-        <div className="flex flex-col gap-2">
+        <div className={STEP}>
           <Caption num="2" title={label.ai} active={openInfo === 'ai'} onToggle={() => toggleInfo('ai')} />
-          <div ref={aiWrapRef} className="inline-flex self-start rounded-md overflow-hidden border border-surface-5">
+          <div ref={aiWrapRef} className={CONTROL}>
             <a href={ai.url} target="_blank" rel="noopener noreferrer" className={WHITE_BTN} style={WHITE_STYLE}>
               Open {ai.name}
             </a>
@@ -254,7 +324,7 @@ export default function PasteEntrySteps({
               onClick={() => setAiMenuOpen((v) => !v)}
               aria-label="Choose a different AI"
               aria-expanded={aiMenuOpen}
-              className="px-1.5 sm:px-2 flex items-center justify-center transition-colors hover:opacity-90"
+              className={ARROW_BTN}
               style={{ ...WHITE_STYLE, borderLeft: '1px solid var(--surface-1)' }}
             >
               <svg className={`w-4 h-4 transition-transform ${aiMenuOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -267,9 +337,9 @@ export default function PasteEntrySteps({
         <Chevron />
 
         {/* Step 3 — paste it back */}
-        <div className="flex flex-col gap-2">
+        <div className={STEP}>
           <Caption num="3" title={label.paste} active={openInfo === 'paste'} onToggle={() => toggleInfo('paste')} />
-          <div ref={pasteWrapRef} className="inline-flex self-start rounded-md overflow-hidden border border-surface-5">
+          <div ref={pasteWrapRef} className={CONTROL}>
             <button type="button" onClick={onPaste} disabled={disabled} className={WHITE_BTN} style={WHITE_STYLE}>
               Paste
             </button>
@@ -281,7 +351,7 @@ export default function PasteEntrySteps({
                 aria-label="More paste options"
                 aria-expanded={pasteMenuOpen}
                 disabled={disabled}
-                className="px-1.5 sm:px-2 flex items-center justify-center transition-colors hover:opacity-90"
+                className={ARROW_BTN}
                 style={{ ...WHITE_STYLE, borderLeft: '1px solid var(--surface-1)' }}
               >
                 <svg className={`w-4 h-4 transition-transform ${pasteMenuOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -295,7 +365,7 @@ export default function PasteEntrySteps({
                 title={showText ? 'Hide text box' : 'Show text box'}
                 aria-label={showText ? 'Hide text box' : 'Show text box'}
                 aria-pressed={showText}
-                className="px-1.5 sm:px-2 flex items-center justify-center transition-colors hover:opacity-90"
+                className={ARROW_BTN}
                 style={{ ...WHITE_STYLE, borderLeft: '1px solid var(--surface-1)' }}
               >
                 <svg className={`w-4 h-4 transition-transform ${showText ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -309,7 +379,7 @@ export default function PasteEntrySteps({
 
       {/* Info line for the open step */}
       {openInfo && (
-        <p className="mt-3 text-xs text-txt-tertiary leading-relaxed max-w-2xl mx-auto text-center">
+        <p className="mt-3 text-xs text-txt-tertiary leading-relaxed max-w-2xl mx-auto text-center group-data-[layout=stack]/steps:text-left">
           {hint[openInfo]}
         </p>
       )}
