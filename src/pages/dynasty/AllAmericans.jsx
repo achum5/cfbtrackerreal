@@ -6,6 +6,7 @@ import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getTeamLogo, getMascotName as getMascotNameFromTeams, stripMascotFromName } from '../../data/teams'
 import { getTeamColors } from '../../data/teamColors'
 import { TEAMS, resolveTid, getGameTeamInfo } from '../../data/teamRegistry'
+import { isSeasonFinished } from '../../utils/preseasonHonors'
 import AllAmericansModal from '../../components/AllAmericansModal'
 import { HonorPlayerTile, SchoolLeaderboard } from '../../components/HonorsUI'
 import { normalizePlayerName } from '../../utils/playerMatching'
@@ -158,7 +159,12 @@ export default function AllAmericans() {
   // click always wins over this default, including clicking "Final" before
   // it exists (shows a blank/empty state rather than silently falling back
   // to Preseason) — the user needs to be able to SEE that it isn't out yet.
-  const defaultView = hasFinalAllAmericans ? 'final' : 'preseason'
+  // A finished season with nothing entered defaults to Final: that is what
+  // gets entered for it (see isSeasonFinished).
+  const seasonFinished = isSeasonFinished(currentDynasty, displayYear)
+  const defaultView = hasFinalAllAmericans
+    ? 'final'
+    : (hasPreseasonAllAmericans || !seasonFinished ? 'preseason' : 'final')
   const activeView = explicitView || defaultView
   const isPreseasonView = activeView === 'preseason'
   const allAmericans = isPreseasonView ? preseasonAllAmericans : finalAllAmericans
@@ -169,6 +175,32 @@ export default function AllAmericans() {
 
   const handleAllAmericansSave = async (data) => {
     const year = displayYear
+
+    // Save the list before linking honorees to player records, so a failure
+    // while linking can't lose it.
+    const existingByYear = currentDynasty.allAmericansByYear || {}
+    const existingYearData = existingByYear[year] || {}
+    // Route the entered list to the store matching the view it was entered
+    // from. Preseason picks and final honors are two independent lists on the
+    // same year (allAmericansPreseason vs allAmericans) — the modal emits its
+    // rows under `allAmericans` regardless, so writing that key blindly made
+    // preseason entry overwrite the postseason list. Reported as "when you add
+    // preseason All-Americans it makes them All-Americans for the postseason,
+    // it doesn't differentiate."
+    const { allAmericans: enteredList, ...restOfData } = data
+    const routed = { ...restOfData }
+    if (enteredList !== undefined) {
+      routed[isPreseasonView ? 'allAmericansPreseason' : 'allAmericans'] = enteredList
+    }
+    await updateDynasty(currentDynasty.id, {
+      allAmericansByYear: {
+        ...existingByYear,
+        [year]: {
+          ...existingYearData,
+          ...routed
+        }
+      }
+    })
 
     // Preseason picks are PREDICTIONS, not earned honors. processHonorPlayers
     // writes the accolade onto each player's permanent career record, so
@@ -236,30 +268,6 @@ export default function AllAmericans() {
         )
       }
     }
-
-    const existingByYear = currentDynasty.allAmericansByYear || {}
-    const existingYearData = existingByYear[year] || {}
-    // Route the entered list to the store matching the view it was entered
-    // from. Preseason picks and final honors are two independent lists on the
-    // same year (allAmericansPreseason vs allAmericans) — the modal emits its
-    // rows under `allAmericans` regardless, so writing that key blindly made
-    // preseason entry overwrite the postseason list. Reported as "when you add
-    // preseason All-Americans it makes them All-Americans for the postseason,
-    // it doesn't differentiate."
-    const { allAmericans: enteredList, ...restOfData } = data
-    const routed = { ...restOfData }
-    if (enteredList !== undefined) {
-      routed[isPreseasonView ? 'allAmericansPreseason' : 'allAmericans'] = enteredList
-    }
-    await updateDynasty(currentDynasty.id, {
-      allAmericansByYear: {
-        ...existingByYear,
-        [year]: {
-          ...existingYearData,
-          ...routed
-        }
-      }
-    })
   }
 
   const filteredPlayers = filter === 'all'
@@ -535,7 +543,7 @@ export default function AllAmericans() {
         onTabChange={setFilter}
       />
 
-      {(hasFinalAllAmericans || hasPreseasonAllAmericans) && (
+      {(hasFinalAllAmericans || hasPreseasonAllAmericans || canEdit) && (
         // flex + w-fit, not inline-flex: an inline box's margin doesn't
         // collapse with the header's, which doubled the gap above it.
         <div className="flex w-fit items-center gap-1 p-1 rounded-lg" style={{ backgroundColor: 'var(--surface-2)' }}>
@@ -557,8 +565,9 @@ export default function AllAmericans() {
       {!hasAnyPlayers ? (
         <Card>
           <EmptyState
-            title={activeView === 'final' ? "Final All-Americans not announced yet" : "No preseason All-Americans yet"}
-            message={activeView === 'final' ? "Check back once the season's final honors are announced." : undefined}
+            title={activeView !== 'final' ? "No preseason All-Americans yet"
+              : seasonFinished ? `No ${displayYear} All-Americans yet` : "Final All-Americans not announced yet"}
+            message={activeView === 'final' && !seasonFinished ? "Check back once the season's final honors are announced." : undefined}
             action={canEdit && (
               <Button variant="secondary" onClick={() => setShowEditModal(true)}>
                 Add All-Americans

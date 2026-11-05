@@ -1534,6 +1534,16 @@ export default function Dashboard() {
     // mention one (Google-sheet sync). The modal's own field always does.
     const awards = preserveHeismanVideo(rawAwards, (currentDynasty.awardsByYear || {})[year])
 
+    // Save the awards first, then link the winners to player records (see
+    // askHonorTransfers).
+    const existingByYear = currentDynasty.awardsByYear || {}
+    await updateDynasty(currentDynasty.id, {
+      awardsByYear: {
+        ...existingByYear,
+        [year]: awards
+      }
+    })
+
     // Convert awards object to array format for processing
     const entries = Object.entries(awards).map(([awardKey, data]) => ({
       ...stripVideoUrl(data),
@@ -1549,37 +1559,47 @@ export default function Dashboard() {
       year,
       [] // No transfer decisions yet
     )
+    askHonorTransfers('awards', entries, year, result)
+  }
 
-    if (result.needsConfirmation) {
-      // Store pending data and show first confirmation
-      setPendingHonorData({
-        honorType: 'awards',
-        entries,
-        year,
-        rawData: awards, // Keep original for awardsByYear
-        confirmations: result.confirmations,
-        transferDecisions: []
-      })
-      setCurrentConfirmIndex(0)
-      setPlayerMatchConfirmation(result.confirmations[0])
-      setShowPlayerMatchConfirm(true)
-    } else {
-      // No confirmations needed - just save the awards data
-      const existingByYear = currentDynasty.awardsByYear || {}
-      await updateDynasty(currentDynasty.id, {
-        awardsByYear: {
-          ...existingByYear,
-          [year]: awards
-        }
-      })
-    }
+  // Honors are saved BEFORE the "Possible Transfer Detected" questions, which
+  // only decide which player record a same-name honoree on a different team
+  // links to. The lists used to be saved only after the last answer, so
+  // dismissing the dialog (one tap outside it) silently discarded the whole
+  // list — reported as "I put in all the All-Americans and All-Conference and
+  // every time it disappears." processHonorPlayers has already linked and
+  // created every unambiguous honoree by the time this runs.
+  const askHonorTransfers = (honorType, entries, year, result) => {
+    if (!result?.needsConfirmation || !result.confirmations?.length) return
+    setPendingHonorData({
+      honorType,
+      entries,
+      year,
+      confirmations: result.confirmations,
+      transferDecisions: []
+    })
+    setCurrentConfirmIndex(0)
+    setPlayerMatchConfirmation(result.confirmations[0])
+    setShowPlayerMatchConfirm(true)
   }
 
   // Handle All-Americans data save with player matching
   const handleAllAmericansSave = async (data) => {
     const year = currentDynasty.currentYear
 
-    // Process All-Americans entries
+    // Save the list first, then link the honorees (see askHonorTransfers).
+    const existingByYear = currentDynasty.allAmericansByYear || {}
+    const existingYearData = existingByYear[year] || {}
+    await updateDynasty(currentDynasty.id, {
+      allAmericansByYear: {
+        ...existingByYear,
+        [year]: {
+          ...existingYearData,
+          allAmericans: data.allAmericans || []
+        }
+      }
+    })
+
     if (data.allAmericans && data.allAmericans.length > 0) {
       const aaEntries = data.allAmericans.map(entry => ({
         ...entry,
@@ -1594,28 +1614,16 @@ export default function Dashboard() {
         year,
         []
       )
-
-      // processHonorPlayers now applies exact-matches and brand-new
-      // entries immediately — only genuine same-name-different-team
-      // transfers come back as confirmations. Show the modal for
-      // those so the user can decide same-person vs new-record.
-      if (result.needsConfirmation && result.confirmations?.length > 0) {
-        setPendingHonorData({
-          honorType: 'allAmericans',
-          entries: aaEntries,
-          year,
-          rawData: data,
-          confirmations: result.confirmations,
-          transferDecisions: []
-        })
-        setCurrentConfirmIndex(0)
-        setPlayerMatchConfirmation(result.confirmations[0])
-        setShowPlayerMatchConfirm(true)
-        return
-      }
+      askHonorTransfers('allAmericans', aaEntries, year, result)
     }
+  }
 
-    // No confirmations needed - save the All-Americans data
+  // Handle All-Conference data save with player matching
+  const handleAllConferenceSave = async (data) => {
+    const year = currentDynasty.currentYear
+
+    // Save the list first (already grouped by conference), then link the
+    // honorees (see askHonorTransfers).
     const existingByYear = currentDynasty.allAmericansByYear || {}
     const existingYearData = existingByYear[year] || {}
     await updateDynasty(currentDynasty.id, {
@@ -1623,17 +1631,12 @@ export default function Dashboard() {
         ...existingByYear,
         [year]: {
           ...existingYearData,
-          allAmericans: data.allAmericans || []
+          allConference: data.allConference || [],
+          allConferenceByConference: data.allConferenceByConference || {}
         }
       }
     })
-  }
 
-  // Handle All-Conference data save with player matching
-  const handleAllConferenceSave = async (data) => {
-    const year = currentDynasty.currentYear
-
-    // Process All-Conference entries
     if (data.allConference && data.allConference.length > 0) {
       const acEntries = data.allConference.map(entry => ({
         ...entry,
@@ -1648,39 +1651,8 @@ export default function Dashboard() {
         year,
         []
       )
-
-      // Exact-matches and clear new-player creates already landed inside
-      // processHonorPlayers. Only same-name-different-team transfers are
-      // returned as confirmations; pop the modal for those.
-      if (result.needsConfirmation && result.confirmations?.length > 0) {
-        setPendingHonorData({
-          honorType: 'allConference',
-          entries: acEntries,
-          year,
-          rawData: data,
-          confirmations: result.confirmations,
-          transferDecisions: []
-        })
-        setCurrentConfirmIndex(0)
-        setPlayerMatchConfirmation(result.confirmations[0])
-        setShowPlayerMatchConfirm(true)
-        return
-      }
+      askHonorTransfers('allConference', acEntries, year, result)
     }
-
-    // No confirmations needed - save the All-Conference data (already grouped by conference)
-    const existingByYear = currentDynasty.allAmericansByYear || {}
-    const existingYearData = existingByYear[year] || {}
-    await updateDynasty(currentDynasty.id, {
-      allAmericansByYear: {
-        ...existingByYear,
-        [year]: {
-          ...existingYearData,
-          allConference: data.allConference || [],
-          allConferenceByConference: data.allConferenceByConference || {}
-        }
-      }
-    })
   }
 
   // Handle players leaving data save (Offseason)
@@ -2674,7 +2646,7 @@ export default function Dashboard() {
 
   // Handle player match confirmation response
   const handlePlayerMatchConfirm = async (isSamePlayer) => {
-    const { honorType, entries, year, confirmations, transferDecisions, rawData } = pendingHonorData
+    const { honorType, entries, year, confirmations, transferDecisions } = pendingHonorData
     const currentConfirm = confirmations[currentConfirmIndex]
 
     // Add this decision
@@ -2691,70 +2663,41 @@ export default function Dashboard() {
       setPlayerMatchConfirmation(confirmations[nextIndex])
       setPendingHonorData({ ...pendingHonorData, transferDecisions: newDecisions })
     } else {
-      // All confirmations done for this batch - process with decisions
+      // All confirmations done for this batch - link with the decisions.
+      // The honors list itself was saved before the first question.
       setShowPlayerMatchConfirm(false)
+      setPendingHonorData(null)
+      setCurrentConfirmIndex(0)
+      setPlayerMatchConfirmation(null)
 
-      const result = await processHonorPlayers(
+      await processHonorPlayers(
         currentDynasty.id,
         honorType,
         entries,
         year,
         newDecisions
       )
-
-      if (result.success) {
-        // All done - save the raw data to the appropriate year structure
-        if (honorType === 'awards') {
-          const existingByYear = currentDynasty.awardsByYear || {}
-          await updateDynasty(currentDynasty.id, {
-            awardsByYear: {
-              ...existingByYear,
-              [year]: rawData
-            }
-          })
-        } else if (honorType === 'allAmericans') {
-          // Save All-Americans data
-          const existingByYear = currentDynasty.allAmericansByYear || {}
-          const existingYearData = existingByYear[year] || {}
-          await updateDynasty(currentDynasty.id, {
-            allAmericansByYear: {
-              ...existingByYear,
-              [year]: {
-                ...existingYearData,
-                allAmericans: rawData.allAmericans || []
-              }
-            }
-          })
-        } else if (honorType === 'allConference') {
-          // Save All-Conference data (already grouped by conference from rawData)
-          const existingByYear = currentDynasty.allAmericansByYear || {}
-          const existingYearData = existingByYear[year] || {}
-          await updateDynasty(currentDynasty.id, {
-            allAmericansByYear: {
-              ...existingByYear,
-              [year]: {
-                ...existingYearData,
-                allConference: rawData.allConference || [],
-                allConferenceByConference: rawData.allConferenceByConference || {}
-              }
-            }
-          })
-        }
-      }
-
-      // Reset state
-      setPendingHonorData(null)
-      setCurrentConfirmIndex(0)
-      setPlayerMatchConfirmation(null)
     }
   }
 
   // Cancel player match confirmation - cancel the whole save operation
-  const handlePlayerMatchCancel = () => {
+  // Dismissing the questions keeps the answers already given; the honorees
+  // not yet asked about stay unlinked. The honors list is already saved.
+  const handlePlayerMatchCancel = async () => {
+    const pending = pendingHonorData
     setShowPlayerMatchConfirm(false)
     setPendingHonorData(null)
     setCurrentConfirmIndex(0)
     setPlayerMatchConfirmation(null)
+    if (pending?.transferDecisions?.length > 0) {
+      await processHonorPlayers(
+        currentDynasty.id,
+        pending.honorType,
+        pending.entries,
+        pending.year,
+        pending.transferDecisions
+      )
+    }
   }
 
   // Get CC game if played

@@ -9,7 +9,7 @@ import { TEAMS, resolveTid, getCurrentTeamAbbr, getGameTeamInfo } from '../../da
 import { conferenceTeams, getAllConferences } from '../../data/conferenceTeams'
 import { getConferenceLogo } from '../../data/conferenceLogos'
 import AllConferenceModal from '../../components/AllConferenceModal'
-import { mergePreseasonForConference } from '../../utils/preseasonHonors'
+import { mergePreseasonForConference, isSeasonFinished } from '../../utils/preseasonHonors'
 import { HonorPlayerTile, SchoolLeaderboard } from '../../components/HonorsUI'
 import { normalizePlayerName } from '../../utils/playerMatching'
 import { useTeamColors } from '../../hooks/useTeamColors'
@@ -250,13 +250,16 @@ export default function AllConference() {
   // tab click always wins over this default, including clicking "Final"
   // before it exists (shows a blank/empty state rather than silently
   // falling back to Preseason).
+  // A finished season with nothing entered defaults to Final: that is what
+  // gets entered for it (see isSeasonFinished).
+  const seasonFinished = isSeasonFinished(currentDynasty, displayYear)
   const { allConference, isPreseasonView, hasFinalAllConference, hasPreseasonAllConference, activeView } = useMemo(() => {
     const byConf = yearData.allConferenceByConference?.[displayConference]
     const final = (Array.isArray(byConf) && byConf.length > 0) ? byConf : filterByConference(yearData.allConference || [])
     const preseason = filterByConference(yearData.allConferencePreseason || [])
     const hasFinal = final.length > 0
     const hasPreseason = preseason.length > 0
-    const defaultView = hasFinal ? 'final' : 'preseason'
+    const defaultView = hasFinal ? 'final' : (hasPreseason || !seasonFinished ? 'preseason' : 'final')
     const view = explicitView || defaultView
     return {
       allConference: view === 'preseason' ? preseason : final,
@@ -265,7 +268,7 @@ export default function AllConference() {
       hasPreseasonAllConference: hasPreseason,
       activeView: view,
     }
-  }, [yearData, displayConference, explicitView])
+  }, [yearData, displayConference, explicitView, seasonFinished])
 
   const handleYearChange = (year) => {
     navigate(`${pathPrefix}/all-conference/${year}/${encodeConference(displayConference)}`)
@@ -302,6 +305,21 @@ export default function AllConference() {
       })
       return
     }
+
+    // Save the list before linking honorees to player records, so a failure
+    // while linking can't lose it.
+    const existingByYear = currentDynasty.allAmericansByYear || {}
+    const existingYearData = existingByYear[year] || {}
+    await updateDynasty(currentDynasty.id, {
+      allAmericansByYear: {
+        ...existingByYear,
+        [year]: {
+          ...existingYearData,
+          allConference: data.allConference || [],
+          allConferenceByConference: data.allConferenceByConference || {}
+        }
+      }
+    })
 
     if (data.allConference && data.allConference.length > 0) {
       const acEntries = data.allConference.map(entry => ({
@@ -341,19 +359,6 @@ export default function AllConference() {
         )
       }
     }
-
-    const existingByYear = currentDynasty.allAmericansByYear || {}
-    const existingYearData = existingByYear[year] || {}
-    await updateDynasty(currentDynasty.id, {
-      allAmericansByYear: {
-        ...existingByYear,
-        [year]: {
-          ...existingYearData,
-          allConference: data.allConference || [],
-          allConferenceByConference: data.allConferenceByConference || {}
-        }
-      }
-    })
   }
 
   const filteredPlayers = filter === 'all'
@@ -646,7 +651,7 @@ export default function AllConference() {
         onTabChange={setFilter}
       />
 
-      {(hasFinalAllConference || hasPreseasonAllConference) && (
+      {(hasFinalAllConference || hasPreseasonAllConference || canEdit) && (
         <div className="flex w-fit items-center gap-1 p-1 rounded-lg" style={{ backgroundColor: 'var(--surface-2)' }}>
           {[{ key: 'final', label: 'Final' }, { key: 'preseason', label: 'Preseason' }].map((v) => (
             <button
@@ -666,8 +671,9 @@ export default function AllConference() {
       {!hasAnyPlayers ? (
         <Card>
           <EmptyState
-            title={activeView === 'final' ? `Final All-${displayConference} not announced yet` : `No preseason All-${displayConference} yet`}
-            message={activeView === 'final' ? "Check back once the season's final honors are announced." : undefined}
+            title={activeView !== 'final' ? `No preseason All-${displayConference} yet`
+              : seasonFinished ? `No ${displayYear} All-${displayConference} yet` : `Final All-${displayConference} not announced yet`}
+            message={activeView === 'final' && !seasonFinished ? "Check back once the season's final honors are announced." : undefined}
             action={canEdit && (
               <Button variant="secondary" onClick={() => setShowEditModal(true)}>
                 Add All-Conference
