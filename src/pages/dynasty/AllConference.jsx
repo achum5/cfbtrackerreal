@@ -178,10 +178,16 @@ export default function AllConference() {
   }
   const mostRecentYearWithData = availableYears.find(yearHasData) || null
   const isFirstSeason = Number(currentDynasty.currentYear) <= Number(currentDynasty.startYear)
+  // Once the current season is over, its honors are the ones to enter, so the
+  // page opens on it even before anything is saved. It used to open on the
+  // newest year WITH data (last season), and Edit then saved this season's
+  // honors over last season's.
   const displayYear = urlYear
     ? parseInt(urlYear)
-    : (mostRecentYearWithData
-        ?? (isFirstSeason ? currentDynasty.currentYear : currentDynasty.currentYear - 1))
+    : isSeasonFinished(currentDynasty, currentDynasty.currentYear)
+      ? Number(currentDynasty.currentYear)
+      : (mostRecentYearWithData
+          ?? (isFirstSeason ? currentDynasty.currentYear : currentDynasty.currentYear - 1))
   const yearData = allAmericansByYear[displayYear] || {}
 
   const userTeamAbbrForYear = useMemo(() => {
@@ -289,35 +295,28 @@ export default function AllConference() {
     // preseason entry landed under Final and stamped a real honor on each
     // player. Reported as "pre-season conference all american automatically
     // puts it in the final column."
+    // Both saves write only this season (a dot path), so a stale copy of
+    // another season in memory can't overwrite it.
+    const existingYearData = currentDynasty.allAmericansByYear?.[year] || {}
     if (isPreseasonView) {
-      const existingByYear = currentDynasty.allAmericansByYear || {}
-      const existingYearData = existingByYear[year] || {}
       const merged = mergePreseasonForConference(
         existingYearData.allConferencePreseason,
         data.allConference || [],
         (entry) => entryConference(entry, year) === displayConference,
       )
       await updateDynasty(currentDynasty.id, {
-        allAmericansByYear: {
-          ...existingByYear,
-          [year]: { ...existingYearData, allConferencePreseason: merged },
-        },
+        [`allAmericansByYear.${year}`]: { ...existingYearData, allConferencePreseason: merged },
       })
       return
     }
 
     // Save the list before linking honorees to player records, so a failure
     // while linking can't lose it.
-    const existingByYear = currentDynasty.allAmericansByYear || {}
-    const existingYearData = existingByYear[year] || {}
     await updateDynasty(currentDynasty.id, {
-      allAmericansByYear: {
-        ...existingByYear,
-        [year]: {
-          ...existingYearData,
-          allConference: data.allConference || [],
-          allConferenceByConference: data.allConferenceByConference || {}
-        }
+      [`allAmericansByYear.${year}`]: {
+        ...existingYearData,
+        allConference: data.allConference || [],
+        allConferenceByConference: data.allConferenceByConference || {}
       }
     })
 
@@ -393,12 +392,16 @@ export default function AllConference() {
   // freshman = 1) as AllAmericans.jsx. allConference is already scoped to the
   // selected conference, so this naturally ranks only that conference's
   // schools with no extra filtering needed.
+  // Keyed and drawn by each entry's saved tid (resolveSchool), the same as the
+  // All-Americans page. Looking a full name like "KENTUCKY" up as an abbr
+  // found no team: no logo, and the raw upper-case name.
   const schoolTally = (() => {
     const byKey = new Map()
     allConference.forEach(p => {
-      const key = (p.school || '').toUpperCase()
+      const { tid } = resolveSchool(p.schoolTid, p.school)
+      const key = tid != null ? `tid:${tid}` : (p.school || '').toUpperCase()
       if (!key) return
-      if (!byKey.has(key)) byKey.set(key, { school: key, first: 0, second: 0, freshman: 0, total: 0, score: 0 })
+      if (!byKey.has(key)) byKey.set(key, { school: (p.school || '').toUpperCase(), schoolTid: tid ?? (p.schoolTid ?? null), first: 0, second: 0, freshman: 0, total: 0, score: 0 })
       const entry = byKey.get(key)
       entry[p.designation] = (entry[p.designation] || 0) + 1
       entry.total += 1
@@ -407,14 +410,12 @@ export default function AllConference() {
     return Array.from(byKey.values()).sort((a, b) => b.score - a.score || b.total - a.total)
   })()
   const leaderboardEntries = schoolTally.slice(0, 10).map((e, idx) => {
-    const mascotName = getMascotName(e.school, currentDynasty?.teams || currentDynasty?.customTeams)
-    const tid = resolveTid(e.school, currentDynasty?.teams || TEAMS)
-    const colors = mascotName ? getTeamColors(mascotName, currentDynasty?.teams || currentDynasty?.customTeams) : null
+    const { mascotName, teamLogo, colors, tid } = resolveSchool(e.schoolTid, e.school)
     return {
-      key: e.school,
+      key: e.schoolTid != null ? `tid:${e.schoolTid}` : e.school,
       rank: idx + 1,
       name: stripMascotFromName(mascotName) || e.school,
-      logo: mascotName ? getTeamLogo(mascotName, currentDynasty?.teams || currentDynasty?.customTeams) : null,
+      logo: teamLogo,
       primary: colors?.primary || '#64748b',
       first: e.first, second: e.second, freshman: e.freshman, total: e.total,
       link: tid ? `${pathPrefix}/team/${tid}/${displayYear}` : '#',

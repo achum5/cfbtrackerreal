@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useDynasty, getCurrentCustomConferences } from '../context/DynastyContext'
+import { useDynasty } from '../context/DynastyContext'
 import { getEditionKey, isPcAutoDynasty } from '../editions'
-import { getTeamConference } from '../data/conferenceTeams'
 import { TEAMS, getTidFromTeamName } from '../data/teamRegistry'
 import { isEditor } from '../data/leagueModel'
 import { getCoaches } from '../data/coachModel'
@@ -139,13 +138,6 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
   const teamsSource = currentDynasty?.teams || TEAMS
   const teamTid = currentDynasty?.currentTid || getTidFromTeamName(currentDynasty?.teamName, teamsSource)
 
-  // Conference lookup resolves live from the tid against dynasty.teams so a
-  // renamed/realigned (teambuilder) team's conference override is honored,
-  // instead of a stale static-abbr hop.
-  const customConferences = getCurrentCustomConferences(currentDynasty)
-  const userConference = getTeamConference(teamTid, customConferences, teamsSource) || 'SEC'
-  const conferenceUrlParam = encodeURIComponent(userConference.replace(/\s+/g, '-'))
-
   const handleExport = () => {
     if (!exportDynasty) return
     try {
@@ -239,7 +231,10 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
     ...(isPcAuto ? [{ name: 'Players of the Week', path: `${pathPrefix}/players-of-week/${currentYear}` }] : []),
     ...(isPcAuto ? [{ name: 'Heisman Watch', path: `${pathPrefix}/heisman-watch/${currentYear}` }] : []),
     { name: 'All-Americans', path: `${pathPrefix}/all-americans` },
-    { name: 'All-Conference', path: `${pathPrefix}/all-conference/${currentYear}/${conferenceUrlParam}` },
+    // No year: the page picks it (the season just finished, else the newest
+    // with honors). Pinned to currentYear, the link opened next season's empty
+    // page from Signing Day on.
+    { name: 'All-Conference', path: `${pathPrefix}/all-conference` },
     { name: 'All Teams', path: `${pathPrefix}/teams` },
     ...(!isViewOnly ? [{ name: 'Manage Rivalries', path: `${pathPrefix}/rivalries` }] : []),
     { name: 'All Players', path: `${pathPrefix}/players` },

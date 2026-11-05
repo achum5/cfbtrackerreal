@@ -84,6 +84,10 @@ export default function LocalDataEntry({
   // Database's backup) opt in explicitly.
   allowFileUpload = false,
   fileUploadAccept = '.tsv,.txt',
+  // "Add below current data" on the Paste arrow. Off for fixed-layout grids
+  // whose parser reads rows by position (All-Americans' 25 slots): rows added
+  // below the slots are never read.
+  allowAppend = true,
 }) {
   // Fixed-row mode (e.g. the schedule's weeks 0–15): the grid is exactly
   // rowLabels.length rows, each with a read-only leading label. The label's
@@ -469,7 +473,7 @@ export default function LocalDataEntry({
         <PasteEntrySteps
           aiPrompt={aiPrompt}
           onPaste={pasteFromClipboard}
-          onPasteAppend={isLabeled ? undefined : pasteAppendFromClipboard}
+          onPasteAppend={isLabeled || !allowAppend ? undefined : pasteAppendFromClipboard}
           showText={showText}
           onToggleText={() => setShowText((v) => !v)}
           disabled={disabled}
@@ -500,6 +504,18 @@ export default function LocalDataEntry({
           <textarea
             value={text}
             onChange={(e) => applyText(e.target.value)}
+            // A multi-line paste is a whole AI reply: it replaces the box, the
+            // same as the Paste button, instead of landing at the cursor. The
+            // app sends people here when it can't read the clipboard (common
+            // on phones), and a box pre-filled with the current data (or the
+            // All-Americans' 25 position rows) kept that ABOVE the reply, so
+            // the import read the old rows and saved nothing new.
+            onPaste={(e) => {
+              const clip = e.clipboardData?.getData('text') || ''
+              if (clip.split(/\r?\n/).filter((l) => l.trim()).length < 2) return
+              e.preventDefault()
+              applyText(clip)
+            }}
             placeholder="Paste the AI's TSV reply here."
             autoCorrect="off"
             autoCapitalize="off"

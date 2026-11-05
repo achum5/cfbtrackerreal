@@ -1535,13 +1535,11 @@ export default function Dashboard() {
     const awards = preserveHeismanVideo(rawAwards, (currentDynasty.awardsByYear || {})[year])
 
     // Save the awards first, then link the winners to player records (see
-    // askHonorTransfers).
-    const existingByYear = currentDynasty.awardsByYear || {}
+    // askHonorTransfers). The honors saves write only their own season (a dot
+    // path): spreading every season from memory wrote any stale copy of
+    // another season back over the saved one.
     await updateDynasty(currentDynasty.id, {
-      awardsByYear: {
-        ...existingByYear,
-        [year]: awards
-      }
+      [`awardsByYear.${year}`]: awards
     })
 
     // Convert awards object to array format for processing
@@ -1588,15 +1586,11 @@ export default function Dashboard() {
     const year = currentDynasty.currentYear
 
     // Save the list first, then link the honorees (see askHonorTransfers).
-    const existingByYear = currentDynasty.allAmericansByYear || {}
-    const existingYearData = existingByYear[year] || {}
+    const existingYearData = currentDynasty.allAmericansByYear?.[year] || {}
     await updateDynasty(currentDynasty.id, {
-      allAmericansByYear: {
-        ...existingByYear,
-        [year]: {
-          ...existingYearData,
-          allAmericans: data.allAmericans || []
-        }
+      [`allAmericansByYear.${year}`]: {
+        ...existingYearData,
+        allAmericans: data.allAmericans || []
       }
     })
 
@@ -1624,16 +1618,12 @@ export default function Dashboard() {
 
     // Save the list first (already grouped by conference), then link the
     // honorees (see askHonorTransfers).
-    const existingByYear = currentDynasty.allAmericansByYear || {}
-    const existingYearData = existingByYear[year] || {}
+    const existingYearData = currentDynasty.allAmericansByYear?.[year] || {}
     await updateDynasty(currentDynasty.id, {
-      allAmericansByYear: {
-        ...existingByYear,
-        [year]: {
-          ...existingYearData,
-          allConference: data.allConference || [],
-          allConferenceByConference: data.allConferenceByConference || {}
-        }
+      [`allAmericansByYear.${year}`]: {
+        ...existingYearData,
+        allConference: data.allConference || [],
+        allConferenceByConference: data.allConferenceByConference || {}
       }
     })
 

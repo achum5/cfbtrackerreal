@@ -16,7 +16,8 @@ import {
   normalizeArchetype,
   parseNilAmount as parseNil,
 } from '../utils/playerFieldNormalize'
-import { conferenceTeams as CANONICAL_CONFERENCES } from '../data/conferenceTeams'
+import { conferenceTeams as CANONICAL_CONFERENCES, CONFERENCE_ALIASES, canonicalizeConferenceName } from '../data/conferenceTeams'
+import { normalizeHonorDesignation } from '../utils/allConferenceRealign'
 import { STAT_TABS, STAT_TAB_ORDER, SCORING_SUMMARY, SCORE_TYPES, PAT_RESULTS, QUARTERS, DOWNS, PLAY_TYPES, AI_UNIFIED_TAB, computeUnifiedTabLayout } from '../data/boxScoreConstants'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../context/DynastyContext'
 import { getExcludedBowlGames, getBowlWeekOverrides } from '../editions'
@@ -10522,6 +10523,28 @@ export async function createAllAmericansOnlySheet(currentYear, allAmericansByYea
  * @param spreadsheetId - The Google Sheets ID
  * @param year - The year tab to read from
  */
+// The rows of an All-Americans paste that name a player (in any of the three
+// teams), header row dropped. The paste parser reads 25 rows by position, so
+// the pre-fill's empty position rows left above a reply — or a header line —
+// pushed the reply past the rows it reads, and the import saved nothing.
+export function allAmericanPasteRows(rows) {
+  const isHeader = (r) => /^pos/i.test(String(r[0] || '').trim()) && /player/i.test(String(r[1] || ''))
+  return (rows || []).filter((r) => Array.isArray(r) && !isHeader(r) && [1, 5, 9].some((c) => String(r[c] || '').trim()))
+}
+
+// An All-American row's position, as one of the 25 slot labels. The editor's
+// pre-fill places entries by exact slot label, so a pasted "RB", "qb " or
+// "EDGE" was saved as-is, missing from the grid the next time it opened, and
+// erased by the next save. Unambiguous aliases map; anything else takes the
+// row's own slot.
+const AA_POSITION_ALIASES = { RB: 'HB', TB: 'HB', PK: 'K' }
+export function normalizeAllAmericanPosition(raw, slotIndex) {
+  const p = String(raw ?? '').trim().toUpperCase()
+  if (ALL_AMERICAN_POSITIONS.includes(p)) return p
+  if (AA_POSITION_ALIASES[p]) return AA_POSITION_ALIASES[p]
+  return ALL_AMERICAN_POSITIONS[slotIndex] || p
+}
+
 export async function readAllAmericansOnlyFromSheet(spreadsheetId, year, dynastyTeams = null, opts = {}) {
   try {
     const numPositions = ALL_AMERICAN_POSITIONS.length
@@ -10562,7 +10585,7 @@ export async function readAllAmericansOnlyFromSheet(spreadsheetId, year, dynasty
         allAmericans.push({
           team: 'all-american',
           designation: 'first',
-          position: row[0] || ALL_AMERICAN_POSITIONS[i],
+          position: normalizeAllAmericanPosition(row[0], i),
           player: row[1],
           school: (row[2] || '').toUpperCase(),
           schoolTid: getTidFromTeamText((row[2] || ''), dynastyTeams),
@@ -10575,7 +10598,7 @@ export async function readAllAmericansOnlyFromSheet(spreadsheetId, year, dynasty
         allAmericans.push({
           team: 'all-american',
           designation: 'second',
-          position: row[4] || ALL_AMERICAN_POSITIONS[i],
+          position: normalizeAllAmericanPosition(row[4], i),
           player: row[5],
           school: (row[6] || '').toUpperCase(),
           schoolTid: getTidFromTeamText((row[6] || ''), dynastyTeams),
@@ -10588,7 +10611,7 @@ export async function readAllAmericansOnlyFromSheet(spreadsheetId, year, dynasty
         allAmericans.push({
           team: 'all-american',
           designation: 'freshman',
-          position: row[8] || ALL_AMERICAN_POSITIONS[i],
+          position: normalizeAllAmericanPosition(row[8], i),
           player: row[9],
           school: (row[10] || '').toUpperCase(),
           schoolTid: getTidFromTeamText((row[10] || ''), dynastyTeams),
@@ -10993,9 +11016,15 @@ export async function readAllConferenceFromSheet(spreadsheetId, conferences = AL
       )
 
       if (!response.ok) {
-        // Tab might not exist, skip it
-        console.warn(`Could not read tab '${conf}', skipping`)
-        continue
+        // A tab that doesn't exist reads as 400 ("Unable to parse range"):
+        // skip it. Anything else — an expired sign-in, a rate limit, an
+        // outage — fails the sync. Skipping those too returned an empty or
+        // partial list, and the save wrote it over the year's teams.
+        if (response.status === 400) {
+          console.warn(`Could not read tab '${conf}', skipping`)
+          continue
+        }
+        throw new Error(`Could not read the ${conf} tab (${response.status}), so nothing was saved. Try again.`)
       }
 
       const data = await response.json()
@@ -11090,6 +11119,35 @@ export async function readAllConferenceFromSheet(spreadsheetId, conferences = AL
 // the Google reader returns — entries carry their own designation/position/
 // school, so downstream save (handleAllConferenceSave) keys by conference and
 // honor identity, never by array index or row order.
+// A pasted conference label as this app names it — "Big 10", "B1G", "aac",
+// "MWC", "Southeastern Conference" → "Big Ten", "American", "Mountain West",
+// "SEC" — so every row is keyed the way the All-Conference page looks it up.
+// A raw "Big 10" key was hidden whenever the page found rows under "Big Ten".
+// An unrecognized name (a custom conference) passes through unchanged.
+const CONFERENCE_LONG_NAMES = {
+  'southeastern': 'SEC',
+  'atlantic coast': 'ACC',
+  'american athletic': 'American',
+  'mid-american': 'MAC',
+  'mid american': 'MAC',
+  'mw': 'Mountain West',
+  'independents': 'Independent',
+  'fbs independents': 'Independent',
+}
+export function normalizePastedConference(raw) {
+  const name = String(raw || '').trim()
+  if (!name) return ''
+  const aliased = canonicalizeConferenceName(name)
+  if (aliased !== name) return aliased
+  const lower = name.toLowerCase().replace(/\s+conference$/, '').trim()
+  const canonical = Object.keys(CANONICAL_CONFERENCES).find((c) => c.toLowerCase() === lower)
+  if (canonical) return canonical
+  for (const [canon, aliases] of Object.entries(CONFERENCE_ALIASES)) {
+    if (aliases.some((a) => a.toLowerCase() === lower)) return canon
+  }
+  return CONFERENCE_LONG_NAMES[lower] || name
+}
+
 export function parseAllConferenceLocal(rows, dynastyTeams = null) {
   // Tolerant resolver (mascot-strip, full names, custom teams) — matches the
   // All-Americans reader so AC entries aren't left with a null schoolTid.
@@ -11097,18 +11155,10 @@ export function parseAllConferenceLocal(rows, dynastyTeams = null) {
     const t = text ? getTidFromTeamText(text, dynastyTeams) : null
     return t != null ? Number(t) : null
   }
-  const normDesignation = (raw) => {
-    const s = String(raw || '').trim().toLowerCase()
-    if (s.startsWith('first') || s === '1' || s === '1st') return 'first'
-    if (s.startsWith('second') || s === '2' || s === '2nd') return 'second'
-    if (s.startsWith('fresh') || s === 'fr') return 'freshman'
-    return null
-  }
-
   const allConferenceByConference = {}
   for (const row of (rows || [])) {
-    const conference = (row[0] || '').trim()
-    const designation = normDesignation(row[1])
+    const conference = normalizePastedConference(row[0])
+    const designation = normalizeHonorDesignation(row[1])
     const position = (row[2] || '').trim()
     const player = (row[3] || '').trim()
     // A row needs at minimum a conference, a recognized designation, and a

@@ -1995,6 +1995,21 @@ export function computeRosterArrivalsPossible(existingPlayers, target) {
   return true
 }
 
+// One season-end honors update (final or preseason) for buildSyncPlan: each
+// list only when the save actually has it, null when it has neither — so an
+// early-season sync can't wipe last year's still-displayed honors, and a save
+// carrying national honors but no conference ones can't write an empty
+// All-Conference list over the year's teams (or vice versa).
+export function buildHonorListsUpdate(raw, keys, mapEntry) {
+  const national = raw?.national?.length ? raw.national.map(mapEntry) : null
+  const conference = raw?.conference?.length ? raw.conference.map(mapEntry) : null
+  if (!national && !conference) return null
+  return {
+    ...(national ? { [keys.national]: national } : {}),
+    ...(conference ? { [keys.conference]: conference } : {}),
+  }
+}
+
 export function buildSyncPlan(dynasty, parsed, options = {}) {
   const year = Number(dynasty.currentYear)
   const userTid = Number(dynasty.currentTid)
@@ -2515,8 +2530,6 @@ export function buildSyncPlan(dynasty, parsed, options = {}) {
   // Yet".
   const rawHonors = parsed.leagueHonors?.allAmericans
   const rawHonorsPreseason = parsed.leagueHonors?.allAmericansPreseason
-  const hasFinalHonors = rawHonors?.national?.length || rawHonors?.conference?.length
-  const hasPreseasonHonors = rawHonorsPreseason?.national?.length || rawHonorsPreseason?.conference?.length
   // Split into two separately-year-keyed updates (see postseasonYear's
   // comment above) — final honors belong to the season that just ended
   // (postseasonYear), preseason predictions belong to the season about to
@@ -2525,18 +2538,9 @@ export function buildSyncPlan(dynasty, parsed, options = {}) {
   // All-Americans as the new season's honors the moment a sync ran from
   // preseason (or later) — every synced dynasty, since almost nobody syncs
   // in the narrow postseason window before the flip.
-  const allAmericansFinalUpdate = hasFinalHonors
-    ? {
-        allAmericans: (rawHonors.national || []).map((e) => mapHonorEntry(e, rawTeamIdMap, dynastyTeams)),
-        allConference: (rawHonors.conference || []).map((e) => mapHonorEntry(e, rawTeamIdMap, dynastyTeams)),
-      }
-    : null
-  const allAmericansPreseasonUpdate = hasPreseasonHonors
-    ? {
-        allAmericansPreseason: (rawHonorsPreseason.national || []).map((e) => mapHonorEntry(e, rawTeamIdMap, dynastyTeams)),
-        allConferencePreseason: (rawHonorsPreseason.conference || []).map((e) => mapHonorEntry(e, rawTeamIdMap, dynastyTeams)),
-      }
-    : null
+  const mapEntry = (e) => mapHonorEntry(e, rawTeamIdMap, dynastyTeams)
+  const allAmericansFinalUpdate = buildHonorListsUpdate(rawHonors, { national: 'allAmericans', conference: 'allConference' }, mapEntry)
+  const allAmericansPreseasonUpdate = buildHonorListsUpdate(rawHonorsPreseason, { national: 'allAmericansPreseason', conference: 'allConferencePreseason' }, mapEntry)
 
   // Record book (Career/Game/Season x National/Conference) — team-scoped
   // records are folded into each team's own byYear.statRecords above; this

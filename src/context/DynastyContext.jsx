@@ -9911,15 +9911,26 @@ export function DynastyProvider({ children }) {
             // the earlier successful load, so nothing would re-hydrate it.
             // A transient read error must degrade to "stale", never "empty".
             // (Same pattern as the shared-dynasties listener.)
+            //
+            // That includes the per-season fields (All-Americans, awards,
+            // standings, schedules, ...): they live in the seasons
+            // subcollection, not on the main doc, so leaving them out showed
+            // every season's honors as gone until a later load succeeded.
             const prior = dynastiesStateRef.current.find(d => String(d.id) === String(dynasty.id))
             if (prior && (prior.players || prior.games)) {
+              const priorSeasonal = {}
+              for (const field of ALL_SEASONAL_FIELD_NAMES) {
+                if (prior[field] !== undefined) priorSeasonal[field] = prior[field]
+              }
               return {
                 ...dynasty,
+                ...priorSeasonal,
                 storageType: 'cloud',
                 players: prior.players,
                 games: prior.games,
                 weekRecapsByYear: prior.weekRecapsByYear,
                 recruitingDatabasePlayers: prior.recruitingDatabasePlayers,
+                teamFuture: prior.teamFuture,
               }
             }
             return { ...dynasty, storageType: 'cloud' }
@@ -17694,7 +17705,14 @@ export function DynastyProvider({ children }) {
         additionalUpdates.cfpChampionshipSheetId = null
       } else if (dynasty.currentWeek === 5) {
         // Reverting FROM Week 5 TO Week 4
-        // Week 5 (End of Season Recap) - clears championship data, All-Americans, All-Conference, rankings, awards
+        // Week 5 (End of Season Recap) - clears championship data, rankings, awards.
+        // All-Americans and All-Conference are KEPT. Going back a week to fix a
+        // bowl or championship score used to null the whole year's honors —
+        // the final lists AND the preseason picks entered months earlier —
+        // while the honors stamped on each player stayed behind. Reported as
+        // "I put in all the All-Americans and All-Conference and every time
+        // it disappears." Honors don't depend on any week-4 game, and re-entry
+        // simply replaces the lists, so there's nothing to undo here.
 
         // Clear NC shell scores from games[] so it can be re-entered
         updatedGames = updatedGames.map(g => {
@@ -17714,13 +17732,6 @@ export function DynastyProvider({ children }) {
         additionalUpdates.cfpResultsByYear = {
           ...existingCFPResults,
           [year]: { ...yearCFPResults, championship: null }
-        }
-
-        // Clear All-Americans and All-Conference data for this year
-        const existingAllAmericans = dynasty.allAmericansByYear || {}
-        additionalUpdates.allAmericansByYear = {
-          ...existingAllAmericans,
-          [year]: null
         }
 
         // Clear final rankings for this year

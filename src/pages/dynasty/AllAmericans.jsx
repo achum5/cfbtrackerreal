@@ -138,10 +138,16 @@ export default function AllAmericans() {
   }
   const mostRecentYearWithData = availableYears.find(yearHasData) || null
   const isFirstSeason = Number(currentDynasty.currentYear) <= Number(currentDynasty.startYear)
+  // Once the current season is over, its honors are the ones to enter, so the
+  // page opens on it even before anything is saved. It used to open on the
+  // newest year WITH data (last season), and Edit then saved this season's
+  // honors over last season's.
   const displayYear = urlYear
     ? parseInt(urlYear)
-    : (mostRecentYearWithData
-        ?? (isFirstSeason ? currentDynasty.currentYear : currentDynasty.currentYear - 1))
+    : isSeasonFinished(currentDynasty, currentDynasty.currentYear)
+      ? Number(currentDynasty.currentYear)
+      : (mostRecentYearWithData
+          ?? (isFirstSeason ? currentDynasty.currentYear : currentDynasty.currentYear - 1))
   const yearData = allAmericansByYear[displayYear] || {}
   const finalAllAmericans = yearData.allAmericans || []
   // Preseason 1st/2nd Team predictions (synced the same way as final
@@ -177,9 +183,9 @@ export default function AllAmericans() {
     const year = displayYear
 
     // Save the list before linking honorees to player records, so a failure
-    // while linking can't lose it.
-    const existingByYear = currentDynasty.allAmericansByYear || {}
-    const existingYearData = existingByYear[year] || {}
+    // while linking can't lose it. Only this season is written (a dot path),
+    // so a stale copy of another season in memory can't overwrite it.
+    const existingYearData = currentDynasty.allAmericansByYear?.[year] || {}
     // Route the entered list to the store matching the view it was entered
     // from. Preseason picks and final honors are two independent lists on the
     // same year (allAmericansPreseason vs allAmericans) — the modal emits its
@@ -193,12 +199,9 @@ export default function AllAmericans() {
       routed[isPreseasonView ? 'allAmericansPreseason' : 'allAmericans'] = enteredList
     }
     await updateDynasty(currentDynasty.id, {
-      allAmericansByYear: {
-        ...existingByYear,
-        [year]: {
-          ...existingYearData,
-          ...routed
-        }
+      [`allAmericansByYear.${year}`]: {
+        ...existingYearData,
+        ...routed
       }
     })
 

@@ -157,6 +157,13 @@ export default function ComboboxCell({
         onChange={(e) => { setQuery(e.target.value); setOpen(true); setHighlight(0) }}
         onFocus={() => { setOpen(true); reposition() }}
         onBlur={() => {
+          // Keep what was typed when focus leaves without Enter/Tab (the sole
+          // match if there is one). Tapping the next cell used to throw the
+          // typed text away. A tap on an option commits on mousedown, so it
+          // still wins if it lands after this.
+          if (query != null && query !== (value ?? '')) {
+            onChange(matches.length === 1 ? matches[0] : query)
+          }
           // Give a click on an option time to register before closing.
           setTimeout(() => { setOpen(false); setQuery(null) }, 120)
         }}

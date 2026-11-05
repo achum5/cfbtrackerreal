@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitTsv } from '../tsvParse'
+import { splitTsv, splitTsvTolerant } from '../tsvParse'
 
 const gameRows = (prefix, n) =>
   Array.from({ length: n }, (_, i) => `${prefix}Home${i}\t\t21\t${prefix}Away${i}\t\t14\t`).join('\n')
@@ -47,5 +47,23 @@ describe('splitTsv — fenced ```tsv blocks', () => {
     const rows = splitTsv(gameRows('A', 9))
     expect(rows).toHaveLength(9)
     expect(rows[0]).toEqual(['AHome0', '', '21', 'AAway0', '', '14'])
+  })
+})
+
+describe('splitTsvTolerant', () => {
+  it('is splitTsv whenever the paste has tabs', () => {
+    const text = 'QB\tJohn Smith\tKentucky\nHB  Mike  Brown'
+    expect(splitTsvTolerant(text)).toEqual(splitTsv(text))
+  })
+  it('reads a Markdown table, dropping the divider row', () => {
+    const text = '| Conference | Designation | Player |\n|---|:---:|---|\n| SEC | First | John Smith |\n| SEC | Second |  |'
+    expect(splitTsvTolerant(text)).toEqual([
+      ['Conference', 'Designation', 'Player'],
+      ['SEC', 'First', 'John Smith'],
+      ['SEC', 'Second', ''],
+    ])
+  })
+  it('splits tab-less lines on runs of 2+ spaces, keeping single spaces in names', () => {
+    expect(splitTsvTolerant('SEC  First  QB  John Smith  Kentucky  SR')).toEqual([['SEC', 'First', 'QB', 'John Smith', 'Kentucky', 'SR']])
   })
 })

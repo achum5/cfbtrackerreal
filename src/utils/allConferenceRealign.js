@@ -35,16 +35,22 @@ const _s = (v) => (v == null ? '' : String(v))
 const _t = (v) => _s(v).trim()
 const _isBlank = (v) => _t(v) === ''
 
-// ── Designation(1) vocabulary — mirrors parseAllConferenceLocal.normDesignation.
-// { first | second | freshman } plus the accepted aliases.
-const _isDesignation = (v) => {
-  const s = _t(v).toLowerCase()
-  if (s === '') return false
-  if (s.startsWith('first') || s === '1' || s === '1st') return true
-  if (s.startsWith('second') || s === '2' || s === '2nd') return true
-  if (s.startsWith('fresh') || s === 'fr') return true
-  return false
+// ── Designation(1) vocabulary — shared with parseAllConferenceLocal.
+// 'first' | 'second' | 'freshman' from the spellings AIs and the game use:
+// "First", "1st Team", "1st-Team", "All-SEC First Team", "Team 1", "2",
+// "Freshman All-SEC", "All-Freshman", "Frosh", "Fr.". The parser used to
+// accept only a prefix ("first…", "second…", "fresh…") or a bare number, so a
+// paste that copied the game's own "1st Team" / "2nd Team" labels kept only
+// its freshman rows. Word-bounded, so a name like "Freshwater" never counts.
+export function normalizeHonorDesignation(raw) {
+  const s = _t(raw).toLowerCase()
+  if (s === '') return null
+  if (/\b(fresh(man|men)?|frosh)\b/.test(s) || /^fr\.?$/.test(s)) return 'freshman'
+  if (/\b(first|1st)\b/.test(s) || /^(team\s*)?1$/.test(s)) return 'first'
+  if (/\b(second|2nd)\b/.test(s) || /^(team\s*)?2$/.test(s)) return 'second'
+  return null
 }
+const _isDesignation = (v) => normalizeHonorDesignation(v) != null
 
 // ── Position(2) vocabulary — union of ALL_AMERICAN_POSITIONS and
 // RECRUIT_POSITIONS (the latter is a superset). Closed set.

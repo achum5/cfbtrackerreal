@@ -67,3 +67,27 @@ export function splitTsv(text) {
     })
     .map((line) => line.split('\t'))
 }
+
+// splitTsv for a paste that may have lost its tabs. Identical to splitTsv
+// whenever ANY line has a tab. With none, each line is split as a Markdown
+// table row ("| QB | John Smith | ... |", divider rows dropped) or, failing
+// that, on runs of 2+ spaces — what an AI reply turns into when it's copied
+// as a rendered table or through an app that converts tabs to spaces. Plain
+// splitTsv read those as one cell per line, so the honors imports found no
+// players and saved an empty list.
+export function splitTsvTolerant(text) {
+  const rows = splitTsv(text)
+  if (rows.some((r) => r.length > 1)) return rows
+  const out = []
+  for (const [line] of rows) {
+    const t = line.trim()
+    if (t.includes('|')) {
+      if (/^\|?[\s:|-]+\|?$/.test(t)) continue // | --- | :---: | divider
+      const cells = t.replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim())
+      out.push(cells)
+    } else {
+      out.push(t.split(/\s{2,}/))
+    }
+  }
+  return out
+}

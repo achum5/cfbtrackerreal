@@ -317,11 +317,24 @@ export function getTidFromTeamText(text, dynastyTeams = null) {
     }
     return out
   }
-  const targets = variants(raw)
-  if (targets.size === 0) return null
+  // The input is matched as written (and with "St" expanded) against every
+  // team BEFORE its mascot-stripped form is tried. In one pass, "Ohio St"
+  // also offered "ohio" and the first team scanned won: Ohio, not Ohio
+  // State — likewise Michigan St → Michigan, Florida St → Florida. A trailing
+  // school qualifier is never stripped at all ("Georgia Southern" is not
+  // Georgia): no match beats a wrong one.
+  const full = normNameKey(raw)
+  const strong = new Set(full ? [full, expandSt(full)] : [])
+  const lastWord = full.split(' ').pop()
+  const QUALIFIERS = new Set(['st', 'state', 'intl', 'international', 'tech', 'southern', 'northern', 'eastern', 'western', 'central', 'am'])
+  const weak = new Set()
+  if (!QUALIFIERS.has(lastWord)) {
+    for (const v of variants(raw)) if (!strong.has(v)) weak.add(v)
+  }
+  if (strong.size === 0 && weak.size === 0) return null
 
-  const scan = (teamsObj) => {
-    if (!teamsObj || typeof teamsObj !== 'object') return null
+  const scan = (teamsObj, targets) => {
+    if (!teamsObj || typeof teamsObj !== 'object' || targets.size === 0) return null
     for (const [tid, team] of Object.entries(teamsObj)) {
       if (!team?.name) continue
       for (const v of variants(team.name)) {
@@ -330,7 +343,8 @@ export function getTidFromTeamText(text, dynastyTeams = null) {
     }
     return null
   }
-  return scan(dynastyTeams) ?? scan(TEAMS_REGISTRY)
+  return scan(dynastyTeams, strong) ?? scan(TEAMS_REGISTRY, strong)
+    ?? scan(dynastyTeams, weak) ?? scan(TEAMS_REGISTRY, weak)
 }
 
 // Resolve the team slot object from an abbr or tid, mirroring getMascotName's

@@ -23,7 +23,7 @@ import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
-import { splitTsv } from '../utils/tsvParse'
+import { splitTsvTolerant } from '../utils/tsvParse'
 import { normalizeAllConferenceRows } from '../utils/allConferenceRealign'
 import { getTeamNameOptions, getTeamNameAliases } from '../data/teamRegistry'
 
@@ -346,9 +346,27 @@ FINAL CHECK before you send
   // onSave path applies unchanged (keyed by conference + honor identity).
   const handleLocalImport = async (text) => {
     const dynastyTeams = currentDynasty?.teams || currentDynasty?.customTeams || null
-    const data = parseAllConferenceLocal(splitTsv(text), dynastyTeams)
+    const data = parseAllConferenceLocal(splitTsvTolerant(text), dynastyTeams)
+    if (!(await confirmEmptyImport(data.allConference))) return
     await onSave(data)
     onClose()
+  }
+
+  // A paste that yields no honorees never silently replaces a saved list. A
+  // row needs a conference, a designation and a player, so a reply in another
+  // shape parsed to nothing and the save wiped the year.
+  const confirmEmptyImport = async (list) => {
+    if (list?.length) return true
+    const saved = currentDynasty?.allAmericansByYear?.[currentYear]?.allConference || []
+    if (!saved.length) {
+      throw new Error("No players found in that paste, so nothing was saved. Each row needs a conference, a team (First, Second or Freshman) and a player.")
+    }
+    return confirm({
+      title: `Remove all ${currentYear} All-Conference teams?`,
+      message: `No players were found in what you're importing, so saving would remove the ${saved.length} already saved. If you meant to paste the AI's reply, cancel and paste it again.`,
+      confirmLabel: 'Remove all',
+      variant: 'danger',
+    })
   }
 
   // Pre-fill the local grid with this year's saved All-Conference honorees.
@@ -396,12 +414,13 @@ FINAL CHECK before you send
         : undefined // let the function fall back to ALL_CONFERENCES default
       const dynastyTeams = currentDynasty?.teams || currentDynasty?.customTeams || null
       const data = await readAllConferenceFromSheet(sheetId, conferenceTabs, dynastyTeams)
+      if (!(await confirmEmptyImport(data.allConference))) return
       await onSave(data)
       onClose()
     } catch (error) {
       console.error(error)
       if (!auth.handleError(error)) {
-        toast.error('Failed to sync from Google Sheets.')
+        toast.error(error?.message || 'Failed to sync from Google Sheets.')
       }
     } finally {
       setSyncing(false)
@@ -422,6 +441,7 @@ FINAL CHECK before you send
         : undefined // let the function fall back to ALL_CONFERENCES default
       const dynastyTeams = currentDynasty?.teams || currentDynasty?.customTeams || null
       const data = await readAllConferenceFromSheet(sheetId, conferenceTabs, dynastyTeams)
+      if (!(await confirmEmptyImport(data.allConference))) return
       await onSave(data)
       await deleteGoogleSheet(sheetId)
       setSheetId(null)

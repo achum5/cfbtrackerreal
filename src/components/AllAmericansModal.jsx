@@ -15,6 +15,7 @@ import SheetModalFooter from './ui/SheetModalFooter'
 import {
   createAllAmericansOnlySheet,
   readAllAmericansOnlyFromSheet,
+  allAmericanPasteRows,
   deleteGoogleSheet,
   getSheetEmbedUrl,
   sheetExists
@@ -23,7 +24,7 @@ import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
-import { splitTsv } from '../utils/tsvParse'
+import { splitTsvTolerant } from '../utils/tsvParse'
 import { getTeamNameOptions, getTeamNameAliases } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
@@ -299,11 +300,33 @@ FINAL CHECK before you send
   // data lines of 12 tab-separated fields, positions included in fields 1/5/9.
   // The parser reads rows[3 + i], so prepend 3 empty header rows to align the
   // data to indices 3–27 — the same shape the Sheets API A1:L28 read returns.
+  //
+  // Only rows that name a player are kept. That drops the empty position rows
+  // of the pre-fill (left above a reply pasted into the pre-filled box) and a
+  // header row, either of which pushed the reply past the 25 rows the parser
+  // reads — the import then saved an empty list over the year's.
   const handleLocalImport = async (text) => {
-    const rows = [[], [], [], ...splitTsv(text)]
+    const rows = [[], [], [], ...allAmericanPasteRows(splitTsvTolerant(text))]
     const data = await readAllAmericansOnlyFromSheet(null, currentYear, (currentDynasty?.teams || currentDynasty?.customTeams), { rows })
+    if (!(await confirmEmptyImport(data.allAmericans))) return
     await onSave(data)
     onClose()
+  }
+
+  // A paste that yields no honorees never silently replaces a saved list.
+  const confirmEmptyImport = async (list) => {
+    if (list?.length) return true
+    const yearData = currentDynasty?.allAmericansByYear?.[currentYear] || {}
+    const saved = (variant === 'preseason' ? yearData.allAmericansPreseason : yearData.allAmericans) || []
+    if (!saved.length) {
+      throw new Error("No players found in that paste, so nothing was saved. Paste the AI's whole reply and try again.")
+    }
+    return confirm({
+      title: `Remove all ${currentYear} All-Americans?`,
+      message: `No players were found in what you're importing, so saving would remove the ${saved.length} already saved. If you meant to paste the AI's reply, cancel and paste it again.`,
+      confirmLabel: 'Remove all',
+      variant: 'danger',
+    })
   }
 
   const handleSyncFromSheet = async () => {
@@ -312,12 +335,13 @@ FINAL CHECK before you send
     try {
       // Read from the current year tab
       const data = await readAllAmericansOnlyFromSheet(sheetId, currentYear, (currentDynasty?.teams || currentDynasty?.customTeams))
+      if (!(await confirmEmptyImport(data.allAmericans))) return
       await onSave(data)
       onClose()
     } catch (error) {
       console.error(error)
       if (!auth.handleError(error)) {
-        toast.error('Failed to sync from Google Sheets.')
+        toast.error(error?.message || 'Failed to sync from Google Sheets.')
       }
     } finally {
       setSyncing(false)
@@ -330,6 +354,7 @@ FINAL CHECK before you send
     try {
       // Read from the current year tab
       const data = await readAllAmericansOnlyFromSheet(sheetId, currentYear, (currentDynasty?.teams || currentDynasty?.customTeams))
+      if (!(await confirmEmptyImport(data.allAmericans))) return
       await onSave(data)
       // Move sheet to trash (keep sheet ID stored so user can restore if needed)
       await deleteGoogleSheet(sheetId)
@@ -431,6 +456,7 @@ FINAL CHECK before you send
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}
             importLabel="Import All-Americans"
+            allowAppend={false}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
