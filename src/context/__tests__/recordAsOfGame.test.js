@@ -111,6 +111,57 @@ describe('getRecordAsOfGame — postseason combine', () => {
     expect(rec.overall).toBe('12-2')
   })
 
+  it('does not add postseason games to a stored record that already counts them (the 20-0 bug)', () => {
+    // 12-0 regular season, CC win, three CFP wins = 16-0. The stored
+    // calculated record is the whole season, postseason included, so
+    // treating it as a regular-season baseline showed "20-0".
+    const cfp = (round, i) => ({
+      id: `cfp${round}-2027`, year: 2027, gameType: `cfp_${round}`,
+      team1Tid: TID_USER, team2Tid: TID_OPP, team1Score: 30 + i, team2Score: 20,
+    })
+    const nc = cfp('championship', 3)
+    const games = [
+      ...regularSeasonGames(2027, TID_USER, TID_OPP, { wins: 12, losses: 0 }),
+      ccGame(2027, TID_USER, TID_OPP),
+      cfp('quarterfinal', 1), cfp('semifinal', 2), nc,
+    ]
+    const dynasty = {
+      games,
+      teams: {
+        ...baseTeams,
+        [TID_USER]: {
+          ...baseTeams[TID_USER],
+          byYear: { 2027: { record: { wins: 16, losses: 0, confWins: 9, confLosses: 0 } } },
+        },
+      },
+    }
+    // Every playoff game page, not just the title game.
+    expect(getRecordAsOfGame(dynasty, games.find(g => g.gameType === 'cfp_quarterfinal'), TID_USER).overall).toBe('14-0')
+    expect(getRecordAsOfGame(dynasty, games.find(g => g.gameType === 'cfp_semifinal'), TID_USER).overall).toBe('15-0')
+    expect(getRecordAsOfGame(dynasty, nc, TID_USER).overall).toBe('16-0')
+    expect(getRecordAsOfGame(dynasty, ccGame(2027, TID_USER, TID_OPP), TID_USER).overall).toBe('13-0')
+  })
+
+  it('an end-of-season stored total is cut back to this game, not added to', () => {
+    // CPU team: only its CC win and bowl loss are in dynasty.games; its
+    // standings were uploaded after the bowls (12-2 over 14 games).
+    const bowl = {
+      id: 'bowl-2027', year: 2027, week: 'Bowl 1', gameType: 'bowl', bowlName: 'Test Bowl',
+      team1Tid: TID_USER, team2Tid: TID_OPP, team1Score: 10, team2Score: 31,
+    }
+    const dynasty = {
+      games: [ccGame(2027, TID_USER, TID_OPP), bowl],
+      teams: baseTeams,
+      conferenceStandingsByYear: {
+        2027: { Test: [{ team: 'UT', tid: TID_USER, wins: 12, losses: 2, confWins: 8, confLosses: 0 }] },
+      },
+    }
+    expect(getRecordAsOfGame(dynasty, ccGame(2027, TID_USER, TID_OPP), TID_USER).overall).toBe('12-1')
+    expect(getRecordAsOfGame(dynasty, bowl, TID_USER).overall).toBe('12-2')
+    // From the opponent's side too: it's the same game for both teams.
+    expect(getRecordAsOfGame(dynasty, bowl, TID_OPP).overall).toBe('1-1')
+  })
+
   it('regular-season game pages never use stored records', () => {
     const games = regularSeasonGames(2027, TID_USER, TID_OPP, { wins: 3, losses: 1 })
     const dynasty = {

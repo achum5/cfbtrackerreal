@@ -174,3 +174,45 @@ describe('healCfpSlotDuplicates', () => {
     expect(healCfpSlotDuplicates(d)).toBe(d)
   })
 })
+
+// "I played Ohio State and USC but it says I played Texas A&M and Boise."
+// Propagation wrote each semifinal winner into the title game's slot even
+// after the title game had been played, so re-saving a mis-slotted or
+// wrongly entered semifinal swapped the played game's opponent while the
+// score, recap and box score still described the real one.
+describe('propagateCFPWinner — a played next-round game keeps its teams', () => {
+  const STANFORD = 101
+  const OHIO_STATE = 79
+  const BOISE = 9
+  const playedNC = {
+    id: 'cfpnc-2031', year: 2031, cfpSlot: 'cfpnc', gameType: 'cfp_championship',
+    team1Tid: STANFORD, team2Tid: OHIO_STATE, team1Score: 42, team2Score: 35,
+  }
+  const sf2 = (winner, loser) => ({
+    id: 'cfpsf2-2031', year: 2031, cfpSlot: 'cfpsf2', gameType: 'cfp_semifinal',
+    team1Tid: winner, team2Tid: loser, team1Score: 30, team2Score: 20,
+  })
+
+  it('does not overwrite a played title game with a different winner', () => {
+    const games = [playedNC, sf2(BOISE, 50)]
+    const after = propagateCFPWinner(games, games[1])
+    expect(after.find(g => g.id === 'cfpnc-2031').team2Tid).toBe(OHIO_STATE)
+  })
+
+  it('still fills an unplayed shell, including a 0-0 one', () => {
+    for (const shell of [
+      { ...playedNC, team2Tid: null, team1Score: null, team2Score: null },
+      { ...playedNC, team2Tid: 77, team1Score: 0, team2Score: 0 },
+    ]) {
+      const games = [shell, sf2(OHIO_STATE, 50)]
+      const after = propagateCFPWinner(games, games[1])
+      expect(after.find(g => g.id === 'cfpnc-2031').team2Tid).toBe(OHIO_STATE)
+    }
+  })
+
+  it('fills an empty side of a played game', () => {
+    const games = [{ ...playedNC, team2Tid: null }, sf2(OHIO_STATE, 50)]
+    const after = propagateCFPWinner(games, games[1])
+    expect(after.find(g => g.id === 'cfpnc-2031').team2Tid).toBe(OHIO_STATE)
+  })
+})

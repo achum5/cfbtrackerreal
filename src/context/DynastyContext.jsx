@@ -867,9 +867,24 @@ export function propagateCFPWinner(games, savedGame) {
     return [...games, newShell]
   }
 
-  // Update the existing shell at the correct position
+  // A next-round game that already has a result keeps the teams it was
+  // played with: the user entered them along with the score, recap and box
+  // score. Overwriting them swapped a played title game's opponent for
+  // whichever team this winner's record named — a mis-slotted or wrongly
+  // entered earlier-round game, re-saved later or re-propagated by the CFP
+  // repair tool — while everything else on the game still described the
+  // real opponent. Reported as "I played Ohio State and USC but it says I
+  // played Texas A&M and Boise", and it kept switching back after fixes.
+  // A 0-0 shell is not a result (see the tie check above).
   const updatedGames = [...games]
   const existingShell = updatedGames[targetIndex]
+  const slotKey = feedsPosition === 'team1' ? 'team1Tid' : 'team2Tid'
+  const targetPlayed = existingShell.team1Score != null && existingShell.team2Score != null &&
+    Number(existingShell.team1Score) !== Number(existingShell.team2Score)
+  if (targetPlayed && existingShell[slotKey] != null && Number(existingShell[slotKey]) !== Number(winnerTid)) {
+    console.warn(`[propagateCFPWinner] ${nextSlotId} already has a result — keeping its ${slotKey} (${existingShell[slotKey]}) instead of ${cfpSlot}'s winner (${winnerTid})`)
+    return games
+  }
   updatedGames[targetIndex] = {
     ...existingShell,
     // Ensure cfpSlot is set (might be missing on legacy data)
@@ -3584,6 +3599,30 @@ export function getRecordAsOfGame(dynasty, game, tid) {
   // The games array knows the regular season at least as well as any
   // stored record — calc alone is complete and correct.
   if (regCalcGames >= storedGames || storedGames === 0) return calcRecord
+
+  // Nor may a stored record be added to postseason games it already counts.
+  // teams[tid].byYear[year].record is written from the WHOLE season's games,
+  // postseason included, and standings uploaded after the bowls include
+  // them too. Treating either as a regular-season baseline showed a 16-0
+  // champion as "20-0" on its title-game page.
+  const fullCalc = calculateTeamRecordFromGames(dynasty, tid, game.year)
+  if (fullCalc.wins + fullCalc.losses >= storedGames) return calcRecord
+  // More games than a regular season holds (12, or 13 with a week-0 game):
+  // the stored record is an end-of-season total. As of this game, it is
+  // that total minus the games still to come.
+  const REGULAR_SEASON_MAX_GAMES = 13
+  if (storedGames > REGULAR_SEASON_MAX_GAMES) {
+    const wins = stored.wins - (fullCalc.wins - calc.wins)
+    const losses = stored.losses - (fullCalc.losses - calc.losses)
+    return {
+      overall: `${wins}-${losses}`,
+      conference: `${stored.confWins}-${stored.confLosses}`,
+      wins,
+      losses,
+      confWins: stored.confWins,
+      confLosses: stored.confLosses
+    }
+  }
 
   const postWins = calc.wins - regCalc.wins
   const postLosses = calc.losses - regCalc.losses
