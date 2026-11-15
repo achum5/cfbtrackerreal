@@ -85,6 +85,7 @@ fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 function toVercelStyle(res) {
   res.status = (code) => { res.statusCode = code; return res; };
   res.json = (obj) => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(obj)); };
+  res.send = (body) => { res.end(body); };
   return res;
 }
 
@@ -106,13 +107,18 @@ async function getRealSyncPlayersHandler() {
   return realSyncPlayersHandler;
 }
 
+// Plain or gzipped JSON — the client gzips large bodies (src/utils/jsonRequestBody.js).
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
-    let data = '';
-    req.on('data', (chunk) => { data += chunk; });
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
     req.on('end', () => {
-      if (!data) return resolve({});
-      try { resolve(JSON.parse(data)); } catch (err) { reject(err); }
+      let buf = Buffer.concat(chunks);
+      if (buf.length === 0) return resolve({});
+      try {
+        if (buf[0] === 0x1f && buf[1] === 0x8b) buf = require('zlib').gunzipSync(buf);
+        resolve(JSON.parse(buf.toString('utf8')));
+      } catch (err) { reject(err); }
     });
     req.on('error', reject);
   });

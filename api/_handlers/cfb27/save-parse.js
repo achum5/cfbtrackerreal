@@ -5,6 +5,7 @@ import path from 'path';
 import { verifyPremium } from '../../_verifyAuth.js';
 import { setCors } from '../../_cors.js';
 import { extractFullSave } from '../../_lib/cfb27Extract/extractPlayers.cjs';
+import { sendJson } from '../../_lib/compressedJson.js';
 
 /**
  * Parse a CFB 27 PC save file that the client already uploaded to R2 via
@@ -85,7 +86,9 @@ export default async function handler(req, res) {
     // comment for the (deliberately narrow) safety conditions.
     const result = await extractFullSave(tmpPath, { alreadySyncedYear, alreadySyncedThroughWeek });
 
-    return res.status(200).json(result);
+    // The whole parsed league: gzipped, it's a fraction of the function's
+    // billed transfer (see compressedJson.js).
+    return sendJson(req, res, 200, result);
   } catch (err) {
     console.error('[cfb27-save-parse] Failed:', err);
     return res.status(500).json({ error: `Failed to parse save: ${err.message}` });

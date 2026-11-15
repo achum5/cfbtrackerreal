@@ -10,6 +10,7 @@
 // (set/merge), so splitting into several requests is idempotent.
 import { auth } from '../config/firebase'
 import { chunkPairByBytes } from './cfb27RequestChunk'
+import { jsonRequestBody } from './jsonRequestBody'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
@@ -36,10 +37,11 @@ export async function syncPlayersToSubcollection(dynastyId, creates, patches, { 
 
   for (let i = 0; i < batches.length; i++) {
     const batch = batches[i]
+    const { body, contentType } = await jsonRequestBody({ dynastyId, creates: batch.creates, patches: batch.patches })
     const res = await fetch(`${API_BASE}/api/cfb27/save-sync-players`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ dynastyId, creates: batch.creates, patches: batch.patches }),
+      headers: { 'Content-Type': contentType, Authorization: `Bearer ${token}` },
+      body,
     })
     if (!res.ok) {
       const info = await res.json().catch(() => ({}))

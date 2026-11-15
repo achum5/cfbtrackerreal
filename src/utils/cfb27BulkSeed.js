@@ -13,6 +13,7 @@
 // retried batch overwrites rather than duplicates.
 import { auth } from '../config/firebase'
 import { chunkByBytes } from './cfb27RequestChunk'
+import { jsonRequestBody } from './jsonRequestBody'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
@@ -36,10 +37,11 @@ export async function bulkSeedPlayers(dynastyId, players, { onProgress } = {}) {
 
   for (let i = 0; i < batches.length; i++) {
     const batch = batches[i]
+    const { body, contentType } = await jsonRequestBody({ dynastyId, players: batch })
     const res = await fetch(`${API_BASE}/api/cfb27/bulk-seed-players`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ dynastyId, players: batch }),
+      headers: { 'Content-Type': contentType, Authorization: `Bearer ${token}` },
+      body,
     })
     if (!res.ok) {
       const info = await res.json().catch(() => ({}))

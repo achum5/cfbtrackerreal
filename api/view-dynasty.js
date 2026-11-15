@@ -1,4 +1,5 @@
 import { db } from './_firebaseAdmin.js';
+import { sendJson } from './_lib/compressedJson.js';
 
 /**
  * GET /api/view-dynasty?code=<shareCode>&v=<rev>
@@ -134,7 +135,9 @@ export default async function handler(req, res) {
     // nearly all of the cost win (a viral link still costs at most one
     // Firestore read per 5 min per version) while capping the unshare lag.
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=60');
-    return res.status(200).json({
+    // A whole dynasty: gzipped, each cache miss costs a fraction of the
+    // function transfer (see _lib/compressedJson.js).
+    return sendJson(req, res, 200, {
       mainDoc: { id: dynastyId, ...normalizeTimestamps(mainData) },
       players: rowsOf(players),
       games: rowsOf(games),

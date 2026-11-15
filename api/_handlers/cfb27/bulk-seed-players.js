@@ -1,6 +1,7 @@
 import { initAdmin } from '../../_firebaseAdmin.js';
 import { verifyPremium } from '../../_verifyAuth.js';
 import { setCors } from '../../_cors.js';
+import { readJsonBody } from '../../_lib/compressedJson.js';
 
 /**
  * Bulk-write a CFB 27 save import's full player roster (every resolved
@@ -64,7 +65,13 @@ export default async function handler(req, res) {
   if (!decoded) return; // verifyAuth already sent 401
   const uid = decoded.uid;
 
-  const { dynastyId, players } = req.body || {};
+  let body;
+  try {
+    body = readJsonBody(req);
+  } catch {
+    return res.status(400).json({ error: 'Could not read the request body' });
+  }
+  const { dynastyId, players } = body || {};
   if (typeof dynastyId !== 'string' || !dynastyId) {
     return res.status(400).json({ error: 'dynastyId is required' });
   }
