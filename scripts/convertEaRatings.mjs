@@ -3,10 +3,10 @@
 // src/data/cfb27Rosters/{tid}.json — the attribute-rich set the CFB 27 edition
 // seeds new dynasties from.
 //
-// Get the input by pasting scripts/ea-ratings-console-scrape.js into the
-// browser console on https://www.ea.com/games/ea-sports-college-football/ratings
-// (the API only answers requests with an ea.com Origin). That downloads
-// ea-cfb-ratings.json — a flat array of every rated player.
+// Normally run for you by scripts/updateEaRosters.mjs, which pulls EA's public
+// ratings pages and checks the result. A pull made by pasting
+// scripts/ea-ratings-console-scrape.js into the browser console on the ratings
+// page works too: either way the input is a flat array of every rated player.
 //
 // Usage:
 //   node scripts/convertEaRatings.mjs --input ~/Downloads/ea-cfb-ratings.json --dry-run
@@ -25,6 +25,7 @@ const args = (() => {
   const a = process.argv.slice(2)
   for (let i = 0; i < a.length; i++) {
     if (a[i] === '--dry-run') { out.dryRun = true; continue }
+    // --summary <path>: also write the run's numbers as JSON (used by the updater).
     if (a[i].startsWith('--')) { out[a[i].slice(2)] = a[i + 1]; i++ }
   }
   return out
@@ -58,6 +59,8 @@ const CLASS_MAP = {
 const REDSHIRT_MAP = {
   Eligible: 'Eligible',
   Previous: 'Redshirted',
+  // The public ratings pages already spell it the sheet's way.
+  Redshirted: 'Redshirted',
   InEligible: 'InEligible',
 }
 
@@ -120,10 +123,12 @@ const ATTRIBUTE_MAP = {
   zoneCoverage: 'Zone Coverage',
 }
 
-// EA stores weight as an offset from 160 lbs (so 20 -> 180). A 0 is a real
-// 160-pounder, not missing data — verified against the launch workbook, where
-// every one of these players is listed at exactly 160.
-const WEIGHT_OFFSET = 160
+// EA's API stores weight as an offset from 160 lbs (so 20 -> 180). A 0 is a
+// real 160-pounder, not missing data — verified against the launch workbook,
+// where every one of these players is listed at exactly 160. The public
+// ratings pages give real pounds instead, so the offset is picked per input
+// below: real weights sit around 220, offsets around 60.
+const API_WEIGHT_OFFSET = 160
 
 function formatHeight(inches) {
   if (!Number.isFinite(inches) || inches <= 0) return ''
@@ -189,6 +194,9 @@ for (const p of raw) {
   players.push(p)
 }
 
+const rawWeights = players.map((p) => p.weight).filter(Number.isFinite).sort((a, b) => a - b)
+const WEIGHT_OFFSET = rawWeights.length && rawWeights[Math.floor(rawWeights.length / 2)] >= 140 ? 0 : API_WEIGHT_OFFSET
+
 const iterations = [...new Set(players.map((p) => p.iteration?.id).filter(Boolean))]
 if (iterations.length !== 1) {
   console.warn(`WARNING: input mixes ${iterations.length} iterations (${iterations.join(', ')}).`)
@@ -223,6 +231,9 @@ function shape(p, prior) {
   }
   const name = `${p.firstName || ''} ${p.lastName || ''}`.trim()
   return {
+    // EA's own player id. It survives renames and position moves, so the next
+    // run matches on it first, and it marks the player as one EA listed.
+    eaId: p.id,
     name,
     firstName: p.firstName || '',
     lastName: p.lastName || '',
@@ -250,6 +261,8 @@ for (const [tid, { teamName, players: list }] of [...grouped].sort((a, b) => a[0
   const priorList = [...prior.values()]
   const findPrior = (p) => {
     const name = `${p.firstName || ''} ${p.lastName || ''}`
+    const byId = priorList.find((q) => q.eaId != null && q.eaId === p.id)
+    if (byId) return byId
     const exact = prior.get(nameKey(name))
     if (exact) return exact
     const probe = { name, jerseyNumber: p.jerseyNum != null ? String(p.jerseyNum) : '' }
@@ -275,8 +288,11 @@ for (const [tid, { teamName, players: list }] of [...grouped].sort((a, b) => a[0
         e.position === p.position &&
         Math.abs(e.overall - p.overall) <= 3,
     )
+  // A player EA listed before (he has an eaId) and no longer lists was taken
+  // off by EA - he left, or was cut - so he isn't carried. Only the
+  // fill-ins EA has never listed are.
   let carried = [...prior.entries()]
-    .filter(([k, p]) => !fromEa.has(k) && !alsoInEa(p) && !shaped.some((e) => samePlayer(e, p)))
+    .filter(([k, p]) => p.eaId == null && !fromEa.has(k) && !alsoInEa(p) && !shaped.some((e) => samePlayer(e, p)))
     .map(([, p]) => p)
   // EA's listed players are authoritative; carried-forward players only fill
   // the roster up to the cap, best first.
@@ -317,3 +333,10 @@ if (grew.length) {
   if (grew.length > 10) console.log(`  ...and ${grew.length - 10} more`)
 }
 console.log(args.dryRun ? '\nDRY RUN - nothing written.' : `\nwrote ${wrote} files to ${OUT_DIR}`)
+if (args.summary) {
+  writeFileSync(args.summary, JSON.stringify({
+    iterationId, iterationLabel, teams: report.length, before, after, carried, dropped: droppedTotal,
+    overCap: overCap.map((r) => ({ teamName: r.teamName, players: r.after })),
+    minTeam: Math.min(...report.map((r) => r.after)),
+  }))
+}
