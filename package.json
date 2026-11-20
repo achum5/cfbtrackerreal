@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "rosters:update": "node scripts/updateEaRosters.mjs",
     "lint:undef": "eslint --no-config-lookup -c eslint.undef.config.mjs src/"
   },
   "dependencies": {
