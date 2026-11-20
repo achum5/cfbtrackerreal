@@ -138,6 +138,30 @@ function formatHeight(inches) {
 // only. Otherwise the same player shows up as both a rename and a carry-over.
 const nameKey = (s) => String(s || '').toLowerCase().replace(/[^a-z]/g, '')
 
+// Identity across sources. EA and our files spell the same player
+// differently more often than they disagree on who he is: a suffix ("AJ
+// Wilson" / "AJ Wilson Jr."), a short first name ("Dom" / "Dominic Nichols"),
+// a hyphenated surname ("Lee-Knicely" / "Knicely"). Ratings also move week
+// to week, so overall is no help mid-season (Nichols went 77 -> 83).
+const SUFFIXES = new Set(['jr', 'sr', 'ii', 'iii', 'iv', 'v'])
+const words = (s) => String(s || '').toLowerCase().replace(/[^a-z\s-]/g, '').split(/[\s-]+/).filter(Boolean)
+const baseKey = (name) => words(name).filter((w) => !SUFFIXES.has(w)).join('')
+function samePlayer(a, b) {
+  if (baseKey(a.name) && baseKey(a.name) === baseKey(b.name)) return true
+  if (!a.jerseyNumber || String(a.jerseyNumber) !== String(b.jerseyNumber)) return false
+  // Same jersey on the same team, plus a name tie: a shared surname word, or
+  // one first name the start of the other ("Cam" / "Cameron").
+  const wa = words(a.name).filter((w) => !SUFFIXES.has(w))
+  const wb = words(b.name).filter((w) => !SUFFIXES.has(w))
+  const surnameTie = wa.slice(1).some((w) => wb.slice(1).includes(w))
+  const [fa, fb] = [wa[0] || '', wb[0] || '']
+  const firstTie = fa && fb && (fa.startsWith(fb) || fb.startsWith(fa))
+  return surnameTie && firstTie
+}
+// The game's roster cap. EA lists a few in-season additions on top of the
+// launch/update roster, so a merge can otherwise run past it.
+const ROSTER_CAP = 85
+
 function loadExisting() {
   const byTid = new Map()
   const labelToTid = new Map()
@@ -223,7 +247,15 @@ let wrote = 0
 const report = []
 for (const [tid, { teamName, players: list }] of [...grouped].sort((a, b) => a[0] - b[0])) {
   const prior = byTid.get(tid) || new Map()
-  const shaped = list.map((p) => shape(p, prior.get(nameKey(`${p.firstName || ''} ${p.lastName || ''}`))))
+  const priorList = [...prior.values()]
+  const findPrior = (p) => {
+    const name = `${p.firstName || ''} ${p.lastName || ''}`
+    const exact = prior.get(nameKey(name))
+    if (exact) return exact
+    const probe = { name, jerseyNumber: p.jerseyNum != null ? String(p.jerseyNum) : '' }
+    return priorList.find((q) => samePlayer(probe, q))
+  }
+  const shaped = list.map((p) => shape(p, findPrior(p)))
 
   // EA's site is itself short on some teams (Navy lists 29 players), and it
   // omits ~74 players the launch workbook has. Take EA as the base but carry
@@ -243,12 +275,17 @@ for (const [tid, { teamName, players: list }] of [...grouped].sort((a, b) => a[0
         e.position === p.position &&
         Math.abs(e.overall - p.overall) <= 3,
     )
-  const carried = [...prior.entries()]
-    .filter(([k, p]) => !fromEa.has(k) && !alsoInEa(p))
+  let carried = [...prior.entries()]
+    .filter(([k, p]) => !fromEa.has(k) && !alsoInEa(p) && !shaped.some((e) => samePlayer(e, p)))
     .map(([, p]) => p)
+  // EA's listed players are authoritative; carried-forward players only fill
+  // the roster up to the cap, best first.
+  const room = Math.max(0, ROSTER_CAP - shaped.length)
+  const dropped = Math.max(0, carried.length - room)
+  carried = [...carried].sort((a, b) => b.overall - a.overall).slice(0, room)
   const merged = [...shaped, ...carried].sort((a, b) => b.overall - a.overall)
 
-  report.push({ tid, teamName, before: prior.size, after: merged.length, carried: carried.length })
+  report.push({ tid, teamName, before: prior.size, after: merged.length, carried: carried.length, dropped })
 
   if (!args.dryRun) {
     const doc = {
@@ -269,6 +306,10 @@ console.log(`iteration: ${iterationId} (${iterationLabel})`)
 const carried = report.reduce((s, r) => s + r.carried, 0)
 console.log(`teams: ${report.length}   players: ${before} -> ${after}  (${after - before >= 0 ? '+' : ''}${after - before})`)
 console.log(`carried forward (in our rosters, absent from EA): ${carried}`)
+const droppedTotal = report.reduce((s, r) => s + r.dropped, 0)
+console.log(`not carried (would pass the ${ROSTER_CAP}-man cap): ${droppedTotal}${droppedTotal ? ' - ' + report.filter((r) => r.dropped).map((r) => `${r.teamName} ${r.dropped}`).join(', ') : ''}`)
+const overCap = report.filter((r) => r.after > ROSTER_CAP)
+if (overCap.length) console.log(`OVER CAP (EA alone lists more than ${ROSTER_CAP}): ${overCap.map((r) => `${r.teamName} ${r.after}`).join(', ')}`)
 const grew = report.filter((r) => r.after !== r.before).sort((a, b) => (b.after - b.before) - (a.after - a.before))
 if (grew.length) {
   console.log(`\nbiggest roster-size changes:`)
