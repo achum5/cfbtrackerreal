@@ -26,6 +26,7 @@ const args = (() => {
   for (let i = 0; i < a.length; i++) {
     if (a[i] === '--dry-run') { out.dryRun = true; continue }
     // --summary <path>: also write the run's numbers as JSON (used by the updater).
+    // --fill <launch pull>: take the fill-in players from EA's launch list (see below).
     if (a[i].startsWith('--')) { out[a[i].slice(2)] = a[i + 1]; i++ }
   }
   return out
@@ -216,6 +217,26 @@ for (const p of players) {
   grouped.get(tid).players.push(p)
 }
 
+// EA's launch list is the whole 85-man roster. From the first weekly update
+// on, EA's site stops listing the game's generic fill-in players - 806 of
+// them, including 105 of the game's 121 fullbacks - though they're still on
+// the teams in the game. --fill <launch pull> takes them from the launch
+// list; they're marked eaUnlisted and kept by later runs until EA lists them
+// again (then they're ordinary listed players).
+const fillByTid = new Map()
+if (args.fill) {
+  const fillSeen = new Set()
+  for (const p of JSON.parse(readFileSync(args.fill, 'utf8'))) {
+    if (p?.id == null || fillSeen.has(p.id)) continue
+    fillSeen.add(p.id)
+    const label = p.team?.label
+    const tid = label ? labelToTid.get(label.toLowerCase().trim()) : undefined
+    if (tid == null) { if (label) unmatched.add(label); continue }
+    if (!fillByTid.has(tid)) fillByTid.set(tid, [])
+    fillByTid.get(tid).push(p)
+  }
+}
+
 if (unmatched.size) {
   console.error('Aborting - these EA team labels have no tid:')
   for (const u of [...unmatched].sort()) console.error('  ' + u)
@@ -288,12 +309,20 @@ for (const [tid, { teamName, players: list }] of [...grouped].sort((a, b) => a[0
         e.position === p.position &&
         Math.abs(e.overall - p.overall) <= 3,
     )
-  // A player EA listed before (he has an eaId) and no longer lists was taken
-  // off by EA - he left, or was cut - so he isn't carried. Only the
-  // fill-ins EA has never listed are.
-  let carried = [...prior.entries()]
-    .filter(([k, p]) => p.eaId == null && !fromEa.has(k) && !alsoInEa(p) && !shaped.some((e) => samePlayer(e, p)))
-    .map(([, p]) => p)
+  const listedIds = new Set(list.map((p) => p.id))
+  let carried
+  if (args.fill) {
+    carried = (fillByTid.get(tid) || [])
+      .filter((p) => !listedIds.has(p.id))
+      .map((p) => ({ ...shape(p, findPrior(p)), eaUnlisted: true }))
+  } else {
+    // EA's unlisted fill-ins stay. A player EA listed before and no longer
+    // lists was taken off by EA - he left, or was cut - so he isn't carried.
+    // Players from before EA ids (no eaId) are carried as they always were.
+    carried = [...prior.entries()]
+      .filter(([k, p]) => (p.eaUnlisted ? !listedIds.has(p.eaId) : p.eaId == null && !fromEa.has(k) && !alsoInEa(p) && !shaped.some((e) => samePlayer(e, p))))
+      .map(([, p]) => p)
+  }
   // EA's listed players are authoritative; carried-forward players only fill
   // the roster up to the cap, best first.
   const room = Math.max(0, ROSTER_CAP - shaped.length)
@@ -321,7 +350,7 @@ const after = report.reduce((s, r) => s + r.after, 0)
 console.log(`iteration: ${iterationId} (${iterationLabel})`)
 const carried = report.reduce((s, r) => s + r.carried, 0)
 console.log(`teams: ${report.length}   players: ${before} -> ${after}  (${after - before >= 0 ? '+' : ''}${after - before})`)
-console.log(`carried forward (in our rosters, absent from EA): ${carried}`)
+console.log(`fill-ins (on the roster, not on EA's current list): ${carried}${args.fill ? ' - from EA launch list' : ''}`)
 const droppedTotal = report.reduce((s, r) => s + r.dropped, 0)
 console.log(`not carried (would pass the ${ROSTER_CAP}-man cap): ${droppedTotal}${droppedTotal ? ' - ' + report.filter((r) => r.dropped).map((r) => `${r.teamName} ${r.dropped}`).join(', ') : ''}`)
 const overCap = report.filter((r) => r.after > ROSTER_CAP)

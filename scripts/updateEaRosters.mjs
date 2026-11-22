@@ -5,6 +5,9 @@
 //   npm run rosters:update                    check, and update if EA has something newer
 //   npm run rosters:update -- --force         re-pull even if we already have EA's latest
 //   npm run rosters:update -- --bump-version  also set MANUAL_BUILD in vite.config.js
+//   npm run rosters:update -- --pull 1-base --out <file>
+//                                             only download one ratings week (here
+//                                             launch) to a file; touches nothing
 //
 // The last line printed is `RESULT {json}`. Exit codes:
 //   0  rosters updated (files written, checks passed)
@@ -21,7 +24,9 @@ import { tmpdir } from 'node:os'
 
 const ROSTER_DIR = 'src/data/cfb27Rosters'
 const PAGE_URL = 'https://www.ea.com/games/ea-sports-college-football/ratings?page='
-const flags = new Set(process.argv.slice(2))
+const argv = process.argv.slice(2)
+const flags = new Set(argv)
+const argOf = (name) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : undefined)
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const finish = (code, result) => {
@@ -36,7 +41,8 @@ const readRosters = () =>
     .filter((f) => f.endsWith('.json'))
     .map((f) => JSON.parse(readFileSync(join(ROSTER_DIR, f), 'utf8')))
 
-const dirty = execFileSync('git', ['status', '--porcelain', ROSTER_DIR]).toString().trim()
+const pullOnly = argOf('--pull')
+const dirty = pullOnly ? '' : execFileSync('git', ['status', '--porcelain', ROSTER_DIR]).toString().trim()
 if (dirty) fail(`${ROSTER_DIR} has uncommitted changes; commit or discard them first`)
 
 const before = readRosters()
@@ -49,11 +55,12 @@ const current = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] || null
 const weekOf = (id) => (id === '1-base' ? 0 : Number(/week-(\d+)/.exec(id || '')?.[1] ?? NaN))
 
 // --- EA --------------------------------------------------------------------
-async function fetchPage(n) {
+async function fetchPage(n, iteration) {
   let last = ''
   for (let attempt = 1; attempt <= 5; attempt++) {
     try {
-      const html = execFileSync('curl', ['-sS', '--fail', '-m', '45', '-A', 'Mozilla/5.0', PAGE_URL + n], {
+      const url = PAGE_URL + n + (iteration ? `&iteration=${encodeURIComponent(iteration)}` : '')
+      const html = execFileSync('curl', ['-sS', '--fail', '-m', '45', '-A', 'Mozilla/5.0', url], {
         maxBuffer: 64 * 1024 * 1024,
       }).toString()
       const m = /<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/.exec(html)
@@ -70,8 +77,34 @@ async function fetchPage(n) {
   fail(`could not read EA ratings page ${n}: ${last}`)
 }
 
-const first = await fetchPage(1)
+// Every player in one ratings week, page by page, a second apart.
+async function pullAll(first, iterationId) {
+  const total = first.totalItems
+  const byId = new Map(first.items.map((p) => [p.id, p]))
+  for (let page = 2; byId.size < total; page++) {
+    await sleep(1000)
+    const rd = await fetchPage(page, pullOnly)
+    if (!rd.items.length) break
+    for (const p of rd.items) byId.set(p.id, p)
+    if (page % 10 === 0) console.log(`  ${byId.size} / ${total}`)
+    if (page > 400) break // runaway guard
+  }
+  const pulled = [...byId.values()]
+  const mixed = [...new Set(pulled.map((p) => p.iteration?.id))].filter((id) => id !== iterationId)
+  if (mixed.length) fail(`EA switched ratings mid-pull (${iterationId} and ${mixed.join(', ')}); run again`)
+  if (pulled.length < total * 0.98) fail(`pulled only ${pulled.length} of ${total} players`)
+  return pulled
+}
+
+const first = await fetchPage(1, pullOnly)
 const latest = first.items[0]?.iteration
+if (pullOnly) {
+  if (latest?.id !== pullOnly) fail(`EA served ${latest?.id} when asked for ${pullOnly}`)
+  const out = argOf('--out') || `ea-cfb-ratings-${pullOnly}.json`
+  const items = await pullAll(first, pullOnly)
+  writeFileSync(out, JSON.stringify(items))
+  finish(0, { status: 'pulled', iteration: pullOnly, label: latest.label, players: items.length, out })
+}
 if (!latest?.id) fail('EA page 1 has no players with an iteration id')
 console.log(`EA's newest ratings: ${latest.id} (${latest.label}); we ship: ${current}`)
 
@@ -82,20 +115,7 @@ if (!flags.has('--force')) {
   }
 }
 
-const total = first.totalItems
-const byId = new Map(first.items.map((p) => [p.id, p]))
-for (let page = 2; byId.size < total; page++) {
-  await sleep(1000)
-  const rd = await fetchPage(page)
-  if (!rd.items.length) break
-  for (const p of rd.items) byId.set(p.id, p)
-  if (page % 10 === 0) console.log(`  ${byId.size} / ${total}`)
-  if (page > 400) break // runaway guard
-}
-const pulled = [...byId.values()]
-const mixed = [...new Set(pulled.map((p) => p.iteration?.id))].filter((id) => id !== latest.id)
-if (mixed.length) fail(`EA switched ratings mid-pull (${latest.id} and ${mixed.join(', ')}); run again`)
-if (pulled.length < total * 0.98) fail(`pulled only ${pulled.length} of ${total} players`)
+const pulled = await pullAll(first, latest.id)
 
 const work = mkdtempSync(join(tmpdir(), 'ea-ratings-'))
 const input = join(work, `ea-cfb-ratings-${latest.id}.json`)
