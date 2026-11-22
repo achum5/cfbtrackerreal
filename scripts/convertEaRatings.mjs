@@ -27,6 +27,8 @@ const args = (() => {
     if (a[i] === '--dry-run') { out.dryRun = true; continue }
     // --summary <path>: also write the run's numbers as JSON (used by the updater).
     // --fill <launch pull>: take the fill-in players from EA's launch list (see below).
+    // --out-dir <dir>: write the team files there instead (prior data still comes
+    // from src/data/cfb27Rosters). Used to build older weeks' rosters.
     if (a[i].startsWith('--')) { out[a[i].slice(2)] = a[i + 1]; i++ }
   }
   return out
@@ -340,7 +342,7 @@ for (const [tid, { teamName, players: list }] of [...grouped].sort((a, b) => a[0
       sourceIteration: iterationId,
       players: merged,
     }
-    writeFileSync(join(OUT_DIR, `${tid}.json`), JSON.stringify(doc))
+    writeFileSync(join(args['out-dir'] || OUT_DIR, `${tid}.json`), JSON.stringify(doc))
     wrote++
   }
 }
@@ -361,7 +363,7 @@ if (grew.length) {
   for (const r of grew.slice(0, 10)) console.log(`  tid ${r.tid} ${r.teamName}: ${r.before} -> ${r.after}`)
   if (grew.length > 10) console.log(`  ...and ${grew.length - 10} more`)
 }
-console.log(args.dryRun ? '\nDRY RUN - nothing written.' : `\nwrote ${wrote} files to ${OUT_DIR}`)
+console.log(args.dryRun ? '\nDRY RUN - nothing written.' : `\nwrote ${wrote} files to ${args['out-dir'] || OUT_DIR}`)
 if (args.summary) {
   writeFileSync(args.summary, JSON.stringify({
     iterationId, iterationLabel, teams: report.length, before, after, carried, dropped: droppedTotal,

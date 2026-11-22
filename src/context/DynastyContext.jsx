@@ -130,7 +130,7 @@ import {
 import { importUniverse, mergePosts, ensureUniverseLoaded, DEFAULT_SOCIAL_SETTINGS, DEFAULT_SOCIAL_PLATFORM, SOCIAL_UNIVERSE_VERSION } from '../data/socialModel'
 import { findMatchingPlayer, getPlayerLastHonorDescription, normalizePlayerName } from '../utils/playerMatching'
 import { syncDerivedFieldsFromV2, legacyMovementToCanonical, reconcileDevTraitMirror } from '../data/rosterModel'
-import { buildDefaultRosterPlayers, buildAllDefaultRosterPlayers } from '../data/defaultRosterLoader'
+import { buildDefaultRosterPlayers, buildAllDefaultRosterPlayers, CFB27_LATEST_ROSTER_WEEK } from '../data/defaultRosterLoader'
 import { bulkSeedPlayers } from '../utils/cfb27BulkSeed'
 import { syncPlayersToSubcollection } from '../utils/cfb27SyncPlayers'
 import { chunkUpdateObject } from '../utils/updateChunker'
@@ -10503,6 +10503,13 @@ export function DynastyProvider({ children }) {
     //
     // Failure is non-fatal: a dynasty still creates with an empty roster.
     const seedAllRosters = editionKey === 'cfb27' && !!dynastyData.seedAllRosters
+    // CFB 27: which EA roster update the dynasty was started on in the game
+    // (the game locks a dynasty to it). Seeds come from that week; it's kept
+    // on the dynasty so anything seeded later can match. Not used by a save
+    // import, which brings its own rosters.
+    const usesBundledCfb27 = editionKey === 'cfb27' &&
+      !(Array.isArray(dynastyData.cfb27SeededPlayers) && dynastyData.cfb27SeededPlayers.length > 0)
+    const cfb27RosterWeek = usesBundledCfb27 ? (dynastyData.cfb27RosterWeek || CFB27_LATEST_ROSTER_WEEK) : null
     let seededPlayers = []
     try {
       // A PC save import already built a full multi-team roster in
@@ -10512,10 +10519,10 @@ export function DynastyProvider({ children }) {
         seededPlayers = dynastyData.cfb27SeededPlayers
       } else if (seedAllRosters) {
         await report('Loading all team rosters…', 10)
-        seededPlayers = await buildAllDefaultRosterPlayers(teams, startYear, 1, editionKey)
+        seededPlayers = await buildAllDefaultRosterPlayers(teams, startYear, 1, editionKey, { rosterWeek: cfb27RosterWeek })
       } else if (currentTid && !teams[currentTid]?.isCustom) {
         await report('Loading team roster…', 10)
-        seededPlayers = await buildDefaultRosterPlayers(currentTid, startYear, 1, editionKey)
+        seededPlayers = await buildDefaultRosterPlayers(currentTid, startYear, 1, editionKey, { rosterWeek: cfb27RosterWeek })
       }
     } catch (err) {
       console.warn('[createDynasty] default roster seed failed:', err)
@@ -10590,6 +10597,7 @@ export function DynastyProvider({ children }) {
       customTeams: _droppedCustomTeams,
       coachName: _droppedCoachName,
       seedAllRosters: _droppedSeedAllRosters,
+      cfb27RosterWeek: _droppedCfb27RosterWeek,
       cfb27SeededPlayers: _droppedCfb27SeededPlayers,
       cfb27Season: _droppedCfb27Season,
       cfb27Conferences: _droppedCfb27Conferences,
@@ -10633,6 +10641,8 @@ export function DynastyProvider({ children }) {
       // bad/absent value can never become an unknown key. Untagged legacy
       // dynasties never reach here — they resolve to cfb26 via getEditionKey.
       gameEdition: normalizeEditionKey(dynastyData.gameEdition || DEFAULT_EDITION),
+      // The EA roster update its bundled rosters came from (cfb27 only).
+      ...(cfb27RosterWeek ? { cfb27RosterWeek } : {}),
       currentTid, // Primary team identifier (tid) - kept for backwards compatibility
       currentYear: startYear,
       currentWeek: cfb27Season ? cfb27Season.week : 0,

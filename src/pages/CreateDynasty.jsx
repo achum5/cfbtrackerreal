@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SearchableSelect from '../components/SearchableSelect'
 import DropdownSelect from '../components/DropdownSelect'
+import { getCfb27RosterWeeks, CFB27_LATEST_ROSTER_WEEK } from '../data/defaultRosterLoader'
 import TeambuilderTeamFields from '../components/TeambuilderTeamFields'
 import { initializeDynastyTeams, getFBSTeamTids, getTidFromTeamName } from '../data/teamRegistry'
 import { getTeamName } from '../data/teamAbbreviations'
@@ -34,6 +35,13 @@ const newBlankTeambuilder = () => ({
   replacesTeam: '',
 })
 
+// CFB 27 roster updates a dynasty can start from, newest first.
+const rosterWeekOptions = [...getCfb27RosterWeeks()].reverse().map((w) => {
+  const week = /week-(\d+)$/.exec(w.id)?.[1]
+  const name = w.id === '1-base' ? 'Launch roster (release day)' : week ? `Week ${week} roster update` : w.label
+  return { value: w.id, label: w.id === CFB27_LATEST_ROSTER_WEEK ? `${name} (latest)` : name }
+})
+
 export default function CreateDynasty() {
   const navigate = useNavigate()
   const { createDynasty } = useDynasty()
@@ -54,6 +62,9 @@ export default function CreateDynasty() {
     // Off by default: when on (cfb27 only), seed every team's full roster
     // (~9,000 players) at creation. Slow, so it's an explicit opt-in.
     seedAllRosters: false,
+    // CFB 27 console: the EA roster update the dynasty was started on in the
+    // game. Defaults to the newest, which is what a dynasty started today gets.
+    cfb27RosterWeek: CFB27_LATEST_ROSTER_WEEK,
     // Console = the plain manual tracker. PC = the auto-sync tracker (roster,
     // ratings, stats, schedule, recruiting, etc. all pulled from a save file).
     // Defaults to Console — PC requires an explicit, deliberate choice (or
@@ -760,6 +771,24 @@ export default function CreateDynasty() {
               className="tabular"
             />
           </div>
+
+          {formData.gameEdition === 'cfb27' && formData.platform !== 'pc' && rosterWeekOptions.length > 1 && (
+            <div>
+              <DropdownSelect
+                label="Starting Roster"
+                options={rosterWeekOptions}
+                value={formData.cfb27RosterWeek}
+                onChange={(value) => setFormData({ ...formData, cfb27RosterWeek: value })}
+                placeholder="Search roster updates…"
+                required
+                teamColors={neutralColors}
+              />
+              <p className="text-xs text-txt-tertiary mt-2">
+                Pick the EA roster update that was out when you started this dynasty in the game.
+                The game keeps a dynasty on the roster it started with, so later updates don't change it.
+              </p>
+            </div>
+          )}
 
           {formData.gameEdition === 'cfb27' && formData.platform !== 'pc' && (
             <label className="flex items-start gap-3 rounded-md border border-surface-4 bg-surface-2 p-3 cursor-pointer">

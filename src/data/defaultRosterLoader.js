@@ -12,12 +12,52 @@
 // (buildAllDefaultRosterPlayers, cfb27 only) fetches every team's chunk in
 // parallel so a CFB 27 dynasty is fully rostered from day one.
 import { mapPortraitUrl } from './cfb27SaveImport'
+import { applyRosterPatch } from './rosterPatch'
+import cfb27RosterWeekIndex from './cfb27RosterWeeks/index.json'
 
 const rosterFiles = import.meta.glob('./defaultRosters/*.json')
 // CFB 27 launch rosters carry the full per-player attribute set (parsed from the
 // CFB27 Player Ratings workbook). Selected only for cfb27 dynasties; every team
 // is its own lazy chunk.
 const cfb27RosterFiles = import.meta.glob('./cfb27Rosters/*.json')
+
+// The cfb27Rosters files are EA's newest roster update. The game locks a
+// dynasty to the roster it was started with, so a dynasty can instead start
+// from an older update: each older week ships a patch that turns the next
+// week's rosters into its own (see rosterPatch.js). index.json lists the
+// weeks oldest first; `latest` is the one the team files hold.
+const cfb27WeekPatchFiles = import.meta.glob('./cfb27RosterWeeks/*.patch.json')
+
+/**
+ * The roster updates a CFB 27 dynasty can start from, oldest first, each
+ * { id, label } (e.g. { id: 'cfb-ratings-week-3', label: 'Week 3 Ratings' }).
+ */
+export function getCfb27RosterWeeks() {
+  return Array.isArray(cfb27RosterWeekIndex?.weeks) ? cfb27RosterWeekIndex.weeks : []
+}
+export const CFB27_LATEST_ROSTER_WEEK = cfb27RosterWeekIndex?.latest || null
+
+// The patches that take the newest rosters back to `week`, newest first.
+// Empty for the newest week (or none chosen). An unknown week throws rather
+// than quietly handing back the newest ratings.
+async function loadWeekPatches(week) {
+  if (!week || week === CFB27_LATEST_ROSTER_WEEK) return []
+  const weeks = getCfb27RosterWeeks()
+  const at = weeks.findIndex((w) => w.id === week)
+  if (at < 0) throw new Error(`Unknown CFB 27 roster update: ${week}`)
+  const loaders = []
+  for (let i = weeks.length - 2; i >= at; i--) {
+    const loader = cfb27WeekPatchFiles[`./cfb27RosterWeeks/${weeks[i].id}.patch.json`]
+    if (!loader) throw new Error(`Missing CFB 27 roster patch: ${weeks[i].id}`)
+    loaders.push(loader)
+  }
+  const mods = await Promise.all(loaders.map((load) => load()))
+  return mods.map((m) => m?.default || m)
+}
+
+// A team's players as of the chosen week.
+const playersAsOf = (players, numTid, patches) =>
+  patches.reduce((list, patch) => applyRosterPatch(list, patch?.teams?.[numTid]), players)
 
 // Per-team portrait maps: { <normalized player name>: <GenericHeadAssetName> }.
 // At dynasty start the console and PC rosters are the SAME players, so every
@@ -155,16 +195,21 @@ const isNamedPlayer = (p) => p && (p.name || p.firstName || p.lastName)
  * @param {number}        startPID - first pid to assign (createDynasty starts at 1)
  * @param {string|null}   edition - edition key; 'cfb27' loads the attribute-rich
  *                                   launch rosters, anything else the base set
+ * @param {Object}        [options]
+ * @param {string}        [options.rosterWeek] - cfb27 only: the EA roster update
+ *                                   to start from (an id from getCfb27RosterWeeks);
+ *                                   omitted means the newest
  * @returns {Promise<Array>} player objects, or [] if no bundled roster exists
  */
-export async function buildDefaultRosterPlayers(tid, year, startPID = 1, edition = null) {
+export async function buildDefaultRosterPlayers(tid, year, startPID = 1, edition = null, { rosterWeek = null } = {}) {
   const numTid = Number(tid)
   if (!Number.isFinite(numTid)) return []
 
   const data = await loadRosterData(numTid, edition)
   if (!data) return [] // teambuilder/custom team, or no bundled roster
 
-  const src = Array.isArray(data?.players) ? data.players : []
+  const patches = edition === 'cfb27' && data.sourceIteration ? await loadWeekPatches(rosterWeek) : []
+  const src = playersAsOf(Array.isArray(data?.players) ? data.players : [], numTid, patches)
   let pid = startPID
   const portraits = await loadPortraitMap(numTid)
   return src.filter(isNamedPlayer).map((p) => shapeRosterPlayer(p, numTid, year, pid++, portraits))
@@ -192,9 +237,12 @@ export async function buildDefaultRosterPlayers(tid, year, startPID = 1, edition
  * @param {number}      year     - the dynasty's start year
  * @param {number}      startPID  - first pid to assign
  * @param {string|null} edition   - edition key ('cfb27' for the launch rosters)
+ * @param {Object}      [options]
+ * @param {string}      [options.rosterWeek] - cfb27 only: the EA roster update to
+ *                                  start from; omitted means the newest
  * @returns {Promise<Array>} player objects across all seeded teams
  */
-export async function buildAllDefaultRosterPlayers(teams, year, startPID = 1, edition = null) {
+export async function buildAllDefaultRosterPlayers(teams, year, startPID = 1, edition = null, { rosterWeek = null } = {}) {
   const { files, prefix } = filesForEdition(edition)
 
   // tids that have a bundled file, ascending, limited to teams present in this
@@ -208,15 +256,19 @@ export async function buildAllDefaultRosterPlayers(teams, year, startPID = 1, ed
   // Portrait maps load alongside them — same per-team lazy chunks, so this adds
   // no extra round trips beyond the teams already being seeded, and resolves to
   // null for any team without one.
-  const [raws, portraitMaps] = await Promise.all([
+  const [raws, portraitMaps, patches] = await Promise.all([
     Promise.all(tids.map((t) => loadRosterData(t, edition))),
     Promise.all(tids.map((t) => loadPortraitMap(t))),
+    edition === 'cfb27' ? loadWeekPatches(rosterWeek) : [],
   ])
 
   const players = []
   let pid = startPID
   tids.forEach((numTid, i) => {
-    const src = Array.isArray(raws[i]?.players) ? raws[i].players : []
+    const raw = Array.isArray(raws[i]?.players) ? raws[i].players : []
+    // Only the EA-built cfb27 files are patched; a team that falls back to
+    // the base set has no week history.
+    const src = raws[i]?.sourceIteration ? playersAsOf(raw, numTid, patches) : raw
     for (const p of src) {
       if (!isNamedPlayer(p)) continue
       players.push(shapeRosterPlayer(p, numTid, year, pid++, portraitMaps[i]))

@@ -15,15 +15,19 @@
 //   1  failed - any roster files it wrote have been put back
 //
 // EA's pages are fetched one at a time, a second apart, with curl (which
-// follows HTTPS_PROXY where Node's fetch does not). Each page embeds 100
-// players in its __NEXT_DATA__ script, and always shows EA's newest ratings.
+// follows HTTPS_PROXY where Node's fetch does not). Each page embeds its
+// players in its __NEXT_DATA__ script; with no week given it shows EA's newest.
 import { execFileSync } from 'node:child_process'
-import { readFileSync, writeFileSync, readdirSync, mkdtempSync } from 'node:fs'
+import { readFileSync, writeFileSync, readdirSync, mkdtempSync, existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { diffRoster } from '../src/data/rosterPatch.js'
 
 const ROSTER_DIR = 'src/data/cfb27Rosters'
-const PAGE_URL = 'https://www.ea.com/games/ea-sports-college-football/ratings?page='
+// One patch per older week, each turning the next week's rosters back into
+// that week's, so a dynasty can start on any roster update (see rosterPatch.js).
+const WEEKS_DIR = 'src/data/cfb27RosterWeeks'
+const PAGE_URL = 'https://www.ea.com/games/ea-sports-college-football/ratings'
 const argv = process.argv.slice(2)
 const flags = new Set(argv)
 const argOf = (name) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : undefined)
@@ -42,8 +46,8 @@ const readRosters = () =>
     .map((f) => JSON.parse(readFileSync(join(ROSTER_DIR, f), 'utf8')))
 
 const pullOnly = argOf('--pull')
-const dirty = pullOnly ? '' : execFileSync('git', ['status', '--porcelain', ROSTER_DIR]).toString().trim()
-if (dirty) fail(`${ROSTER_DIR} has uncommitted changes; commit or discard them first`)
+const dirty = pullOnly ? '' : execFileSync('git', ['status', '--porcelain', ROSTER_DIR, WEEKS_DIR]).toString().trim()
+if (dirty) fail(`${ROSTER_DIR} or ${WEEKS_DIR} has uncommitted changes; commit or discard them first`)
 
 const before = readRosters()
 const counts = new Map()
@@ -55,49 +59,56 @@ const current = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] || null
 const weekOf = (id) => (id === '1-base' ? 0 : Number(/week-(\d+)/.exec(id || '')?.[1] ?? NaN))
 
 // --- EA --------------------------------------------------------------------
-async function fetchPage(n, iteration) {
+// One ratings page's Next.js props (players in ratingDetails, plus the team
+// list and the published weeks), retried with backoff.
+async function fetchProps(query) {
   let last = ''
   for (let attempt = 1; attempt <= 5; attempt++) {
     try {
-      const url = PAGE_URL + n + (iteration ? `&iteration=${encodeURIComponent(iteration)}` : '')
-      const html = execFileSync('curl', ['-sS', '--fail', '-m', '45', '-A', 'Mozilla/5.0', url], {
+      const qs = new URLSearchParams(query).toString()
+      const html = execFileSync('curl', ['-sS', '--fail', '-m', '45', '-A', 'Mozilla/5.0', `${PAGE_URL}?${qs}`], {
         maxBuffer: 64 * 1024 * 1024,
       }).toString()
       const m = /<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/.exec(html)
       if (!m) throw new Error('no __NEXT_DATA__ on the page (EA may have changed the site)')
-      const rd = JSON.parse(m[1])?.props?.pageProps?.ratingDetails
-      if (!rd || !Array.isArray(rd.items)) throw new Error('no ratingDetails.items on the page (EA may have changed the site)')
-      return rd
+      const props = JSON.parse(m[1])?.props?.pageProps
+      if (!Array.isArray(props?.ratingDetails?.items)) throw new Error('no ratingDetails.items on the page (EA may have changed the site)')
+      return props
     } catch (e) {
       last = String(e.message || e).split('\n')[0]
-      console.warn(`page ${n}: attempt ${attempt} failed - ${last}`)
+      console.warn(`${JSON.stringify(query)}: attempt ${attempt} failed - ${last}`)
       await sleep(5000 * attempt)
     }
   }
-  fail(`could not read EA ratings page ${n}: ${last}`)
+  fail(`could not read EA ratings page ${JSON.stringify(query)}: ${last}`)
 }
 
-// Every player in one ratings week, page by page, a second apart.
-async function pullAll(first, iterationId) {
-  const total = first.totalItems
-  const byId = new Map(first.items.map((p) => [p.id, p]))
-  for (let page = 2; byId.size < total; page++) {
-    await sleep(1000)
-    const rd = await fetchPage(page, pullOnly)
-    if (!rd.items.length) break
-    for (const p of rd.items) byId.set(p.id, p)
-    if (page % 10 === 0) console.log(`  ${byId.size} / ${total}`)
-    if (page > 400) break // runaway guard
+// Every player in one ratings week, one team at a time, a second apart.
+// Team by team rather than the overall list's 100-a-page sort: paging that
+// sort can skip a player when ratings tie, a team's list can't.
+async function pullAll(firstProps, iterationId) {
+  const total = firstProps.ratingDetails.totalItems
+  const teams = (firstProps.ratingsFilters?.teamGroups || []).flatMap((g) => g.teams || [])
+  if (teams.length < 100) fail(`EA's page lists only ${teams.length} teams (it may have changed the site)`)
+  const byId = new Map()
+  for (const [i, team] of teams.entries()) {
+    for (let page = 1; page <= 5; page++) {
+      await sleep(1000)
+      const rd = (await fetchProps({ iteration: iterationId, team: team.id, page })).ratingDetails
+      for (const p of rd.items) byId.set(p.id, p)
+      if (page * 100 >= rd.totalItems) break
+    }
+    if ((i + 1) % 20 === 0) console.log(`  ${i + 1} / ${teams.length} teams, ${byId.size} players`)
   }
   const pulled = [...byId.values()]
   const mixed = [...new Set(pulled.map((p) => p.iteration?.id))].filter((id) => id !== iterationId)
   if (mixed.length) fail(`EA switched ratings mid-pull (${iterationId} and ${mixed.join(', ')}); run again`)
-  if (pulled.length < total * 0.98) fail(`pulled only ${pulled.length} of ${total} players`)
+  if (pulled.length !== total) fail(`pulled ${pulled.length} players but EA lists ${total}`)
   return pulled
 }
 
-const first = await fetchPage(1, pullOnly)
-const latest = first.items[0]?.iteration
+const first = await fetchProps(pullOnly ? { iteration: pullOnly } : {})
+const latest = first.ratingDetails.items[0]?.iteration
 if (pullOnly) {
   if (latest?.id !== pullOnly) fail(`EA served ${latest?.id} when asked for ${pullOnly}`)
   const out = argOf('--out') || `ea-cfb-ratings-${pullOnly}.json`
@@ -124,7 +135,12 @@ writeFileSync(input, JSON.stringify(pulled))
 console.log(`pulled ${pulled.length} players -> ${input}`)
 
 // --- convert + check -------------------------------------------------------
-const restore = () => execFileSync('git', ['checkout', '--', ROSTER_DIR])
+const newPatchPath = join(WEEKS_DIR, `${current}.patch.json`)
+const patchExisted = existsSync(newPatchPath)
+const restore = () => {
+  execFileSync('git', ['checkout', '--', ROSTER_DIR, WEEKS_DIR])
+  if (!patchExisted && existsSync(newPatchPath)) rmSync(newPatchPath)
+}
 try {
   execFileSync('node', ['scripts/convertEaRatings.mjs', '--input', input, '--summary', summaryPath], { stdio: 'inherit' })
 } catch {
@@ -145,6 +161,27 @@ if (!(medianWeight >= 180 && medianWeight <= 260)) problems.push(`median weight 
 if (problems.length) {
   restore()
   fail('the new rosters failed checks, nothing kept: ' + problems.join('; '))
+}
+
+// --- keep the week we're replacing, as a patch ------------------------------
+if (latest.id !== current) {
+  const afterByTid = new Map(after.map((r) => [r.tid, r.players]))
+  const teams = {}
+  for (const r of before) {
+    const patch = diffRoster(afterByTid.get(r.tid) || [], r.players)
+    if (Object.keys(patch).length) teams[r.tid] = patch
+  }
+  const indexPath = join(WEEKS_DIR, 'index.json')
+  const index = existsSync(indexPath) ? JSON.parse(readFileSync(indexPath, 'utf8')) : { latest: current, weeks: [{ id: current, label: current }] }
+  if (index.latest !== current) {
+    restore()
+    fail(`${indexPath} says the newest week is ${index.latest}, but the roster files are ${current}`)
+  }
+  const currentLabel = index.weeks.find((w) => w.id === current)?.label || current
+  writeFileSync(newPatchPath, JSON.stringify({ iteration: current, label: currentLabel, from: latest.id, teams }))
+  index.weeks = [...index.weeks.filter((w) => w.id !== latest.id), { id: latest.id, label: latest.label }]
+  index.latest = latest.id
+  writeFileSync(indexPath, JSON.stringify(index, null, 2) + '\n')
 }
 
 // --- what changed ----------------------------------------------------------
@@ -186,6 +223,9 @@ if (flags.has('--bump-version')) {
   writeFileSync('vite.config.js', cfg.replace(/const MANUAL_BUILD = '\d+'/, `const MANUAL_BUILD = '${next}'`))
   version = `${today.replace(/-/g, '.')}.${next}`
 }
+
+// A new patch file is untracked; mark it so `git commit -a` includes it.
+if (latest.id !== current && !patchExisted) execFileSync('git', ['add', '--intent-to-add', newPatchPath])
 
 finish(0, {
   status: 'updated',
