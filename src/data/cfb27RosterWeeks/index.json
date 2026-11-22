@@ -1,4 +1,53 @@
 {
   "latest": "cfb-ratings-week-11",
-  "weeks": [{ "id": "cfb-ratings-week-11", "label": "Week 11 Ratings" }]
+  "weeks": [
+    {
+      "id": "1-base",
+      "label": "Launch Ratings"
+    },
+    {
+      "id": "cfb-ratings-week-1",
+      "label": "Week 1 Ratings"
+    },
+    {
+      "id": "cfb-ratings-week-2",
+      "label": "Week 2 Ratings"
+    },
+    {
+      "id": "cfb-ratings-week-3",
+      "label": "Week 3 Ratings"
+    },
+    {
+      "id": "cfb-ratings-week-4",
+      "label": "Week 4 Ratings"
+    },
+    {
+      "id": "cfb-ratings-week-5",
+      "label": "Week 5 Ratings"
+    },
+    {
+      "id": "cfb-ratings-week-6",
+      "label": "Week 6 Ratings"
+    },
+    {
+      "id": "cfb-ratings-week-7",
+      "label": "Week 7 Ratings"
+    },
+    {
+      "id": "cfb-ratings-week-8",
+      "label": "Week 8 Ratings"
+    },
+    {
+      "id": "cfb-ratings-week-9",
+      "label": "Week 9 Ratings"
+    },
+    {
+      "id": "cfb-ratings-week-10",
+      "label": "Week 10 Ratings"
+    },
+    {
+      "id": "cfb-ratings-week-11",
+      "label": "Week 11 Ratings"
+    }
+  ]
 }
