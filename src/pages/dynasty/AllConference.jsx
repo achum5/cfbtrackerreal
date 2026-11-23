@@ -360,9 +360,13 @@ export default function AllConference() {
     }
   }
 
-  const filteredPlayers = filter === 'all'
+  // Not every game names an All-Freshman team, so its tab (and leaderboard
+  // column) shows only when this list has freshman honorees.
+  const hasFreshman = allConference.some(p => p.designation === 'freshman')
+  const activeFilter = filter === 'freshman' && !hasFreshman ? 'first' : filter
+  const filteredPlayers = activeFilter === 'all'
     ? allConference
-    : allConference.filter(p => p.designation === filter)
+    : allConference.filter(p => p.designation === activeFilter)
 
   // Same position-order sort as AllAmericans.jsx — see its own comment for
   // why (the Preseason list came through in the save's arbitrary order).
@@ -646,9 +650,9 @@ export default function AllConference() {
         tabs={hasAnyPlayers ? [
           { key: 'first', label: '1st Team' },
           { key: 'second', label: '2nd Team' },
-          { key: 'freshman', label: 'Freshman' },
+          ...(hasFreshman ? [{ key: 'freshman', label: 'Freshman' }] : []),
         ] : undefined}
-        activeTab={filter}
+        activeTab={activeFilter}
         onTabChange={setFilter}
       />
 
@@ -683,11 +687,15 @@ export default function AllConference() {
           />
         </Card>
       ) : (
-        <TeamSection designation={filter} players={filteredPlayers} />
+        <TeamSection designation={activeFilter} players={filteredPlayers} />
       )}
 
       {hasAnyPlayers && leaderboardEntries.length > 0 && (
-        <SchoolLeaderboard entries={leaderboardEntries} totalSchools={schoolTally.length} />
+        <SchoolLeaderboard
+          entries={leaderboardEntries}
+          totalSchools={schoolTally.length}
+          breakdownKeys={hasFreshman ? undefined : [{ k: 'first', label: '1st' }, { k: 'second', label: '2nd' }]}
+        />
       )}
 
       <AllConferenceModal

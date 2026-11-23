@@ -24,7 +24,19 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsvTolerant } from '../utils/tsvParse'
-import { normalizeAllConferenceRows } from '../utils/allConferenceRealign'
+import { normalizeAllConferenceRows, normalizeHonorDesignation } from '../utils/allConferenceRealign'
+
+// The honor column, spelled the way the All-Conference page labels its tabs.
+// Pasted rows may say first / 1st / First-Team etc.; they're shown as these.
+// Freshman is optional - not every game names an All-Freshman team.
+const HONOR_LABELS = { first: '1st Team', second: '2nd Team', freshman: 'Freshman' }
+const HONOR_OPTIONS = Object.values(HONOR_LABELS)
+const normalizeHonorRows = (rows) =>
+  (normalizeAllConferenceRows(rows) || rows).map((row) => {
+    if (!Array.isArray(row) || row.length < 2) return row
+    const honor = normalizeHonorDesignation(row[1])
+    return honor ? [row[0], HONOR_LABELS[honor], ...row.slice(2)] : row
+  })
 import { getTeamNameOptions, getTeamNameAliases } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
@@ -195,44 +207,44 @@ FINAL CHECK before you send
   // identity, so omitted rows are simply not written.
   const localAiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} All-Conference`,
-    structure: `Output ONE line per All-Conference honoree you can see. Each line is SELF-DESCRIBING — it LEADS with the conference name, then the team designation, then the position — so there is NO grid and NO fixed row order.
+    structure: `Output ONE line per All-Conference honoree you can see. Each line is SELF-DESCRIBING — it LEADS with the conference name, then which All-Conference team (1st Team, 2nd Team or Freshman), then the position — so there is NO grid and NO fixed row order.
 
 ═══════════════════════════════════════════════════════════
 CRITICAL RULES — read before anything else
 ═══════════════════════════════════════════════════════════
 1. Each line has EXACTLY 6 tab-separated fields (5 tabs):
-   Conference<TAB>Designation<TAB>Position<TAB>Player<TAB>Team<TAB>Class
+   Conference<TAB>Honor<TAB>Position<TAB>Player<TAB>Team<TAB>Class
 2. NO header row. NO blank lines. NO commentary, totals, or labels INSIDE the data.
 3. OMIT any honor slot you cannot see — do NOT pad, do NOT guess, do NOT invent a player. A slot with no line is simply left unset.
-4. The order of lines does not matter (each line self-identifies). Output a separate line for every honoree across all three designations.
+4. The order of lines does not matter (each line self-identifies). Output a separate line for every honoree on every All-Conference team shown. If no Freshman All-Conference team is shown, output no freshman lines.
 
 ═══════════════════════════════════════════════════════════
 FIELD FORMATS
 ═══════════════════════════════════════════════════════════
 - Conference — the EXACT conference this honoree belongs to (e.g. "Big Ten", "SEC", "Conference USA", "Mountain West"). Copy the name as shown in your screenshots or video. The Player's Team MUST be a member of this conference.
-- Designation — EXACTLY one of (case-insensitive): first | second | freshman
-    "first" = First-Team All-Conference. "second" = Second-Team. "freshman" = Freshman Team.
+- Honor — which All-Conference team the player made, EXACTLY one of: 1st Team | 2nd Team | Freshman
+    "1st Team" = First-Team All-Conference. "2nd Team" = Second-Team. "Freshman" = the All-Freshman team, only if one is shown.
 - Position — EXACTLY one of, case-sensitive:
     QB | HB | FB | WR | TE | LT | LG | C | RG | RT | LEDG | REDG | DT | SAM | MIKE | WILL | CB | FS | SS | K | P
 - Player — full name string. Do NOT invent players. If a name is illegible, omit the whole line.
 - Team — team name from the list below (e.g. Alabama, Ohio State, Georgia, Texas, USC). NEVER an abbreviation, nickname, or mascot. Must be a member of that line's Conference.
 - Class — EXACTLY one of, case-sensitive:
     Fr | RS Fr | So | RS So | Jr | RS Jr | Sr | RS Sr
-  Note the literal space in "RS Fr"/"RS So"/"RS Jr"/"RS Sr". Freshman-designation honorees must be Fr or RS Fr.
+  Note the literal space in "RS Fr"/"RS So"/"RS Jr"/"RS Sr". Freshman-team honorees must be Fr or RS Fr.
 
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
 === ALL-CONFERENCE ===
-<Conference>\\t<Designation>\\t<Position>\\t<Player>\\t<Team>\\t<Class>
-…one line per honoree across all conferences and all three designations; omit unknowns entirely
+<Conference>\\t<Honor>\\t<Position>\\t<Player>\\t<Team>\\t<Class>
+…one line per honoree across all conferences and All-Conference teams shown; omit unknowns entirely
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
 [ ] Every line has exactly 6 tab-separated fields (five tabs)
 [ ] The 1st field is a conference name and the 5th field (Team) is a member of that conference
-[ ] Designation is exactly first, second, or freshman
+[ ] Honor is exactly 1st Team, 2nd Team, or Freshman
 [ ] Position is from the exact list; Class is from the exact list; freshman honorees are Fr or RS Fr
 [ ] Team values are uppercase names from the list — no full names
 [ ] No blank lines, no header row, no commentary INSIDE the data — only honorees you can actually see`,
@@ -339,7 +351,7 @@ FINAL CHECK before you send
     }
   }, [isOpen])
 
-  // Local paste import: the AI emits Conference<TAB>Designation<TAB>Position<TAB>
+  // Local paste import: the AI emits Conference<TAB>Honor<TAB>Position<TAB>
   // Player<TAB>Team<TAB>Class rows. parseAllConferenceLocal groups by the
   // per-row conference and returns the SAME { allConference,
   // allConferenceByConference } shape the Google reader returns, so the existing
@@ -359,7 +371,7 @@ FINAL CHECK before you send
     if (list?.length) return true
     const saved = currentDynasty?.allAmericansByYear?.[currentYear]?.allConference || []
     if (!saved.length) {
-      throw new Error("No players found in that paste, so nothing was saved. Each row needs a conference, a team (First, Second or Freshman) and a player.")
+      throw new Error("No players found in that paste, so nothing was saved. Each row needs a conference, an honor (1st Team, 2nd Team or Freshman) and a player.")
     }
     return confirm({
       title: `Remove all ${currentYear} All-Conference teams?`,
@@ -371,12 +383,11 @@ FINAL CHECK before you send
 
   // Pre-fill the local grid with this year's saved All-Conference honorees.
   // parseAllConferenceLocal reads self-describing rows in the column order:
-  //   Conference, Designation, Position, Player, Team, Class
+  //   Conference, Honor, Position, Player, Team, Class
   // The saved data lives keyed by conference in allAmericansByYear[year]
   //   .allConferenceByConference, each entry = { designation, position, player,
   //   school, class }. Emitting one line per honoree round-trips: re-importing
   //   the untouched pre-fill reproduces the same allConferenceByConference.
-  const designationLabel = { first: 'First', second: 'Second', freshman: 'Freshman' }
   const initialText = useMemo(() => {
     const byConf = currentDynasty?.allAmericansByYear?.[currentYear]?.allConferenceByConference
       || currentDynasty?.allAmericansByYear?.[String(currentYear)]?.allConferenceByConference
@@ -388,7 +399,7 @@ FINAL CHECK before you send
         if (!e || !e.designation || !e.player) continue
         lines.push([
           conference,
-          designationLabel[e.designation] || e.designation,
+          HONOR_LABELS[e.designation] || e.designation,
           e.position || '',
           e.player || '',
           (e.school || '').toUpperCase(),
@@ -539,8 +550,9 @@ FINAL CHECK before you send
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}
             importLabel="Import All-Conference"
-            columns={['Conference', 'Designation', 'Position', 'Player', 'Team', 'Class']}
-            normalizeRows={normalizeAllConferenceRows}
+            columns={['Conference', 'Honor', 'Position', 'Player', 'Team', 'Class']}
+            columnOptions={{ Honor: HONOR_OPTIONS }}
+            normalizeRows={normalizeHonorRows}
             comboboxColumns={{ Team: teamAbbrs }}
             comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
             initialText={initialText}
